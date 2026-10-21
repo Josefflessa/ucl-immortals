@@ -7,6 +7,9 @@ import {
   RECRUITMENT_VARIANT_CHANCE,
   getNeededPositions,
   generateBotTeam,
+  campaignProgress,
+  roundsFromFinal,
+  withCampaignProgress,
   pickBotNames,
   buildUniquePackRoundKey,
   generateRandomLeagueFixtures,
@@ -52,7 +55,7 @@ import { getOnlineLeagueParticipantIds, getOnlineKnockoutParticipantIds, knockou
 import { albumCatalog, type AlbumLevel, type AlbumPageBonus } from "../shared/game/album.js";
 import { pickHostId } from "./room-host.js";
 import { cloneRoomJson, diffRoomJson, type RoomPatchOperation } from "../shared/room-sync.js";
-import { DisciplineMap, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup, resetYellowsForKnockout, unavailableStarters } from "../shared/game/discipline.js";
+import { DisciplineMap, applyFragilRecoveryReward, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup, resetYellowsForKnockout, unavailableStarters } from "../shared/game/discipline.js";
 import { MarketListing, marketMinPrice, TradeSession } from "../shared/game/market.js";
 import {
   createInitialClubProjects,
@@ -846,10 +849,12 @@ function medicalInjuryDurationForTeam(team: Team): number {
 
 function applyMedicalRecoveries(team: Team, recoveredInjuries: { teamId: string; playerId: string }[]): Team {
   const boost = medicalReturnBoost(projectLevel(team.clubProjects, 'medical'));
-  if (boost <= 0) return team;
   return recoveredInjuries
     .filter(recovery => recovery.teamId === team.id)
-    .reduce((current, recovery) => applyMedicalReturnBoost(current, recovery.playerId, boost), team);
+    .reduce((current, recovery) => {
+      const rewarded = applyFragilRecoveryReward(current, recovery.playerId);
+      return boost > 0 ? applyMedicalReturnBoost(rewarded, recovery.playerId, boost) : rewarded;
+    }, team);
 }
 
 // A disconnected player cannot click the Recruitment Centre modal. Fulfil all
@@ -2953,8 +2958,10 @@ export function registerSocketHandlers(io: RealtimeServer) {
           // 🟨🟥🩹 Bots resolvem a escalação (humanos já estão válidos pelo bloqueio acima).
           // Capture the XI before the authoritative result is stored. The replay
           // may happen later, after the user has edited the squad again.
-          const resolvedHome = resolveAvailableLineup(home, room.discipline).team;
-          const resolvedAway = resolveAvailableLineup(away, room.discipline).team;
+          // The bots play at their point of the campaign: they get stronger round by round.
+          const roundProgress = campaignProgress(room.competitionFormat, { phase: 'league', round: room.leagueRound });
+          const resolvedHome = withCampaignProgress(resolveAvailableLineup(home, room.discipline).team, roundProgress);
+          const resolvedAway = withCampaignProgress(resolveAvailableLineup(away, room.discipline).team, roundProgress);
           const result = simulateMatch(
             resolvedHome,
             resolvedAway,
@@ -3257,13 +3264,14 @@ export function registerSocketHandlers(io: RealtimeServer) {
       const allHumanTeams = room.players.map(p => p.team!).filter(Boolean);
       const allTeams = [...allHumanTeams, ...room.botTeams];
       const resolvedTeams = new Map<string, Team>();
+      const knockoutProgress = campaignProgress(room.competitionFormat, { phase: 'knockout', fromFinal: roundsFromFinal(room.knockoutBracket.currentRound) });
       // 🟨🟥🩹 Resolve as escalações contra a disciplina antes de simular a perna (bots inclusos).
       const resolve = (id: string) => {
         const cached = resolvedTeams.get(id);
         if (cached) return cached;
         const t = allTeams.find(tm => tm.id === id);
         if (!t) return undefined;
-        const resolved = resolveAvailableLineup(t, room.discipline).team;
+        const resolved = withCampaignProgress(resolveAvailableLineup(t, room.discipline).team, knockoutProgress);
         resolvedTeams.set(id, resolved);
         return resolved;
       };

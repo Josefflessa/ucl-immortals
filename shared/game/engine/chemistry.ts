@@ -5,11 +5,11 @@ import { activePlayerTraits, AttrKey, getTraitAttributeBonus, hasPlayerTrait } f
 import { sameClub } from '../crests';
 import { projectLevel } from '../clubProjects';
 import { random } from '../random';
-import { historicalPlayerId, areHistoricalPartners, type PlayerCard, isExcludedPlayer, type Team, formationRoleForPlayer, matchRoleForPlayer, padrinhoGodchildId, migrateLegacyMartirTeam } from './teamModel';
+import { historicalPlayerId, areHistoricalPartners, type PlayerCard, isExcludedPlayer, type Team, formationRoleForPlayer, matchRoleForPlayer, padrinhoGodchildId, migrateLegacyMartirTeam, migrateLegacyFragilPlayer } from './teamModel';
 import { getEffectiveAttribute, SECONDARY_STAT_MULT, naturalPositionFit, specializationAttributeBonus } from './attributes';
 import { goalkeeperAptitudeDefending, tacticStatBonus } from './matchSim';
 import { captainBoostForTeam } from './strength';
-import { MARTIR_TARGET_BOOST, martirDistributionLimit, DECIMO_HOMEM_STAT_BOOST, DECIMO_HOMEM_CHEM_BONUS, CORINGA_SECONDARY_STAT_BOOST, CORINGA_OOP_STAT_BOOST, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, FORASTEIRO_CHEM_PENALTY_PER_PLAYER, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, FOMINHA_CHEM_PENALTY_PER_GOAL, FOMINHA_STAT_BOOST_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, desenfreadoStatBoost } from './draft';
+import { HUMILDE_BRONZE_BOOST, HUMILDE_SILVER_BOOST, MARTIR_TARGET_BOOST, martirDistributionLimit, DECIMO_HOMEM_STAT_BOOST, DECIMO_HOMEM_CHEM_BONUS, CORINGA_SECONDARY_STAT_BOOST, CORINGA_OOP_STAT_BOOST, fragilStatBoost, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, FORASTEIRO_CHEM_PENALTY_PER_PLAYER, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, FOMINHA_CHEM_PENALTY_PER_GOAL, FOMINHA_STAT_BOOST_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, desenfreadoStatBoost } from './draft';
 
 // The preferred formation adds chemistry for the whole team, which can move it into a
 // higher team-chemistry bonus tier.
@@ -200,6 +200,7 @@ export interface StatBreakdown {
   padrinho: number; // 🤵 Padrinho — +1 permanente por gol do afilhado
   lapidado: number; // 💎 bônus permanente recebido de Lapidadores enquanto estava na reserva
   char: number;       // 🩸❤️🪑🤝 team-effect characteristics buffing THIS player
+  fragil: number;     // 🩹 Frágil — +3 permanente por recuperação completa
   pipoqueiro: number; // 🍿 Pipoqueiro — +N em tudo na fase de liga, −N no mata-mata
   specialization: number; // ⭐ Especialização do nível 4 — +6 nos dois atributos da área
 }
@@ -346,6 +347,7 @@ export function getPlayerEffectiveStats(
     isSecondary?: boolean;
   }
 ): EffectiveStats {
+  player = migrateLegacyFragilPlayer(player);
   const isSecondary = context?.isSecondary ?? false;
   const positionOOPPenalty = isOOP && !player.coringa;
   const positionSecondaryPenalty = isSecondary && !player.coringa;
@@ -408,6 +410,7 @@ export function getPlayerEffectiveStats(
   const padrinhoBonus = (_attr: AttrKey): number => player.padrinho ? padrinhoStatBoost(player.padrinhoGoals) : 0;
   const lapidadoBonus = (_attr: AttrKey): number => Math.max(0, player.lapidadoBoost ?? 0);
   const apostadorBonus = (_attr: AttrKey): number => player.apostador ? apostadorStatBoost(player.apostadorWins) : 0;
+  const fragilBonus = (_attr: AttrKey): number => player.fragil ? fragilStatBoost(player.fragilRecoveries ?? (player.fragilRecovered ? 1 : 0)) : 0;
 
   // 🩸❤️🪑🤝 Team-effect characteristics buffing THIS player.
   const charB = context?.charBoosts?.[player.id];
@@ -418,7 +421,7 @@ export function getPlayerEffectiveStats(
     player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
-  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + specializationBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + mercenarioBonus(attr) + padrinhoBonus(attr) + lapidadoBonus(attr) + apostadorBonus(attr) + charBonus(attr) + pipoqBonus(attr);
+  const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + specializationBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + mercenarioBonus(attr) + padrinhoBonus(attr) + lapidadoBonus(attr) + apostadorBonus(attr) + fragilBonus(attr) + charBonus(attr) + pipoqBonus(attr);
 
   const eff = (base: number, mod: number, attr: AttrKey) =>
     Math.max(1, applyMult(base) + mod + extra(attr));
@@ -463,6 +466,7 @@ export function getPlayerEffectiveStats(
     mercenario: mercenarioBonus(attr),
     padrinho: padrinhoBonus(attr),
     lapidado: lapidadoBonus(attr),
+    fragil: fragilBonus(attr),
     char: charBonus(attr),
     pipoqueiro: pipoqBonus(attr),
   });
@@ -526,7 +530,7 @@ export function getChemistryBonus(total: number): { passing: number; pace: numbe
 // attribute points they get from teammates' characteristics (stackable). The buffs then flow
 // through getEffectiveAttribute / getPlayerEffectiveStats exactly like the captain boost.
 // Cada contribuição individual (pra mostrar SEPARADO no painel: quem deu e quanto).
-export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'coringa' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante' | 'padrinho' | 'agregador' | 'fominha' | 'poliglota' | 'desenfreado'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; chemistryPenalty?: number; self?: boolean };
+export type CharSource = { type: 'idolo' | 'martir' | 'decimoHomem' | 'coringa' | 'noe' | 'forasteiro' | 'colecionador' | 'todosPorUm' | 'arrogante' | 'padrinho' | 'agregador' | 'humilde' | 'fominha' | 'poliglota' | 'desenfreado'; fromId: string; fromName: string; flatAll: number; perStat: Partial<Record<AttrKey, number>>; chemistryPenalty?: number; self?: boolean };
 export type CharBoost = { flatAll: number; perStat: Partial<Record<AttrKey, number>>; sources: CharSource[] };
 export type CharBoostMap = Record<string, CharBoost>;
 
@@ -651,6 +655,17 @@ export function computeCharacteristicBoosts(players: (Player | undefined)[], tea
     if (!agg.agregador) continue;
     for (const mate of xi) contribute(mate.id, { type: 'agregador', fromId: agg.id, fromName: agg.shortName, flatAll: distinctTraits * AGREGADOR_STAT_BOOST_PER_TRAIT, perStat: {} });
   }
+  // 🌱 Humilde — titular: os Bronze (+3) e Prata (+1) titulares reforçam todos os titulares.
+  // Qualquer Bronze/Prata do XI conta, não só os com a característica; cada Humilde soma o seu.
+  const humildeBoost = xi.reduce((sum, p) => sum + (p.rarity === 'bronze' ? HUMILDE_BRONZE_BOOST : p.rarity === 'silver' ? HUMILDE_SILVER_BOOST : 0), 0);
+  if (humildeBoost > 0) {
+    for (const esc of xi) {
+      if (!esc.humilde) continue;
+      for (const mate of xi) {
+        contribute(mate.id, { type: 'humilde', fromId: esc.id, fromName: esc.shortName, flatAll: humildeBoost, perStat: {} });
+      }
+    }
+  }
   // 🛟 Noé — +2 em tudo ao Noé por titular SEM característica (a química vive em calculateChemistry).
   const plainStarters = xi.filter(p => !hasVariant(p)).length;
   for (const n of xi) {
@@ -763,7 +778,7 @@ export function getTeamEffectiveStats(
  * count (Conquistador) — belongs to the team and is recalculated on a new one.
  */
 const CARD_INTRINSIC_SOURCES = [
-  'album', 'trait', 'train', 'evolve', 'specialization', 'prodigio', 'resiliente', 'goleador',
+  'album', 'trait', 'train', 'evolve', 'specialization', 'fragil', 'prodigio', 'resiliente', 'goleador',
   'garcom', 'arrogante', 'padrinho', 'lapidado', 'pipoqueiro',
 ] as const;
 const CARD_ATTRS = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure'] as const;
@@ -773,6 +788,7 @@ export function getCardIntrinsicStats(player: Player, options: { isKnockout?: bo
   overall: number; pace: number; shooting: number; passing: number; dribbling: number;
   defending: number; physical: number; vision: number; composure: number;
 } {
+  player = migrateLegacyFragilPlayer(player);
   const eff = getPlayerEffectiveStats(player, 0, false, '', 0, 'balanced', {
     isKnockout: options.isKnockout,
     role: player.position,

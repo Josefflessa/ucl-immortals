@@ -14,7 +14,7 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
     topScorers, topAssists, topRatings, topKeepers, topTacklers, topCards, myPlayerStats,
   } = hub;
   return (
-    <>
+    <div className="competition-live-reading">
         {/* Estatísticas da Temporada */}
         {activeTab === 'scorers' && spoilerLock && (
           <SpoilerLock waiting={spoilerWaiting} label="ESTATÍSTICAS OCULTAS" />
@@ -182,6 +182,6 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
             )}
           </div>
         )}
-    </>
+    </div>
   );
 }

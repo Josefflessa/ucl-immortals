@@ -3,7 +3,7 @@
 import { Player, FORMATIONS, getCompetitionAlbumBonus, effectiveSecondaries } from '../gameData';
 import { type ClubProjectsState } from '../clubProjects';
 import type { AlbumLevel } from '../album';
-import { LAPIDADOR_RESERVE_BOOST, MIDIATICO_CREDITS_PER_GOAL, FAZ_TUDO_STARTS_TO_LEARN, MARTIR_STAT_PENALTY } from './draft';
+import { LAPIDADOR_RESERVE_BOOST, MIDIATICO_CREDITS_PER_GOAL, FAZ_TUDO_STARTS_TO_LEARN, MARTIR_STAT_PENALTY, FRAGIL_LEGACY_BAKED_BOOST } from './draft';
 
 // Premium variants keep their own card IDs for inventory/UI. Cards that represent
 // a different club/era may provide historicalPlayerId so historical chemistry
@@ -26,7 +26,7 @@ export function areHistoricalPartners(a: Player, b: Player): boolean {
 // ============================================================
 /** Card fields that grow with matches and change the card's effective numbers. */
 export const KICKOFF_CARD_FIELDS = [
-  'appearances', 'evolvePoints', 'prodigioStarts', 'resilienteDefeats', 'goleadorGoals',
+  'appearances', 'evolvePoints', 'prodigioStarts', 'resilienteDefeats', 'fragilProgressive', 'fragilRecoveries', 'fragilRecovered', 'goleadorGoals',
   'garcomAssists', 'arroganteGoals', 'mercenarioMissions', 'padrinhoGoals', 'lapidadoBoost',
   'martirWins', 'martirMatchIds', 'martirTargets', 'martirDistribution',
 ] as const;
@@ -175,6 +175,8 @@ export interface Team {
   totalChemistry: number;
   isBot: boolean;
   botStrength?: number;
+  /** Where in the campaign this bot plays (0 = first round, 1 = the final): its strength grows with it. */
+  campaignProgress?: number;
   /** Shop-credit balance used by balance-sensitive card characteristics. */
   credits?: number;
   /** Club progression scaffold. Missing in legacy saves means every project is level 1. */
@@ -204,7 +206,7 @@ export function migrateLegacyMartirTeam(team: Team): Team {
       restored.physical += MARTIR_STAT_PENALTY;
       restored.vision += MARTIR_STAT_PENALTY;
       restored.composure += MARTIR_STAT_PENALTY;
-      const otherBakedVariant = !!(player.inForm || player.lobo || player.magnata || player.fragil);
+      const otherBakedVariant = !!(player.inForm || player.lobo || player.magnata || (player.fragil && !player.fragilProgressive));
       if (!otherBakedVariant) delete restored.baseOverall;
     }
 
@@ -231,6 +233,48 @@ export function migrateLegacyMartirTeam(team: Team): Team {
       martirTargets: targets,
       martirDistribution: distribution,
     };
+  });
+  return migrateLegacyFragilTeam(changed ? { ...team, players } : team);
+}
+
+/** Removes the old baked +7 from existing Frágil cards once and starts their recovery progression. */
+export function migrateLegacyFragilPlayer<T extends Player>(player: T): T {
+  if (!player.fragil) return player;
+  if (player.fragilProgressive) {
+    if (player.fragilRecovered) {
+      const migrated = { ...player, fragilRecoveries: Math.max(player.fragilRecoveries ?? 0, 1) };
+      delete migrated.fragilRecovered;
+      return migrated;
+    }
+    return player;
+  }
+
+  const migrated = { ...player, fragilProgressive: true, fragilRecoveries: player.fragilRecovered ? 1 : 0 };
+  delete migrated.fragilRecovered;
+  // Older Frágil application always stored baseOverall alongside its baked stats.
+  // Keep the rollback anchor only if another baked trait still needs it.
+  migrated.overall = Math.max(1, migrated.overall - FRAGIL_LEGACY_BAKED_BOOST);
+  migrated.pace = Math.max(1, migrated.pace - FRAGIL_LEGACY_BAKED_BOOST);
+  migrated.shooting = Math.max(1, migrated.shooting - FRAGIL_LEGACY_BAKED_BOOST);
+  migrated.passing = Math.max(1, migrated.passing - FRAGIL_LEGACY_BAKED_BOOST);
+  migrated.dribbling = Math.max(1, migrated.dribbling - FRAGIL_LEGACY_BAKED_BOOST);
+  migrated.defending = Math.max(1, migrated.defending - FRAGIL_LEGACY_BAKED_BOOST);
+  migrated.physical = Math.max(1, migrated.physical - FRAGIL_LEGACY_BAKED_BOOST);
+  migrated.vision = Math.max(1, migrated.vision - FRAGIL_LEGACY_BAKED_BOOST);
+  migrated.composure = Math.max(1, migrated.composure - FRAGIL_LEGACY_BAKED_BOOST);
+  if (player.baseOverall !== undefined) {
+    const otherBakedVariant = !!(player.inForm || player.lobo || (player.martir && !player.martirProgressive) || player.magnata);
+    if (!otherBakedVariant) delete migrated.baseOverall;
+  }
+  return migrated;
+}
+
+export function migrateLegacyFragilTeam(team: Team): Team {
+  let changed = false;
+  const players = team.players.map(player => {
+    const migrated = migrateLegacyFragilPlayer(player);
+    if (migrated !== player) changed = true;
+    return migrated;
   });
   return changed ? { ...team, players } : team;
 }

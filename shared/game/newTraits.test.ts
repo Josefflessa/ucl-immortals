@@ -130,3 +130,43 @@ describe('📺 Midiático', () => {
     expect(reward.total).toBe(130);
   });
 });
+
+describe('🌱 Humilde', () => {
+  const withRarity = (team: Team, rarities: Record<number, 'bronze' | 'silver' | 'gold'>, humildes: number[]): Team['players'] =>
+    team.players.map((p, i) => {
+      const rarity = rarities[i] ?? 'gold';
+      const base = { ...p, rarity };
+      return humildes.includes(i) ? applyShopVariant(base, 'humilde') : base;
+    });
+
+  it('gives every starter +3 per Bronze and +1 per Silver starter, and any card can carry it', () => {
+    const team = plainTeam();
+    // 0 = Humilde (silver), 1-2 bronze, 3 silver, resto ouro.
+    const players = withRarity(team, { 0: 'silver', 1: 'bronze', 2: 'bronze', 3: 'silver' }, [0]);
+    const boosts = computeCharacteristicBoosts(players);
+    const expected = 3 * 2 + 1 * 2; // 2 bronze + 2 prata (o Humilde prata também conta)
+    expect(boosts[players[5].id]?.flatAll).toBe(expected);
+    expect(boosts[players[1].id]?.flatAll).toBe(expected);
+    expect(boosts[players[0].id]?.flatAll).toBe(expected);
+    expect(boosts[players[12].id]).toBeUndefined();
+  });
+
+  it('multiple Humildes stack, and reserves do not count', () => {
+    const team = plainTeam();
+    const players = withRarity(team, { 1: 'bronze', 2: 'bronze', 12: 'bronze' }, [4, 5]);
+    const boosts = computeCharacteristicBoosts(players);
+    expect(boosts[players[6].id]?.flatAll).toBe((3 * 2) * 2);
+  });
+
+  it('does nothing when the Humilde is on the bench', () => {
+    const team = plainTeam();
+    const players = withRarity(team, { 1: 'bronze' }, [12]);
+    expect(computeCharacteristicBoosts(players)[players[6].id]?.flatAll ?? 0).toBe(0);
+  });
+
+  it('is in the draft pool while Nômade is retired', () => {
+    expect(DRAFT_VARIANT_POOL).toContain('humilde');
+    expect(RETIRED_VARIANT_FLAGS.has('nomade')).toBe(true);
+    expect(VARIANT_FLAGS).toContain('humilde');
+  });
+});

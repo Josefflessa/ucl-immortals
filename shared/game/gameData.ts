@@ -113,7 +113,11 @@ export interface Player {
   todosPorUm?: boolean;   // 🤝 Todos por um — com os 11 titulares, +20 em todos os atributos
   capitaoNato?: boolean; // 🗣️ Capitão Nato — se for o CAPITÃO do time, o bônus de capitão é TRIPLICADO
   magnata?: boolean;     // 🤑 Magnata — titular multiplica os créditos da partida por 1,5, mas −7 em tudo nele
-  fragil?: boolean;      // 🩹 Frágil — +7 em tudo, mas aumenta drasticamente o risco de lesão
+  fragil?: boolean;      // 🩹 Frágil — risco muito maior de lesão; acumula +3 em tudo por recuperação
+  fragilProgressive?: boolean; // 🩹 Regra progressiva aplicada; migra as cartas antigas uma vez
+  fragilRecoveries?: number; // 🩹 Recuperações completas que liberaram o bônus permanente
+  /** @deprecated Compatibilidade com saves de desenvolvimento anteriores à progressão cumulativa. */
+  fragilRecovered?: boolean;
   prodigio?: boolean;    // 📈 Prodígio — +1 em todos os atributos a cada titularidade acumulada
   prodigioStarts?: number; // 📈 titularidades acumuladas desde que a característica foi recebida
   resiliente?: boolean;  // 🔥 Resiliente — cresce após cada derrota do time em que estiver no XI
@@ -139,6 +143,7 @@ export interface Player {
   lapidadoBoost?: number; // 💎 bônus permanente recebido de Lapidadores enquanto estava na reserva (fica com a carta)
   apostador?: boolean;   // 🎲 Apostador — +2 permanente em tudo por aposta vencida com ele no elenco
   apostadorWins?: number; // 🎲 apostas vencidas contabilizadas enquanto a carta carrega a característica
+  humilde?: boolean;   // 🌱 Humilde — titular: cada Bronze titular dá +3 e cada Prata +1 em tudo a todos os titulares
   agregador?: boolean;   // 🧩 Agregador — titular: +1 em tudo ao XI por característica diferente entre os titulares
   pechincheiro?: boolean; // 🏷️ Pechincheiro — no elenco: itens da loja custam 15% a menos
   midiatico?: boolean;   // 📺 Midiático — cada gol dele rende 20 créditos

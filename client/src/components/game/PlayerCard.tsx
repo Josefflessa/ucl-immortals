@@ -2,7 +2,7 @@ import { useEffect, useState, memo } from 'react';
 import TraitIcon from './TraitIcon';
 import { motion } from 'framer-motion';
 import { getCompetitionAlbumBonus, PLAYERS, PLAYER_SPECIALIZATIONS, Player, POS_PT, type PlayerSpecialization } from '@shared/game/gameData';
-import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, DECIMO_HOMEM_CHEM_BONUS, CORINGA_SECONDARY_STAT_BOOST, CORINGA_OOP_STAT_BOOST, FRAGIL_STAT_BOOST, getCardIntrinsicStats, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, DESENFREADO_CHEM_PER_BOOST, FAZ_TUDO_STARTS_TO_LEARN, FOMINHA_STAT_BOOST_PER_GOAL, FOMINHA_CHEM_PENALTY_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
+import { PILAR_CHEM_BONUS, arroganteStatBoost, arroganteTeamPenalty, ARROGANTE_GOALS_PER_PENALTY, DECIMO_HOMEM_STAT_BOOST, DECIMO_HOMEM_CHEM_BONUS, CORINGA_SECONDARY_STAT_BOOST, CORINGA_OOP_STAT_BOOST, FRAGIL_STAT_BOOST, fragilStatBoost, getCardIntrinsicStats, getEvolutionLevel, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST, MERCENARIO_STAT_BOOST_PER_MISSION, LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, HUMILDE_BRONZE_BOOST, HUMILDE_SILVER_BOOST, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, PADRINHO_AFILHADO_BOOST, padrinhoStatBoost, NOE_CHEM_BONUS, NOE_STAT_BOOST, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, DESENFREADO_CHEM_PER_BOOST, FAZ_TUDO_STARTS_TO_LEARN, FOMINHA_STAT_BOOST_PER_GOAL, FOMINHA_CHEM_PENALTY_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, TODOS_POR_UM_STAT_BOOST, garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, prodigioStatBoost } from '@shared/game/gameEngine';
 import { canonicalClubName, crestIdForClub } from '@shared/game/crests';
 import { getPlayerPhotoDirectory, getPlayerPhotoFilename } from '../../lib/playerPhotoCatalog';
 import { FRAME_URL, frameMask, ringGradient } from './CardShield';
@@ -1052,6 +1052,7 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   lapidador: { color: '#93C5FD', icon: '💎', label: 'LAPIDADOR', treatment: 'calm' },
   apostador: { color: '#D9752F', icon: '🎲', label: 'APOSTADOR', treatment: 'pulse' },
   agregador: { color: '#A5ACC2', icon: '🔗', label: 'AGREGADOR', treatment: 'halo' },
+  humilde: { color: '#FF2BD6', icon: '🌱', label: 'HUMILDE', treatment: 'ring' },
   pechincheiro: { color: '#E0315F', icon: '🏷️', label: 'PECHINCHEIRO', treatment: 'calm' },
   midiatico: { color: '#7C6FF0', icon: '📺', label: 'MIDIÁTICO', treatment: 'ring' },
   mentor: { color: '#8B5E3C', icon: '🧑‍🏫', label: 'MENTOR', treatment: 'calm' },
@@ -1061,7 +1062,7 @@ const VARIANT_STYLE: Record<string, { color: string; icon: string; label: string
   fominha: { color: '#B32D45', icon: '🍽️', label: 'FOMINHA', treatment: 'pulse' },
   poliglota: { color: '#8FD6B4', icon: '💬', label: 'POLIGLOTA', treatment: 'halo' },
 };
-const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'pechincheiro', 'midiatico', 'mentor', 'improvisador', 'desenfreado', 'fazTudo', 'fominha', 'poliglota'] as const;
+const VARIANT_ORDER = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'humilde', 'pechincheiro', 'midiatico', 'mentor', 'improvisador', 'desenfreado', 'fazTudo', 'fominha', 'poliglota'] as const;
 type CardVariant = { key: string; color: string; icon: string; label: string; treatment: VariantTreatment };
 function getCardVariant(player: Player): CardVariant | null {
   for (const key of VARIANT_ORDER) {
@@ -1092,7 +1093,11 @@ function variantDesc(player: Player): string {
   if (player.todosPorUm) return `TODOS POR UM: se os 11 titulares tiverem a característica, todos recebem +${TODOS_POR_UM_STAT_BOOST} em cada atributo`;
   if (player.capitaoNato) return 'CAPITÃO NATO: se for o CAPITÃO do time, o bônus de capitão é TRIPLICADO';
   if (player.magnata) return 'MAGNATA: titular multiplica os créditos da partida por 1,5 na liga e no mata-mata (mas −7 em cada atributo nele)';
-  if (player.fragil) return `FRÁGIL: +${FRAGIL_STAT_BOOST} em cada atributo, mas aumenta drasticamente a chance de se machucar`;
+  if (player.fragil) {
+    const recoveries = Math.max(0, Math.floor(player.fragilRecoveries ?? (player.fragilRecovered ? 1 : 0)));
+    const boost = fragilStatBoost(recoveries);
+    return `FRÁGIL: +${boost} em cada atributo por ${recoveries} ${recoveries === 1 ? 'recuperação' : 'recuperações'}; acumula +${FRAGIL_STAT_BOOST} por nova recuperação completa; risco muito maior de lesão`;
+  }
   if (player.prodigio) {
     const starts = player.prodigioStarts ?? 0;
     return `PRODÍGIO: +${prodigioStatBoost(starts)} em cada atributo · +1 a cada ${PRODIGIO_STARTS_PER_BOOST} ${PRODIGIO_STARTS_PER_BOOST === 1 ? 'titularidade' : 'titularidades'} (${starts} acumuladas)`;
@@ -1126,6 +1131,7 @@ function variantDesc(player: Player): string {
     const wins = player.apostadorWins ?? 0;
     return `APOSTADOR: +${apostadorStatBoost(wins)} em cada atributo · +${APOSTADOR_STAT_BOOST_PER_WIN} por aposta vencida (${wins} vencida${wins === 1 ? '' : 's'})`;
   }
+  if (player.humilde) return `HUMILDE: titular, cada Bronze titular dá +${HUMILDE_BRONZE_BOOST} e cada Prata +${HUMILDE_SILVER_BOOST} em cada atributo a todos os titulares`;
   if (player.agregador) return `AGREGADOR: titular, dá +${AGREGADOR_STAT_BOOST_PER_TRAIT} em cada atributo ao time por característica diferente entre os titulares`;
   if (player.pechincheiro) return 'PECHINCHEIRO: no elenco, os itens da loja custam 15% a menos';
   if (player.midiatico) return `MIDIÁTICO: cada gol dele rende ${MIDIATICO_CREDITS_PER_GOAL} créditos`;

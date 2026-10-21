@@ -91,14 +91,14 @@ describe('🔀 Improvisador', () => {
 });
 
 describe('💯 Desenfreado', () => {
-  it('gives the whole XI +1 in everything per 2 chemistry points above 100, with no cap', () => {
+  it('gives the whole XI +1 in everything per 3 chemistry points above 100, with no cap', () => {
     const team = plainTeam();
     const xi = team.players.map((p, i) => (i === 3 ? applyShopVariant(p, 'desenfreado') : p));
     expect(computeCharacteristicBoosts(xi, 100)[xi[0].id]?.flatAll ?? 0).toBe(0);
     const boosts = computeCharacteristicBoosts(xi, 131);
-    for (const p of xi.slice(0, 11)) expect(boosts[p.id]?.flatAll).toBe(15);
+    for (const p of xi.slice(0, 11)) expect(boosts[p.id]?.flatAll).toBe(10);
     expect(boosts[xi[12].id]).toBeUndefined();
-    expect(computeCharacteristicBoosts(xi, 300)[xi[0].id]?.flatAll).toBe(100);
+    expect(computeCharacteristicBoosts(xi, 300)[xi[0].id]?.flatAll).toBe(66);
   });
 
   it('does nothing without a Desenfreado starter', () => {

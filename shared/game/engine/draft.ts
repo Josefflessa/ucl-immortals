@@ -46,7 +46,11 @@ export const DECIMO_HOMEM_CHEM_BONUS = 8; // 12º Homem: +8 de química geral en
 export const CORINGA_SECONDARY_STAT_BOOST = 1; // Coringa: +1 em tudo por titular em posição secundária
 export const CORINGA_OOP_STAT_BOOST = 2; // Coringa: +2 em tudo por titular fora de posição
 export const MAGNATA_STAT_PENALTY = 7;     // 🤑 Magnata: −7 em todos os atributos (nele mesmo)
-export const FRAGIL_STAT_BOOST = 7;  // 🩹 Frágil: +7 em todos os atributos (nele mesmo)
+export const FRAGIL_STAT_BOOST = 3;  // 🩹 Frágil: +3 em todos os atributos por recuperação completa
+export const FRAGIL_LEGACY_BAKED_BOOST = 7; // Valor já assado em cartas antigas antes da mudança
+export function fragilStatBoost(recoveries: number | undefined): number {
+  return Math.max(0, Math.floor(recoveries ?? 0)) * FRAGIL_STAT_BOOST;
+}
 // 🤑 Magnata — titular multiplica os CRÉDITOS da partida por isto (não empilha: 1+ magnatas → 1 só).
 export const MAGNATA_POINT_MULT = 1.5;
 // Créditos da partida ×MAGNATA_POINT_MULT se QUALQUER titular (0-10) for Magnata; senão ×1 (não empilha).
@@ -114,6 +118,10 @@ export const LAPIDADOR_RESERVE_BOOST = 1;
 export const APOSTADOR_STAT_BOOST_PER_WIN = 2;
 /** 🧩 Agregador: +N em tudo ao XI por característica diferente entre os titulares (cada Agregador soma). */
 export const AGREGADOR_STAT_BOOST_PER_TRAIT = 1;
+/** 🌱 Humilde: +N em tudo a todos os titulares, por titular Bronze (cada Humilde soma). */
+export const HUMILDE_BRONZE_BOOST = 3;
+/** 🌱 Humilde: o mesmo por titular Prata. */
+export const HUMILDE_SILVER_BOOST = 1;
 /** 📺 Midiático: créditos por gol dele. */
 export const MIDIATICO_CREDITS_PER_GOAL = 20;
 
@@ -467,9 +475,14 @@ export function applyShopVariant(
       martirDistribution: {},
     };
   }
-  if (variant === 'inForm' || variant === 'lobo' || variant === 'magnata' || variant === 'fragil') {
-    // InForm/Lobo/Fragile add to every attribute; Magnate subtracts.
-    const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : variant === 'fragil' ? FRAGIL_STAT_BOOST : -MAGNATA_STAT_PENALTY;
+  if (variant === 'fragil') {
+    const fragile = { ...player, fragil: true, fragilProgressive: true, fragilRecoveries: 0 };
+    delete fragile.fragilRecovered;
+    return fragile;
+  }
+  if (variant === 'inForm' || variant === 'lobo' || variant === 'magnata') {
+    // InForm/Lobo add to every attribute; Magnate subtracts.
+    const b = variant === 'inForm' ? INFORM_STAT_BOOST : variant === 'lobo' ? LOBO_STAT_BOOST : -MAGNATA_STAT_PENALTY;
     return {
       ...player, [variant]: true, baseOverall: player.baseOverall ?? player.overall,
       overall: clampStat(player.overall + b), pace: clampStat(player.pace + b), shooting: clampStat(player.shooting + b),
@@ -494,7 +507,7 @@ export function applyShopVariant(
 
 // Does this card carry ANY special characteristic? (used to gate Turbinar — one per card — and
 // to gate the "remover característica" purchase). Keeps every variant flag in ONE place.
-export const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'pechincheiro', 'midiatico', 'mentor', 'improvisador', 'desenfreado', 'fazTudo', 'fominha', 'poliglota'] as const;
+export const VARIANT_FLAGS = ['inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem', 'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm', 'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante', 'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'humilde', 'pechincheiro', 'midiatico', 'mentor', 'improvisador', 'desenfreado', 'fazTudo', 'fominha', 'poliglota'] as const;
 export type VariantFlag = typeof VARIANT_FLAGS[number];
 // Características aposentadas: continuam reconhecidas nas cartas, no histórico e nos recordes,
 // mas não aparecem mais no draft, no Turbinar nem no quadro de missões.
@@ -534,13 +547,13 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.baseOverall;
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirProgressive; delete p.martirWins; delete p.martirMatchIds; delete p.martirTargets; delete p.martirDistribution; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
-  delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.estribado; delete p.todosPorUm; delete p.capitaoNato; delete p.magnata; delete p.fragil; delete p.prodigio; delete p.prodigioStarts;
+  delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.estribado; delete p.todosPorUm; delete p.capitaoNato; delete p.magnata; delete p.fragil; delete p.fragilProgressive; delete p.fragilRecoveries; delete p.fragilRecovered; delete p.prodigio; delete p.prodigioStarts;
   delete p.resiliente; delete p.resilienteDefeats; delete p.goleador; delete p.goleadorGoals; delete p.goleadorMatchIds;
   delete p.garcom; delete p.garcomAssists; delete p.garcomMatchIds; delete p.arrogante; delete p.arroganteGoals; delete p.arroganteMatchIds;
   delete p.mercenario; delete p.mercenarioMissions;
   delete p.padrinho; delete p.padrinhoTarget; delete p.padrinhoGoals; delete p.padrinhoMatchIds;
   delete p.lapidador; delete p.lapidadorMatchIds;
-  delete p.apostador; delete p.apostadorWins; delete p.agregador; delete p.pechincheiro; delete p.midiatico;
+  delete p.apostador; delete p.apostadorWins; delete p.agregador; delete p.humilde; delete p.pechincheiro; delete p.midiatico;
   delete p.mentor; delete p.mentorMatchIds; delete p.improvisador; delete p.desenfreado;
   delete p.fazTudo; delete p.fazTudoStarts; delete p.fazTudoMatchIds; delete p.learnedPositions;
   delete p.fominha; delete p.fominhaGoals; delete p.fominhaMatchIds; delete p.poliglota;
@@ -548,15 +561,17 @@ export function stripVariant<T extends Player>(player: T): T {
 }
 
 // Loja "Remover Característica" quando a carta tem DUAS (só Únicas): remove APENAS a escolhida,
-// preservando a outra. Reverte o efeito de stat da variante baked que sai (Em Alta/Lobo/Frágil
+// preservando a outra. Reverte o efeito de stat da variante baked que sai (Em Alta/Lobo/Frágil legado
 // somaram, Mártir/Magnata subtraíram) e só descarta o baseOverall se não sobrar outra variante baked.
 const BAKED_DELTA: Partial<Record<VariantFlag, number>> = {
-  inForm: INFORM_STAT_BOOST, lobo: LOBO_STAT_BOOST, martir: -MARTIR_STAT_PENALTY, fragil: FRAGIL_STAT_BOOST,
+  inForm: INFORM_STAT_BOOST, lobo: LOBO_STAT_BOOST, martir: -MARTIR_STAT_PENALTY, fragil: FRAGIL_LEGACY_BAKED_BOOST,
   magnata: -MAGNATA_STAT_PENALTY,
 };
 export function stripSpecificVariant<T extends Player>(player: T, variant: VariantFlag): T {
   const p: T = { ...player };
-  const d = variant === 'martir' && p.martirProgressive ? 0 : (BAKED_DELTA[variant] ?? 0);
+  const d = (variant === 'martir' && p.martirProgressive) || (variant === 'fragil' && p.fragilProgressive)
+    ? 0
+    : (BAKED_DELTA[variant] ?? 0);
   if (d !== 0 && p.baseOverall !== undefined) {
     p.pace = clampStat(p.pace - d); p.shooting = clampStat(p.shooting - d);
     p.passing = clampStat(p.passing - d); p.dribbling = clampStat(p.dribbling - d);
@@ -564,14 +579,15 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
     p.vision = clampStat(p.vision - d); p.composure = clampStat(p.composure - d);
     p.overall = clampStat(p.overall - d);
     // baseOverall só faz sentido enquanto AINDA houver alguma variante baked ativa
-    const otherBaked = (['inForm', 'lobo', 'martir', 'fragil', 'magnata'] as const).some(k => k !== variant && p[k]);
+    const otherBaked = !!(p.inForm || p.lobo || (p.martir && !p.martirProgressive) || (p.fragil && !p.fragilProgressive) || p.magnata);
     if (!otherBaked) delete p.baseOverall;
   }
   delete (p as unknown as Record<string, unknown>)[variant];
+  if (variant === 'fragil') { delete p.fragilProgressive; delete p.fragilRecoveries; delete p.fragilRecovered; }
   if (variant === 'martir') {
     delete p.martirProgressive; delete p.martirWins; delete p.martirMatchIds; delete p.martirTargets; delete p.martirDistribution;
     if (p.baseOverall !== undefined && d === 0) {
-      const otherBaked = (['inForm', 'lobo', 'fragil', 'magnata'] as const).some(k => p[k]);
+      const otherBaked = !!(p.inForm || p.lobo || (p.fragil && !p.fragilProgressive) || p.magnata);
       if (!otherBaked) delete p.baseOverall;
     }
   }

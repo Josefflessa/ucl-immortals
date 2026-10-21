@@ -1,12 +1,11 @@
 // UCL Immortals — Championship End Screen
-// Cinematic celebration / campaign summary after the tournament
+// Campaign summary after the tournament
 
 import { playSound } from '../audio/uiSound';
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Armchair, ArrowLeft, BarChart3, ClipboardList, Home, Medal, Table2, Trophy, Zap } from 'lucide-react';
+import { Armchair, ArrowLeft, Home, Medal, Trophy, Zap } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
 import { useAlbum } from '../contexts/AlbumContext';
@@ -29,7 +28,7 @@ import Crest from '../components/game/Crest';
 import PlayerCard from '../components/game/PlayerCard';
 import PlayerAvatar from '../components/game/PlayerAvatar';
 import PlayerDetailsModal from '../components/game/PlayerDetailsModal';
-import { AppShell, Button, FixedActionBar, PageContainer, TopBar } from '../design-system';
+import { AppShell, Button, FixedActionBar, PageContainer, Tab, TabList, Tabs, TopBar } from '../design-system';
 import type { CompetitionHistoryEntry } from '../contexts/AccountContext';
 import { getCompetitionHistorySnapshot, type CompetitionHistorySnapshot } from '../lib/historySnapshot';
 import { competitionFinishStage, competitionStagePoints, isRankedDifficulty } from '@shared/game/competitionRanking';
@@ -323,21 +322,10 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
     ? historySnapshot.championCrestId ?? (historySnapshot.championId === historySnapshot.playerTeam.id ? historySnapshot.playerTeam.crestId ?? null : null)
     : championTeam?.crestId ?? null;
 
-  // ── Cinematic reveal phases ────────────────────────────────────────────────
-  const [phase, setPhase] = useState(0);
+  // The report is shown all at once without a staged reveal.
   const [reviewSection, setReviewSection] = useState<'overview' | CompetitionReviewSection>('overview');
-  // Keep the expanded campaign review hidden until its sections are ready to return.
-  const showExtendedReview = false;
+  const showExtendedReview = !historyEntry && !historySnapshot;
   const [selectedPlayer, setSelectedPlayer] = useState<{ player: Player; positionIndex: number } | null>(null);
-  useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 300),
-      setTimeout(() => setPhase(2), 1200),
-      setTimeout(() => setPhase(3), 2200),
-      setTimeout(() => setPhase(4), 3000),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, []);
 
   const starters = playerTeam?.players.slice(0, 11) ?? [];
   const bench = playerTeam?.players.slice(11) ?? [];
@@ -705,14 +693,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         {isChampion ? (
           <>
             {/* CAMPEÃO! heading */}
-            <AnimatePresence>
-              {phase >= 2 && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.7, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.1 }}
-                  className="mt-4"
-                >
+            <div className="mt-4">
                   <h1
                     className="text-7xl sm:text-8xl font-black tracking-widest leading-none"
                     style={{
@@ -723,39 +704,24 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                   >
                     CAMPEÃO!
                   </h1>
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
+                  <div
                     className="mt-3 inline-flex items-center gap-3 text-xl font-black tracking-wide sm:text-2xl"
                     style={{ fontFamily: 'var(--font-game), sans-serif', color: '#fff' }}
                   >
                     <Crest crestId={playerTeam?.crestId} name={playerTeam?.name ?? championName} size={34} />
                     <span>{playerTeam?.name}</span>
-                  </motion.div>
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.6 }}
+                  </div>
+                  <p
                     className="text-sm mt-1 font-bold tracking-widest"
                     style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}
                   >
                     CONQUISTOU A ULTIMATE CHAMPIONS LEAGUE!
-                  </motion.p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  </p>
+            </div>
           </>
         ) : (
           /* ── NOT CHAMPION ── */
-          <AnimatePresence>
-            {phase >= 1 && (
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
-                className="flex flex-col items-center"
-              >
+          <div className="flex flex-col items-center">
                 <Medal size={60} strokeWidth={1.8} color="var(--ui-brand)" className="mx-auto mb-4 drop-shadow-[0_0_18px_rgba(201,168,76,0.45)]" aria-hidden="true" />
                 <h1
                   className="text-5xl sm:text-6xl font-black tracking-widest"
@@ -776,41 +742,24 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                     <div className="truncate text-lg font-black" style={{ color: '#fff', fontFamily: 'var(--font-display), sans-serif' }}>{championName}</div>
                   </div>
                 </div>}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          </div>
         )}
       </div>
 
       {showExtendedReview && !historyEntry && !historySnapshot && (
-        <nav className="mx-auto w-full max-w-6xl px-4 pb-3" aria-label="Revisão da competição">
-          <div className="mb-3">
-            <h2 className="text-xs font-black tracking-[0.16em] text-[var(--ui-brand-strong)]">REVISÃO DA COMPETIÇÃO</h2>
-            <p className="mt-1 text-xs text-[var(--ui-text-muted)]">Consulte a classificação, o chaveamento, os resultados e as estatísticas da campanha.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" role="tablist" aria-label="Seções do relatório">
-            {[
-              { id: 'overview' as const, label: 'RESUMO', Icon: ClipboardList },
-              ...(state.competitionFormat.id !== 'knockout' ? [{ id: 'table' as const, label: state.competitionFormat.id === 'groups_knockout' ? 'GRUPOS' : 'CLASSIFICAÇÃO', Icon: Table2 }] : []),
-              ...(state.knockoutBracket ? [{ id: 'bracket' as const, label: 'CHAVEAMENTO', Icon: Trophy }] : []),
-              { id: 'matches' as const, label: 'PARTIDAS', Icon: ClipboardList },
-              { id: 'stats' as const, label: 'ESTATÍSTICAS', Icon: BarChart3 },
-            ].map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                id={`competition-review-tab-${id}`}
-                type="button"
-                role="tab"
-                aria-selected={reviewSection === id}
-                aria-controls={`competition-review-panel-${id}`}
-                onClick={() => setReviewSection(id)}
-                className="ui-tab min-h-10 w-full justify-center text-xs sm:w-auto"
-                data-active={reviewSection === id}
-              >
-                <span className="inline-flex items-center gap-1.5"><Icon size={14} aria-hidden="true" />{label}</span>
-              </button>
-            ))}
-          </div>
+        <nav className="mx-auto w-full max-w-6xl px-4 pb-1" aria-label="Seções do relatório">
+          <Tabs
+            value={reviewSection}
+            onValueChange={(value) => setReviewSection(value as typeof reviewSection)}
+          >
+            <TabList className="ui-tabs--equal">
+              <Tab value="overview">RESUMO</Tab>
+              {state.competitionFormat.id !== 'knockout' && <Tab value="table">CLASSIFICAÇÃO</Tab>}
+              {state.competitionFormat.id === 'knockout' && state.knockoutBracket && <Tab value="bracket">CHAVEAMENTO</Tab>}
+              <Tab value="matches">HISTÓRICO</Tab>
+              <Tab value="stats">ESTATÍSTICAS</Tab>
+            </TabList>
+          </Tabs>
         </nav>
       )}
 
@@ -822,13 +771,11 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
           tabIndex={0}
           narrow
           className="relative z-10 flex-1 space-y-5 pb-28 lg:max-w-6xl"
+          style={{ paddingTop: '0.5rem' }}
         >
-          <CompetitionReview section={reviewSection} partial={partialReport} />
-          {phase >= 4 && (
-            <Button type="button" intent="primary" size="large" onClick={handleReturnHome} className="mt-2 w-full">
-              <><Home size={17} aria-hidden="true" /> VOLTAR AO INÍCIO</>
-            </Button>
-          )}
+          <div className="competition-report-review">
+            <CompetitionReview key={reviewSection} section={reviewSection} partial={partialReport} />
+          </div>
         </PageContainer>
       ) : (
       <PageContainer
@@ -837,21 +784,15 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
         aria-labelledby={showExtendedReview && !historyEntry && !historySnapshot ? 'competition-review-tab-overview' : undefined}
         tabIndex={showExtendedReview && !historyEntry && !historySnapshot ? 0 : undefined}
         narrow
-        className={`relative z-10 flex-1 space-y-5 lg:max-w-6xl ${historyEntry ? 'pb-28' : ''}`}
+        className="relative z-10 flex-1 space-y-5 pb-28 lg:max-w-6xl"
+        style={showExtendedReview ? { paddingTop: '0.5rem' } : undefined}
       >
         {/* Desktop: campaign numbers and highlights on the left, the final XI on the right. */}
         <div className="space-y-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start lg:gap-6 lg:space-y-0">
         <div className="min-w-0 space-y-5">
 
         {/* Stats grid */}
-        <AnimatePresence>
-          {phase >= 3 && (
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="grid grid-cols-3 sm:grid-cols-6 gap-2"
-            >
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
               {[
                 { label: 'JOGOS', value: playerResults.length, color: '#fff' },
                 { label: 'V', value: wins, color: '#22C55E' },
@@ -859,37 +800,28 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 { label: 'D', value: losses, color: '#EF4444' },
                 { label: 'GOLS', value: totalGoals, color: '#C9A84C' },
                 { label: 'SOFRIDOS', value: goalsAgainst, color: '#8A8A9A' },
-              ].map((s, i) => (
-                <motion.div
+              ].map(s => (
+                <div
                   key={s.label}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.06 }}
                   className="rounded-xl p-3 text-center"
                   style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
                 >
                   <div className="text-2xl font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: s.color }}>{s.value}</div>
                   <div className="text-[12px] font-bold tracking-widest mt-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{s.label}</div>
-                </motion.div>
+                </div>
               ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </div>
 
         {/* W/D/L bar */}
-        {phase >= 3 && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+          <div
             className="rounded-xl px-5 py-4"
             style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
           >
             <div className="text-[12px] font-black tracking-widest mb-3" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>DESEMPENHO GERAL</div>
             <div className="h-2.5 rounded-full overflow-hidden flex gap-0.5">
-              {wins > 0 && <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${(wins / Math.max(playerResults.length, 1)) * 100}%` }} transition={{ delay: 0.3, duration: 0.7 }} style={{ background: 'var(--ui-success)' }} />}
-              {draws > 0 && <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${(draws / Math.max(playerResults.length, 1)) * 100}%` }} transition={{ delay: 0.5, duration: 0.5 }} style={{ background: 'var(--ui-warning)' }} />}
-              {losses > 0 && <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${(losses / Math.max(playerResults.length, 1)) * 100}%` }} transition={{ delay: 0.7, duration: 0.5 }} style={{ background: 'var(--ui-danger)' }} />}
+              {wins > 0 && <div className="h-full rounded-full" style={{ width: `${(wins / Math.max(playerResults.length, 1)) * 100}%`, background: 'var(--ui-success)' }} />}
+              {draws > 0 && <div className="h-full rounded-full" style={{ width: `${(draws / Math.max(playerResults.length, 1)) * 100}%`, background: 'var(--ui-warning)' }} />}
+              {losses > 0 && <div className="h-full rounded-full" style={{ width: `${(losses / Math.max(playerResults.length, 1)) * 100}%`, background: 'var(--ui-danger)' }} />}
             </div>
             <div className="flex gap-5 mt-3">
               {[{ label: `${wins} Vitórias`, color: '#22C55E' }, { label: `${draws} Empates`, color: '#EAB308' }, { label: `${losses} Derrotas`, color: '#EF4444' }].map(s => (
@@ -899,15 +831,11 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 </div>
               ))}
             </div>
-          </motion.div>
-        )}
+          </div>
 
         {/* Ficha da campanha — team meta + advanced stats */}
-        {phase >= 3 && playerTeam && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
+        {playerTeam && (
+          <div
             className="rounded-xl overflow-hidden"
             style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
           >
@@ -927,15 +855,12 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Top performers */}
-        {!partialReport && phase >= 3 && seasonHighlights.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+        {!partialReport && seasonHighlights.length > 0 && (
+          <div
             className="rounded-xl overflow-hidden"
             style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
           >
@@ -971,12 +896,12 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 </div>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Técnico + Estádio — visual completo, igual ao MEU TIME */}
-        {phase >= 3 && playerTeam && coach && (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
+        {playerTeam && coach && (
+          <div>
             <CoachStadiumPanel
               coach={coach}
               formation={formation}
@@ -985,18 +910,15 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
               reportSummary
               showStadium={false}
             />
-          </motion.div>
+          </div>
         )}
 
         </div>
         <div className="min-w-0">
 
         {/* Squad showcase */}
-        {phase >= 4 && playerTeam && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+        {playerTeam && (
+          <div
             className="rounded-xl overflow-hidden"
             style={{ background: '#0F0F1A', border: `1px solid ${isChampion ? '#C9A84C55' : '#1A1A2A'}` }}
           >
@@ -1032,6 +954,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                   players={starters}
                   showAlbumLevel
                   showChemLines
+                  disableEntryAnimation
                   chemLinks={getChemistryLinks(starters, playerTeam.coachId)}
                   effectiveStats={effectiveStatsById}
                   onPlayerClick={historyEntry ? undefined : (player, positionIndex) => setSelectedPlayer({ player, positionIndex })}
@@ -1064,7 +987,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <div className="text-xs font-black tracking-widest mb-2" style={{ color: '#FFF', fontFamily: 'var(--font-game), sans-serif' }}>TITULARES</div>
                 <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                   {starters.map((pl, i) => (
-                    <motion.div key={pl.id} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
+                    <div key={pl.id}>
                       <PlayerCard
                         player={pl}
                         compact
@@ -1073,7 +996,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                         effectiveStats={effectiveStatsById[pl.id]}
                         onClick={historyEntry ? undefined : () => setSelectedPlayer({ player: pl, positionIndex: i })}
                       />
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1083,7 +1006,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                   <div className="text-xs font-black tracking-widest mb-2" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}><Armchair {...INLINE_ICON} />RESERVAS ({bench.length})</div>
                   <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                     {bench.map((pl, i) => (
-                      <motion.div key={pl.id} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
+                      <div key={pl.id}>
                         <PlayerCard
                           player={pl}
                           compact
@@ -1092,34 +1015,30 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                           effectiveStats={effectiveStatsById[pl.id]}
                           onClick={historyEntry ? undefined : () => setSelectedPlayer({ player: pl, positionIndex: starters.length + i })}
                         />
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 </div>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
 
         </div>
         </div>
 
-        {/* Return to the start or back to history. */}
-        {phase >= 4 && !historyEntry && (
-          <Button
-            type="button"
-            intent="primary"
-            size="large"
-            onClick={handleReturnHome}
-            className="mt-2 w-full"
-          >
-            <><Home size={17} aria-hidden="true" /> VOLTAR AO INÍCIO</>
-          </Button>
-        )}
       </PageContainer>
       )}
 
-      {phase >= 4 && historyEntry && onHistoryBack ? (
+      {!historyEntry ? (
+        <FixedActionBar narrow>
+          <Button type="button" intent="primary" size="large" onClick={handleReturnHome} className="w-full">
+            <><Home size={17} aria-hidden="true" /> VOLTAR AO INÍCIO</>
+          </Button>
+        </FixedActionBar>
+      ) : null}
+
+      {historyEntry && onHistoryBack ? (
         <FixedActionBar narrow>
           <Button type="button" intent="primary" size="large" onClick={onHistoryBack} className="w-full">
             <ArrowLeft size={17} aria-hidden="true" /> VOLTAR AO HISTÓRICO

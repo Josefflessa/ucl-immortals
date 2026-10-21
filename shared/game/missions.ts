@@ -370,6 +370,9 @@ export const MISSION_CATALOG: MissionDefinition[] = [
   m('midiatico_goal_win', 'Holofote', 'Vencer com Midiático titular marcando pelo menos 1 gol.', 'special', 'uncommon', 1, 75, { kind: 'trait_player_goal_and_win', values: ['midiatico'] }),
   m('padrinho_win', 'Família Unida', 'Vencer com um jogador com Padrinho entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['padrinho'] }),
   m('lapidador_win', 'Joia Rara', 'Vencer com um jogador com Lapidador entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['lapidador'] }),
+  m('humilde_win', 'Muralha de Bronze', 'Vencer com um jogador com Humilde entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['humilde'] }),
+  m('humilde_decisive_win', 'Humilde Decisivo', 'Vencer com um jogador com Humilde entre os titulares, e esse jogador marcar um gol ou dar uma assistência.', 'special', 'epic', 1, 150, { kind: 'trait_player_goal_or_assist_and_win', values: ['humilde'] }),
+  m('humilde_stable_win', 'Humilde Estável', 'Vencer com Humilde titular e começar com pelo menos 60 de química.', 'special', 'epic', 1, 160, { kind: 'trait_chemistry_and_win', values: ['humilde'], value: 60 }),
   m('agregador_win', 'Soma de Talentos', 'Vencer com um jogador com Agregador entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['agregador'] }),
   m('conquistador_win', 'Contrato Cumprido', 'Vencer com um jogador com Conquistador entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['mercenario'] }),
   m('apostador_win', 'Aposta Certa', 'Vencer com um jogador com Apostador entre os titulares.', 'special', 'uncommon', 1, 60, { kind: 'trait_starter_and_win', values: ['apostador'] }),
@@ -444,6 +447,8 @@ export const RETIRED_MISSION_IDS: ReadonlySet<string> = new Set([
   'lobo_goal_win', 'in_form_goal_win', 'pilar_in_form_win', 'lobo_possession_win', 'pilar_elite_win', 'in_form_prodigy_win',
   // Exige os 11 titulares com Todos por um: praticamente impossível no quadro.
   'todos_por_um',
+  // Nômade foi aposentado (virou o Humilde).
+  'nomade_win', 'nomade_decisive_win', 'nomade_stable_win',
 ]);
 
 function hashSeed(input: string): number {
@@ -692,7 +697,7 @@ const SPECIAL_TRAIT_KEYS: Array<keyof PlayerCard> = [
   'inForm', 'lobo', 'coringa', 'nomade', 'pilar', 'martir', 'idolo', 'decimoHomem',
   'pipoqueiro', 'noe', 'forasteiro', 'colecionador', 'estribado', 'todosPorUm',
   'capitaoNato', 'magnata', 'fragil', 'prodigio', 'resiliente', 'goleador', 'garcom', 'arrogante',
-  'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'pechincheiro', 'midiatico',
+  'mercenario', 'padrinho', 'lapidador', 'apostador', 'agregador', 'humilde', 'pechincheiro', 'midiatico',
   'mentor', 'improvisador', 'desenfreado', 'fazTudo', 'fominha', 'poliglota',
 ];
 

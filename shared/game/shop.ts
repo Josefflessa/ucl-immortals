@@ -179,9 +179,9 @@ export const TRAIN_ATTRS: { key: TrainAttr; label: string }[] = [
 ];
 
 // ── "Turbinar Carta" — the special variants the player can buy onto a card. ──
-export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario' | 'padrinho' | 'lapidador' | 'apostador' | 'agregador' | 'pechincheiro' | 'midiatico' | 'mentor' | 'improvisador' | 'desenfreado' | 'fazTudo' | 'fominha' | 'poliglota';
+export type ShopVariant = 'inForm' | 'lobo' | 'coringa' | 'nomade' | 'pilar' | 'martir' | 'idolo' | 'decimoHomem' | 'pipoqueiro' | 'noe' | 'forasteiro' | 'colecionador' | 'estribado' | 'todosPorUm' | 'capitaoNato' | 'magnata' | 'fragil' | 'prodigio' | 'resiliente' | 'goleador' | 'garcom' | 'arrogante' | 'mercenario' | 'padrinho' | 'lapidador' | 'apostador' | 'agregador' | 'humilde' | 'pechincheiro' | 'midiatico' | 'mentor' | 'improvisador' | 'desenfreado' | 'fazTudo' | 'fominha' | 'poliglota';
 /** Aposentadas: seguem válidas nas cartas e no histórico, mas saem do draft, do Turbinar e das missões. */
-export const RETIRED_VARIANTS: readonly ShopVariant[] = ['inForm', 'lobo', 'pilar'];
+export const RETIRED_VARIANTS: readonly ShopVariant[] = ['inForm', 'lobo', 'pilar', 'nomade'];
 /** Catálogo completo (inclui as aposentadas) — rótulos/ícones para cartas antigas. */
 export const VARIANT_CATALOG: { key: ShopVariant; icon: string; label: string; color: string; desc: string }[] = [
   { key: 'inForm', icon: '⚡', label: 'Em Alta', color: '#39FF14', desc: 'Recebe +4 em todos os atributos.' },
@@ -200,7 +200,7 @@ export const VARIANT_CATALOG: { key: ShopVariant; icon: string; label: string; c
   { key: 'todosPorUm', icon: '🤝', label: 'Todos por um', color: '#4ADE80', desc: 'Se os 11 titulares tiverem Todos por um, todos recebem +20 em cada atributo.' },
   { key: 'capitaoNato', icon: '🗣️', label: 'Capitão Nato', color: '#F97316', desc: 'Quando é o capitão, triplica o bônus que dá ao melhor atributo de todo o time.' },
   { key: 'magnata', icon: '🤑', label: 'Magnata', color: '#16A34A', desc: 'Recebe −7 em todos os atributos. Se for titular, aumenta em 50% os créditos ganhos na partida.' },
-  { key: 'fragil', icon: '🩹', label: 'Frágil', color: '#F59E0B', desc: 'Recebe +7 em todos os atributos, mas fica mais sujeito a lesões.' },
+  { key: 'fragil', icon: '🩹', label: 'Frágil', color: '#F59E0B', desc: 'A cada recuperação completa de uma lesão, acumula +3 em todos os atributos. Continua com risco muito maior de lesão.' },
   { key: 'prodigio', icon: '📈', label: 'Prodígio', color: '#FDE047', desc: 'A cada partida em que for titular, ganha +1 permanente em todos os atributos.' },
   { key: 'resiliente', icon: '🔥', label: 'Resiliente', color: '#FB7185', desc: 'A cada derrota em uma partida em que for titular, ganha +2 permanentes em todos os atributos.' },
   { key: 'goleador', icon: '⚽', label: 'Goleador', color: '#F97316', desc: 'A cada 3 gols marcados, ganha +1 permanente em todos os atributos.' },
@@ -211,6 +211,7 @@ export const VARIANT_CATALOG: { key: ShopVariant; icon: string; label: string; c
   { key: 'lapidador', icon: '💎', label: 'Lapidador', color: '#93C5FD', desc: 'A cada vitória em uma partida em que for titular, dá +1 permanente em cada atributo a todos os reservas.' },
   { key: 'apostador', icon: '🎲', label: 'Apostador', color: '#D9752F', desc: 'No elenco, ganha +2 permanentes em todos os atributos por aposta vencida.' },
   { key: 'agregador', icon: '🔗', label: 'Agregador', color: '#A5ACC2', desc: 'Se for titular, cada tipo diferente de característica no time dá +1 em cada atributo a todo o time. Mais de um Agregador acumula.' },
+  { key: 'humilde', icon: '🌱', label: 'Humilde', color: '#FF2BD6', desc: 'Se for titular, cada Bronze titular dá +3 e cada Prata titular dá +1 em todos os atributos a todos os titulares do XI. Mais de um Humilde acumula.' },
   { key: 'pechincheiro', icon: '🏷️', label: 'Pechincheiro', color: '#E0315F', desc: 'No elenco, dá 15% de desconto em Turbinar, remoção de característica, pacotes, Caça-Talentos e troca de técnico.' },
   { key: 'midiatico', icon: '📺', label: 'Midiático', color: '#7C6FF0', desc: 'Cada gol marcado por ele rende 20 créditos.' },
   { key: 'mentor', icon: '🧑‍🏫', label: 'Mentor', color: '#8B5E3C', desc: 'A cada vitória em uma partida em que for titular, aumenta em 1 o progresso de evolução de todo o elenco. Não acumula com outro Mentor.' },

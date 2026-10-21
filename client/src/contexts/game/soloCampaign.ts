@@ -3,7 +3,7 @@
 import * as seatRules from '@shared/game/seatRules';
 import { Player } from '@shared/game/gameData';
 import { Team, MatchResult, generateDraftOptions, RECRUITMENT_VARIANT_CHANCE, generateImmortalReport, LeagueFixture, getAllPlayedMatchResults, buildUniquePackRoundKey, advanceKnockoutBracket, applyDefeatGrowth, applyMatchStatGrowth, computeGroupQualifiedStandings, createKnockoutBracket, getActiveKnockoutMatches, isKnockoutTeamAlive, playActiveKnockoutLeg, stampMatchStartingLineups } from '@shared/game/gameEngine';
-import { applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup } from '@shared/game/discipline';
+import { applyFragilRecoveryReward, applyMatchDiscipline, applyMedicalReturnBoost, resolveAvailableLineup } from '@shared/game/discipline';
 import { buildKnockoutMatchKey } from '@shared/game/bets';
 import { createRecruitmentOfferMeta, getRecruitmentOfferConfig, medicalInjuryDuration, medicalReturnBoost, projectLevel, type RecruitmentEventKind, type RecruitmentOfferMeta } from '@shared/game/clubProjects';
 import { type GamePhase, type GameState } from './state';
@@ -168,10 +168,12 @@ export function medicalInjuryDurationForTeam(team: Team): number {
 
 export function applyMedicalRecoveries(team: Team, recoveredInjuries: { teamId: string; playerId: string }[]): Team {
   const boost = medicalReturnBoost(projectLevel(team.clubProjects, 'medical'));
-  if (boost <= 0) return team;
   return recoveredInjuries
     .filter(recovery => recovery.teamId === team.id)
-    .reduce((current, recovery) => applyMedicalReturnBoost(current, recovery.playerId, boost), team);
+    .reduce((current, recovery) => {
+      const rewarded = applyFragilRecoveryReward(current, recovery.playerId);
+      return boost > 0 ? applyMedicalReturnBoost(rewarded, recovery.playerId, boost) : rewarded;
+    }, team);
 }
 
 /** Keeps the online exit path partial: those results are authoritative on the room server. */

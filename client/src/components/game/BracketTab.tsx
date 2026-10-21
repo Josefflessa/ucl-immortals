@@ -126,7 +126,7 @@ export default function BracketTab({ reviewMode = false }: { reviewMode?: boolea
   };
 
   return (
-    <div>
+    <div className={`competition-live-reading competition-readable-bracket${reviewMode ? ' competition-report-bracket' : ''}`}>
       <div className="mb-3 text-sm leading-relaxed text-[var(--ui-text-muted)]">
         {reviewMode
           ? <>Veja os confrontos e quem avançou em cada fase. Seu time aparece em <span style={{ color: 'var(--ui-brand)' }}>dourado</span>.</>

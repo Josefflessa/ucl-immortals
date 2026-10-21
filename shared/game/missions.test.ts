@@ -89,8 +89,8 @@ function result(overrides: Partial<MatchResult> = {}): MatchResult {
 
 describe('mission board', () => {
   it('contains the expanded catalog, rarity missions and no duplicate ids', () => {
-    expect(MISSION_CATALOG).toHaveLength(254);
-    expect(new Set(MISSION_CATALOG.map(definition => definition.id)).size).toBe(254);
+    expect(MISSION_CATALOG).toHaveLength(257);
+    expect(new Set(MISSION_CATALOG.map(definition => definition.id)).size).toBe(257);
     expect(MISSION_MAP.dominance_complete).toBeDefined();
     expect(MISSION_MAP.five_wins).toBeDefined();
     expect(MISSION_MAP.prodigy_goals_win).toBeDefined();

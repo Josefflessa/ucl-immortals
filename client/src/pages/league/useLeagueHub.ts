@@ -16,7 +16,9 @@ import { MAX_RESERVE_PLAYERS, reservePlayerCount } from '@shared/game/gameEngine
 import type { MatchResult, Team } from '@shared/game/gameEngine';
 import type { Player } from '@shared/game/gameData';
 
-export function useLeagueHub() {
+type LeagueHubTab = 'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop' | 'market' | 'missions';
+
+export function useLeagueHub({ reportMode = false, initialTab = 'fixtures' }: { reportMode?: boolean; initialTab?: LeagueHubTab } = {}) {
   const { state, dispatch, playRoundOnline, advanceRoundOnline, getTeamById, pickReinforcementOnline, dismissReinforcementOnline, rerollReinforcementOnline, shopPlaceBetOnline, shopCancelBetOnline, playerReadyOnline, playerUnreadyOnline, emergencyReplaceOnline, requestMatchResultOnline, dismissMissionResolutionOnline, notifyMatchWatchedOnline } = useGame();
   const online = state.mode === 'online';
   // A reward is acknowledged once per match. This also prevents an existing
@@ -27,6 +29,7 @@ export function useLeagueHub() {
   const initialCreditsSignature = useRef<string | null | undefined>(undefined);
   const [postMatchModalQueueReady, setPostMatchModalQueueReady] = useState(false);
   useEffect(() => {
+    if (reportMode) return;
     if (initialCreditsSignature.current !== undefined) return;
     initialCreditsSignature.current = creditsSignature;
     // Do not paint recruitment or mission resolution before this first check.
@@ -38,7 +41,7 @@ export function useLeagueHub() {
     // lastMatchPoints is therefore the reward for the match just played and
     // must be shown immediately. Online uses matchCreditsModalPending because
     // the hub also remounts after an online replay finishes.
-  }, []);
+  }, [reportMode]);
   // Solo and online share the same persisted flag: the reward modal opens once per match and
   // never again after it is closed (reload, continued campaign or page remount included).
   const showCreditsModal = postMatchModalQueueReady && state.matchCreditsModalPending && !!state.lastMatchPoints;
@@ -48,6 +51,7 @@ export function useLeagueHub() {
   // instead of making the balance change silently.
   const previousBetSnapshot = useRef<{ roomCode: string; states: Map<string, string> } | null>(null);
   useEffect(() => {
+    if (reportMode) return;
     if (!online || !state.roomCode) {
       previousBetSnapshot.current = null;
       return;
@@ -77,7 +81,7 @@ export function useLeagueHub() {
       }
     }
     previousBetSnapshot.current = { roomCode: state.roomCode, states: current };
-  }, [online, state.bets, state.roomCode]);
+  }, [online, state.bets, state.roomCode, reportMode]);
 
   const closeCreditsModal = () => dispatch({ type: 'DISMISS_MATCH_CREDITS' });
   const showMissionResolutionModal = postMatchModalQueueReady && !!state.missions.missionResolution && !showCreditsModal;
@@ -108,7 +112,7 @@ export function useLeagueHub() {
 
   const { leagueStandings, leagueResults, leagueFixtures, leagueRound, playerTeam } = state;
   const { allTeams, localTeamId, getTeamName } = useTeams();
-  const [activeTab, setActiveTab] = useState<'standings' | 'fixtures' | 'bracket' | 'results' | 'squad' | 'scorers' | 'shop' | 'market' | 'missions'>('fixtures');
+  const [activeTab, setActiveTab] = useState<LeagueHubTab>(initialTab);
   const [classificationSubTab, setClassificationSubTab] = useState<'league' | 'bracket'>('league');
   const [statsSubTab, setStatsSubTab] = useState<'squad' | 'goals' | 'assists' | 'ratings' | 'keepers' | 'tackles' | 'cards'>('squad');
   // HISTÓRICO: alterna entre "MEUS JOGOS" (do jogador) e "RODADAS ANTERIORES" (todos os resultados por rodada)
@@ -171,9 +175,16 @@ export function useLeagueHub() {
       if (detailsLoading) return; // already fetching another "Ver Detalhes"
       setDetailsLoading(true);
       const loadingToast = toast.loading('Carregando detalhes da partida…');
-      const full = await requestMatchResultOnline(result.round, result.homeTeamId, result.awayTeamId);
-      toast.dismiss(loadingToast);
-      setDetailsLoading(false);
+      let full: MatchResult | null = null;
+      try {
+        full = await requestMatchResultOnline(result.round, result.homeTeamId, result.awayTeamId);
+      } catch {
+        // A transient socket failure should report the problem and keep later
+        // detail buttons usable instead of leaving the loading guard stuck.
+      } finally {
+        toast.dismiss(loadingToast);
+        setDetailsLoading(false);
+      }
       if (!full) {
         toast.error('Não foi possível carregar os detalhes dessa partida agora. Tenta de novo.');
         return;
@@ -217,8 +228,9 @@ export function useLeagueHub() {
   // knockout view is the useful default, while the completed league table stays
   // available as a historical reference.
   useEffect(() => {
+    if (reportMode) return;
     setClassificationSubTab(isKnockout ? 'bracket' : 'league');
-  }, [isKnockout]);
+  }, [isKnockout, reportMode]);
 
   // Aggregate stats for all players in the league. Memoized so switching tabs
   // (fixtures → standings → scorers) does not recompute/re-sort every render.
@@ -382,7 +394,7 @@ export function useLeagueHub() {
 
   // ONLINE: hide scores only while a result from the current round is waiting
   // for the required viewers. An unplayed round has no spoiler to hide.
-  const hideRoundScore = state.mode === 'online' && hasPlayedLeagueResult && !allPlayersWatched;
+  const hideRoundScore = !reportMode && state.mode === 'online' && hasPlayedLeagueResult && !allPlayersWatched;
 
   // Knockout equivalent: everyone in the active tie round must have watched the leg.
   const koMatches = isKnockout && state.knockoutBracket ? getActiveKnockoutMatches(state.knockoutBracket) : [];
@@ -390,7 +402,7 @@ export function useLeagueHub() {
     ? getOnlineKnockoutParticipantIds(state.onlinePlayers, koMatches)
     : [];
   const koHumans = state.mode === 'online' ? state.onlinePlayers.filter(p => koParticipantIds.includes(p.id)) : [];
-  const koAllWatched = koHumans.length === 0 || koHumans.every(p => state.onlineWatchedPlayers.includes(p.id));
+  const koAllWatched = reportMode || koHumans.length === 0 || koHumans.every(p => state.onlineWatchedPlayers.includes(p.id));
   const koHasPlayedResult = koMatches.some((match: any) => {
     const singleLeg = match.isSingleLeg === true;
     if (singleLeg) return !!match.played && !!match.result;
@@ -401,7 +413,7 @@ export function useLeagueHub() {
 
   // Unified anti-spoiler gate: the POSITION notice, CLASSIFICAÇÃO, ESTATÍSTICAS and (knockout)
   // CHAVEAMENTO only reveal/update once EVERYONE in the round has left their match.
-  const spoilerLock = state.mode === 'online' && (isKnockout
+  const spoilerLock = !reportMode && state.mode === 'online' && (isKnockout
     ? koHasPlayedResult && !koAllWatched
     : hasPlayedLeagueResult && !allPlayersWatched);
   const spoilerWaiting = isKnockout
@@ -547,6 +559,7 @@ export function useLeagueHub() {
   ]);
   const pendingWatchKey = pendingWatchConfirmation ? JSON.stringify(pendingWatchConfirmation) : null;
   useEffect(() => {
+    if (reportMode) return;
     if (!pendingWatchConfirmation) return;
     // The first confirmation was sent when the replay ended; give it time to
     // land before repeating it. The server ignores duplicates.
@@ -557,10 +570,11 @@ export function useLeagueHub() {
     const timer = window.setInterval(resend, 4000);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingWatchKey, notifyMatchWatchedOnline]);
+  }, [pendingWatchKey, notifyMatchWatchedOnline, reportMode]);
 
   // Layout effect, like the knockout one below: the replay opens before the result is painted.
   useLayoutEffect(() => {
+    if (reportMode) return;
     if (state.mode !== 'online') return;
     if (state.phase !== 'league') return;
     if (state.currentMatchResult) return; // already watching one
@@ -582,6 +596,7 @@ export function useLeagueHub() {
     state.mode, state.phase, state.currentMatchResult, localTeamId, myOnlineId,
     state.onlineWatchedLeagueRound, state.onlineWatchedPlayers, state.onlineFinishedReplays,
     leagueFixtures, leagueRound, getTeamById, dispatch,
+    reportMode,
   ]);
 
   // Knockout: auto-open the local player's tie as a synchronized replay — LEG BY LEG
@@ -590,6 +605,7 @@ export function useLeagueHub() {
   // A layout effect: it opens the replay before the browser paints the bracket, so the
   // leg's results are never shown on the hub first.
   useLayoutEffect(() => {
+    if (reportMode) return;
     if (state.phase !== 'knockout' || !state.knockoutBracket) return;
     if (state.currentMatchResult) return;
     if (!localTeamId) return;
@@ -642,6 +658,7 @@ export function useLeagueHub() {
   }, [
     state.phase, state.mode, state.currentMatchResult, state.watchedKnockoutMatches, state.knockoutBracket, localTeamId, myOnlineId,
     state.onlineWatchedKnockoutLegKey, state.onlineWatchedPlayers, state.onlineFinishedReplays, getTeamById, dispatch,
+    reportMode,
   ]);
 
   return {

@@ -2,7 +2,7 @@
 
 import * as seatRules from '@shared/game/seatRules';
 import { Player, FORMATIONS, DIFFICULTY_LEVELS } from '@shared/game/gameData';
-import { Team, PlayerCard, MatchResult, DraftState, calculateChemistry, rebuildTeamChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier, generateBotTeam, pickBotNames, simulateMatch, generateImmortalReport, generateRandomLeagueFixtures, computeStandings, generateRandomGroupFixtures, computeGroupQualifiedStandings, getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket, normalizeMatchPlan, MAX_RESERVE_PLAYERS, reservePlayerCount, draftSlotIndex, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, bumpStarterAppearances, applyPostMatchCardProgress, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth, applyDefeatGrowth, applyMercenarioProgress, applyApostadorWins, midiaticoCredits } from '@shared/game/gameEngine';
+import { campaignProgress, roundsFromFinal, withCampaignProgress, Team, PlayerCard, MatchResult, DraftState, calculateChemistry, rebuildTeamChemistry, generateDraftOptions, getNeededPositions, magnataPointMultiplier, generateBotTeam, pickBotNames, simulateMatch, generateImmortalReport, generateRandomLeagueFixtures, computeStandings, generateRandomGroupFixtures, computeGroupQualifiedStandings, getAllPlayedMatchResults, getPlayerSeasonStats, createKnockoutBracket, normalizeMatchPlan, MAX_RESERVE_PLAYERS, reservePlayerCount, draftSlotIndex, advanceKnockoutBracket, playActiveKnockoutLeg, getActiveKnockoutMatches, isKnockoutTeamAlive, bumpStarterAppearances, applyPostMatchCardProgress, startingIdsForResult, stampMatchStartingLineups, applyMatchStatGrowth, applyDefeatGrowth, applyMercenarioProgress, applyApostadorWins, midiaticoCredits } from '@shared/game/gameEngine';
 import { computeMatchPointsWithConfig, MatchPoints, lossStreakBonus, nextLossStreak } from '@shared/game/shop';
 import { buildLeagueMatchKey, buildKnockoutMatchKey, newlyWonBets, revealEligibleKoBets, settleBet } from '@shared/game/bets';
 import { applyMatchDiscipline, resolveAvailableLineup, resetYellowsForKnockout } from '@shared/game/discipline';
@@ -507,8 +507,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       awayTeam = hydrateCredits(awayTeam);
 
       // 🟨🟥🩹 Resolve as escalações contra a disciplina (suspensos/lesionados fora; reserva promovido).
-      const rHome = resolveAvailableLineup(homeTeam, state.discipline).team;
-      const rAway = resolveAvailableLineup(awayTeam, state.discipline).team;
+      // The bots play at their point of the campaign: they get stronger round by round.
+      const roundProgress = campaignProgress(state.competitionFormat, { phase: 'league', round: state.leagueRound });
+      const rHome = withCampaignProgress(resolveAvailableLineup(homeTeam, state.discipline).team, roundProgress);
+      const rAway = withCampaignProgress(resolveAvailableLineup(awayTeam, state.discipline).team, roundProgress);
 
       // Um único motor de simulação: no solo, pré-computa o resultado autoritativo (gols +
       // cartões + lesões + força) e entra em modo replay no MatchSimPage — igual mata-mata.
@@ -572,8 +574,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // 🟨🟥🩹 Bots também resolvem a escalação contra a disciplina (suspensos/lesionados fora).
       allFixtures = allFixtures.map(f => {
         if (f.round === state.leagueRound && !f.played) {
-          const home = resolveAvailableLineup(allTeams.find(t => t.id === f.homeTeamId)!, state.discipline).team;
-          const away = resolveAvailableLineup(allTeams.find(t => t.id === f.awayTeamId)!, state.discipline).team;
+          const botProgress = campaignProgress(state.competitionFormat, { phase: 'league', round: state.leagueRound });
+          const home = withCampaignProgress(resolveAvailableLineup(allTeams.find(t => t.id === f.homeTeamId)!, state.discipline).team, botProgress);
+          const away = withCampaignProgress(resolveAvailableLineup(allTeams.find(t => t.id === f.awayTeamId)!, state.discipline).team, botProgress);
           const result = stampMatchStartingLineups(
             simulateMatch(home, away, false, false, true, false),
             home,
@@ -801,13 +804,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const bracket: KnockoutBracket = JSON.parse(JSON.stringify(state.knockoutBracket));
       const isFinalRound = bracket.currentRound === 'final';
       const resolvedTeams = new Map<string, Team>();
+      const knockoutProgress = campaignProgress(state.competitionFormat, { phase: 'knockout', fromFinal: roundsFromFinal(bracket.currentRound) });
       // 🟨🟥🩹 Resolve as escalações contra a disciplina antes de simular a perna (bots inclusos).
       const resolveFn = (id: string) => {
         const cached = resolvedTeams.get(id);
         if (cached) return cached;
         const t = allTeams.find(tm => tm.id === id);
         if (!t) return undefined;
-        const resolved = resolveAvailableLineup(t, state.discipline).team;
+        const resolved = withCampaignProgress(resolveAvailableLineup(t, state.discipline).team, knockoutProgress);
         resolvedTeams.set(id, resolved);
         return resolved;
       };

@@ -8,6 +8,7 @@ import { random } from '../random';
 import { type PlayerCard, statKey, isExcludedPlayer, type Team, matchRoleForPlayer, activeGoalkeeperForTeam, type PlayerMatchStat, type PenaltyKick } from './teamModel';
 import { getChemistryBonus, computeCharacteristicBoosts } from './chemistry';
 import { getEffectiveAttribute } from './attributes';
+import { botStrengthMultiplier } from './difficultyCurve';
 import { goalkeeperAptitudeDefending, goalkeeperShotStoppingRating, penaltyGoalChance } from './matchSim';
 
 // The captain's single strongest attribute is amplified by CAPTAIN_BOOST for EVERY
@@ -112,10 +113,9 @@ export function calculateTeamStrength(
   let strength = avgStrength + formationBonus;
   
   if (team.isBot && team.botStrength !== undefined) {
-    // Bot strength multiplier — buffed across the board (+0.08 base) so every tier is tougher:
-    // Bronze (~0.45) → 0.83x · Prata (~0.62) → 0.92x · Ouro (~0.75) → 0.99x · Lendário (~0.88) → 1.06x · Imortal (~0.97) → 1.11x
-    const multiplier = 0.58 + team.botStrength * 0.55;
-    strength = strength * multiplier;
+    // A bot gets stronger as the campaign goes on (see difficultyCurve.ts): without a point of the
+    // campaign it plays at the level's opening strength.
+    strength = strength * botStrengthMultiplier(team.botStrength, team.campaignProgress ?? 0);
   }
 
   return strength;

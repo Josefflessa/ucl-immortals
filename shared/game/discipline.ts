@@ -126,6 +126,20 @@ export function applyMedicalReturnBoost(team: Team, playerId: string, amount: nu
   return repairRoles(rebuildTeamChemistry({ ...team, players }));
 }
 
+/** Adds Frágil's permanent +3 for each full recovery from injury. */
+export function applyFragilRecoveryReward(team: Team, playerId: string): Team {
+  if (!team.players.some(player => player.id === playerId && player.fragil)) return team;
+  const normalized = rebuildTeamChemistry(team);
+  const players = normalized.players.map(player => {
+    if (player.id !== playerId || !player.fragil) return player;
+    const recoveries = Math.max(0, Math.floor(player.fragilRecoveries ?? (player.fragilRecovered ? 1 : 0)));
+    const recovered = { ...player, fragilProgressive: true, fragilRecoveries: recoveries + 1 };
+    delete recovered.fragilRecovered;
+    return recovered;
+  });
+  return repairRoles(rebuildTeamChemistry({ ...normalized, players }));
+}
+
 // ── Constantes de balanço (re-tunáveis) ──
 const YELLOW_ACCUM_THRESHOLD = 3;   // 3 amarelos acumulados = 1 jogo suspenso
 export const INJURY_DEBUFF = 12;           // −N em cada atributo do lesionado (resto do jogo)

@@ -11,6 +11,7 @@ import { activePlayerTraits, TRAIT_MAP, getGoalkeeperTraitBonus, traitEffectLabe
 import { stadiumHomeBonus } from '@shared/game/clubProjects';
 import { getCardVariants } from '../PlayerCard';
 import { CHEM_LINK_COLOR } from '../FormationField';
+import { migrateLegacyFragilPlayer } from '@shared/game/engine/teamModel';
 
 export const SHEET_ATTRS = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'vision', 'composure'] as const;
 export type SheetAttr = typeof SHEET_ATTRS[number];
@@ -98,7 +99,7 @@ export interface PlayerSheetInput {
 }
 
 // Variants that change the card's own printed values (already inside player.*).
-const BAKED_VARIANTS = new Set(['inForm', 'lobo', 'fragil', 'magnata']);
+const BAKED_VARIANTS = new Set(['inForm', 'lobo', 'magnata']);
 const LINK_POINTS: Record<string, number> = { club: 2, nation: 1, coach: 2, partner: 1, nomade: 1 };
 const LINK_LABEL: Record<string, string> = {
   club: 'Mesmo clube', nation: 'Mesma nação', coach: 'Mesmo técnico', partner: 'Dupla histórica', nomade: 'Nômade (vale como nação)',
@@ -115,7 +116,9 @@ function usefulFlavor(id: string, flavor: string | undefined): string | null {
 }
 
 export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
-  const { player, players, index } = input;
+  const players = input.players.map(migrateLegacyFragilPlayer);
+  const index = input.index;
+  const player = players[index] ?? migrateLegacyFragilPlayer(input.player);
   const xi = players.slice(0, 11);
   const isStarter = index >= 0 && index < 11;
   const formation = FORMATIONS.find(f => f.id === input.formationId) ?? FORMATIONS[0];
@@ -176,6 +179,7 @@ export function buildPlayerSheet(input: PlayerSheetInput): PlayerSheetModel {
     { key: 'train', icon: '💪', label: 'Treino (loja)' },
     { key: 'evolve', icon: '🆙', label: 'Evolução' },
     { key: 'specialization', icon: '💠', label: 'Especialização' },
+    { key: 'fragil', icon: '🩹', label: 'Frágil' },
     { key: 'prodigio', ...variantInfo('prodigio', '📈', 'Prodígio') },
     { key: 'resiliente', ...variantInfo('resiliente', '🔥', 'Resiliente') },
     { key: 'goleador', ...variantInfo('goleador', '⚽', 'Goleador') },

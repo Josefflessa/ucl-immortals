@@ -24,7 +24,7 @@ import {
   missionRemovalCost, normalizeMissionState, removeMission, rerollMissionBoard, rotateMissionBoard, type MissionState,
 } from './missions';
 import {
-  applyEmergencyReplacement, applyMedicalReturnBoost, getEmergencyReplacementTarget, healInjury, type DisciplineMap,
+  applyEmergencyReplacement, applyFragilRecoveryReward, applyMedicalReturnBoost, getEmergencyReplacementTarget, healInjury, type DisciplineMap,
 } from './discipline';
 import { BET_ROUND_CAP, bettingPayoutRulesForLevel, buildKnockoutMatchKey, buildLeagueMatchKey, canPlaceStake, createBet, type Bet, type BetMarket } from './bets';
 
@@ -411,7 +411,9 @@ export function treatInjury(seat: PlayerSeat, discipline: DisciplineMap, playerI
   if (seat.points < cost) return insufficient(seat.points, cost);
   const nextDiscipline = healInjury(discipline, seat.team.id, playerId);
   const recovered = nextDiscipline[key]?.injured === 0;
-  const team = recovered ? applyMedicalReturnBoost(seat.team, playerId, medicalReturnBoost(medicalLevel)) : seat.team;
+  const team = recovered
+    ? applyMedicalReturnBoost(applyFragilRecoveryReward(seat.team, playerId), playerId, medicalReturnBoost(medicalLevel))
+    : seat.team;
   return {
     ok: true,
     seat: { ...spend(seat, cost, team), medicalFreeTreatmentsUsed: freeUsed + (free ? 1 : 0) },

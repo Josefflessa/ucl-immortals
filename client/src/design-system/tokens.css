@@ -1044,6 +1044,7 @@ body.home-menu-scroll-lock {
 
 @media (max-width: 639px) {
   .ui-tabs { gap: 18px; }
+  .ui-tabs.ui-tabs--equal { gap: 0; }
   .ui-tab { min-height: 40px; font-size: 10px; }
 }
 
@@ -1144,4 +1145,54 @@ body.home-menu-scroll-lock {
   }
   .ui-tabs--side > .ui-tab:hover { background: var(--ui-surface-2); }
   .ui-tabs--side > .ui-tab[data-state="active"] { box-shadow: inset 3px 0 0 var(--ui-brand); }
+}
+
+/* The end-of-campaign review is primarily read on desktop. Give its reused
+ * competition tables and result cards a comfortable reading scale while the
+ * existing compact mobile layout remains untouched. */
+@media (min-width: 900px) {
+  :is(.competition-report-review, .competition-live-reading) [class~="text-[12px]"],
+  :is(.competition-report-review, .competition-live-reading) [class~="text-xs"] { font-size: 16px !important; line-height: 1.35 !important; }
+  :is(.competition-report-review, .competition-live-reading) [class~="text-[13px]"] { font-size: 18px !important; line-height: 1.35 !important; }
+  :is(.competition-report-review, .competition-live-reading) [class~="text-sm"] { font-size: 18px !important; line-height: 1.4 !important; }
+  :is(.competition-report-review, .competition-live-reading) [class~="text-base"] { font-size: 20px !important; line-height: 1.4 !important; }
+  :is(.competition-report-review, .competition-live-reading) [class~="text-lg"] { font-size: 22px !important; line-height: 1.35 !important; }
+  :is(.competition-report-review, .competition-live-reading) [class~="text-xl"] { font-size: 25px !important; line-height: 1.25 !important; }
+  :is(.competition-report-review, .competition-live-reading) [class~="text-2xl"] { font-size: 29px !important; line-height: 1.2 !important; }
+  :is(.competition-report-review, .competition-live-reading) .ui-tab,
+  :is(.competition-report-review, .competition-live-reading) .ui-tab [class~="text-xs"] {
+    min-height: 42px;
+    font-size: 11px !important;
+  }
+
+  :is(.competition-report-review, .competition-live-reading) [class~="competition-report-standing-grid"] {
+    grid-template-columns: 1.9rem minmax(0, 1fr) 2.25rem 2.25rem 2.25rem 2.25rem 2.75rem 2.25rem 2.75rem !important;
+  }
+  :is(.competition-report-review, .competition-live-reading) [class~="competition-report-standing-grid"]:not(:first-child) {
+    padding-block: 0.75rem !important;
+  }
+  :is(.competition-report-review, .competition-live-reading) .competition-report-team-name { font-size: 19px !important; line-height: 1.2 !important; }
+  :is(.competition-report-review, .competition-live-reading) .competition-report-crest {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 12px !important;
+  }
+  .competition-readable-bracket [class~="w-[150px]"] {
+    width: 220px !important;
+    flex: 0 0 220px !important;
+  }
+  .competition-readable-bracket .ui-panel--inset > div:first-child,
+  .competition-readable-bracket .ui-panel--inset > div:last-child {
+    padding: 0.65rem 0.8rem;
+  }
+  .competition-readable-bracket .ui-panel--inset > div:first-child span,
+  .competition-readable-bracket .ui-panel--inset > div:last-child span {
+    font-size: 18px !important;
+    line-height: 1.25 !important;
+  }
+  .competition-readable-bracket [class~="text-[13px]"] { font-size: 18px !important; }
+  .competition-readable-bracket .ui-badge { min-height: 42px; font-size: 16px; }
+
+  :is(.competition-report-review, .competition-live-reading) [class~="py-3"] { padding-block: 1rem !important; }
+  :is(.competition-report-review, .competition-live-reading) [class~="px-4"][class~="py-4"] { padding-inline: 1.5rem !important; }
 }

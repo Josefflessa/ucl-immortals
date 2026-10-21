@@ -4,11 +4,11 @@ import { Player, Coach, FORMATIONS, effectiveSecondaries, getCompetitionAlbumBon
 import { activePlayerTraits, AttrKey, getTraitAttributeBonus } from '../traits';
 import { Stadium } from '../stadium';
 import { stadiumHomeBonus } from '../clubProjects';
-import { type PlayerCard, type Team, type MatchResult, type KickoffCardState, KICKOFF_CARD_FIELDS, teamWonMatch, migrateLegacyMartirTeam } from './teamModel';
+import { type PlayerCard, type Team, type MatchResult, type KickoffCardState, KICKOFF_CARD_FIELDS, teamWonMatch, migrateLegacyMartirTeam, migrateLegacyFragilPlayer } from './teamModel';
 import { samePrimaryPosition } from '../positions';
 import { getCoachModifiersForPlayer, calculateChemistry, type CharBoostMap } from './chemistry';
 import { tacticStatBonus } from './matchSim';
-import { PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, estribadoStatBoost, ESTRIBADO_CREDITS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, mercenarioStatBoost, padrinhoStatBoost, apostadorStatBoost } from './draft';
+import { PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, fragilStatBoost, estribadoStatBoost, ESTRIBADO_CREDITS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, mercenarioStatBoost, padrinhoStatBoost, apostadorStatBoost } from './draft';
 
 // ============================================================
 // ATTRIBUTE RESOLVER
@@ -43,6 +43,7 @@ export function getEffectiveAttribute(
     homeStadium?: Stadium;
   }
 ): number {
+  player = migrateLegacyFragilPlayer(player);
   // Lock the Album bonus to the card instance and apply it before chemistry and
   // position multipliers, so every match path uses the same attribute pipeline.
   let base = (player[attribute] as number) + getCompetitionAlbumBonus(player);
@@ -114,6 +115,8 @@ export function getEffectiveAttribute(
   base += Math.max(0, player.lapidadoBoost ?? 0);
   // 🎲 Apostador: +2 permanente por aposta vencida.
   base += player.apostador ? apostadorStatBoost(player.apostadorWins) : 0;
+  // 🩹 Frágil: +3 permanente por recuperação completa.
+  base += player.fragil ? fragilStatBoost(player.fragilRecoveries ?? (player.fragilRecovered ? 1 : 0)) : 0;
 
   // 🩸❤️🪑🤝 Team-effect characteristics buffing this player.
   const cb = context?.charBoosts?.[player.id];

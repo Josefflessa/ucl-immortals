@@ -9,9 +9,9 @@ import { INLINE_ICON } from './inlineIcon';
 import { useState } from 'react';
 import {
   ARROGANTE_GOALS_PER_PENALTY, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, DESENFREADO_CHEM_PER_BOOST, FAZ_TUDO_STARTS_TO_LEARN, FOMINHA_STAT_BOOST_PER_GOAL, FOMINHA_CHEM_PENALTY_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, ARROGANTE_STAT_BOOST_PER_GOAL, DECIMO_HOMEM_STAT_BOOST, DECIMO_HOMEM_CHEM_BONUS, CORINGA_SECONDARY_STAT_BOOST, CORINGA_OOP_STAT_BOOST, ESTRIBADO_CREDITS_PER_BOOST,
-  FORASTEIRO_STAT_BOOST, FORASTEIRO_CHEM_PENALTY_PER_PLAYER, FRAGIL_STAT_BOOST, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, IDOLO_STAT_BOOST,
+  FORASTEIRO_STAT_BOOST, FORASTEIRO_CHEM_PENALTY_PER_PLAYER, FRAGIL_STAT_BOOST, fragilStatBoost, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, IDOLO_STAT_BOOST,
   INFORM_STAT_BOOST, LOBO_CHEM_PENALTY, LOBO_STAT_BOOST, MAGNATA_POINT_MULT, MAGNATA_STAT_PENALTY, MARTIR_INITIAL_DISTRIBUTION,
-  LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, martirDistributionLimit, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, PADRINHO_AFILHADO_BOOST, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
+  LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, HUMILDE_BRONZE_BOOST, HUMILDE_SILVER_BOOST, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, martirDistributionLimit, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, PADRINHO_AFILHADO_BOOST, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
   PILAR_CHEM_BONUS, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST,
   TODOS_POR_UM_STAT_BOOST, arroganteStatBoost, arroganteTeamPenalty, estribadoStatBoost,
   garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, padrinhoStatBoost, prodigioStatBoost, type CharBoost, type StatBreakdown,
@@ -95,6 +95,7 @@ function variantState(variant: Variant, model: PlayerSheetModel): { active: bool
     case 'fominha': return !model.isStarter ? { active: false, inactiveReason: 'só ativa se for titular' } : (model.player.fominhaGoals ?? 0) > 0 ? { active: true } : { active: false, inactiveReason: 'ainda sem gols' };
     case 'forasteiro': return sources.some(s => s.type === 'forasteiro') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular tem clube e nacionalidade diferentes' : 'só ativa se for titular' };
     case 'todosPorUm': return sources.some(s => s.type === 'todosPorUm') ? { active: true } : { active: false, inactiveReason: 'os 11 titulares precisam ter a característica' };
+    case 'humilde': return sources.some(s => s.type === 'humilde' && s.fromId === model.player.id) ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'só dá bônus se houver Bronze ou Prata titular no XI' : 'só ativa se for titular' };
     case 'agregador': return sources.some(s => s.type === 'agregador' && s.fromId === model.player.id) ? { active: true } : { active: false, inactiveReason: 'só ativa se for titular' };
     case 'padrinho':
     case 'mentor':
@@ -203,8 +204,14 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
       return { chips: [{ text: 'BÔNUS DE CAPITÃO TRIPLICADO', color: GREEN }], description: 'Vale quando ele é o capitão: o bônus que o capitão dá ao time inteiro é triplicado.' };
     case 'magnata':
       return { chips: [{ text: `CRÉDITOS DA PARTIDA ×${String(MAGNATA_POINT_MULT).replace('.', ',')}`, color: GREEN }, { text: `−${MAGNATA_STAT_PENALTY} EM TUDO`, color: RED }], description: `Se for titular, aumenta os créditos ganhos na partida. A perda própria já está nos valores da carta.` };
-    case 'fragil':
-      return { chips: [{ text: `+${FRAGIL_STAT_BOOST} EM TUDO`, color: GREEN }, { text: 'RISCO DE LESÃO MUITO MAIOR', color: RED }], description: 'O bônus já está nos valores da carta.' };
+    case 'fragil': {
+      const recoveries = Math.max(0, Math.floor(p.fragilRecoveries ?? (p.fragilRecovered ? 1 : 0)));
+      const boost = fragilStatBoost(recoveries);
+      return { chips: [
+        { text: boost > 0 ? `+${boost} EM TUDO` : 'AGUARDA RECUPERAÇÃO', color: boost > 0 ? GREEN : MUTED, dim: boost === 0 },
+        { text: 'RISCO DE LESÃO MUITO MAIOR', color: RED },
+      ], description: `Recebe +${FRAGIL_STAT_BOOST} em todos os atributos a cada recuperação completa de uma lesão. Já se recuperou ${recoveries} vez${recoveries === 1 ? '' : 'es'} e acumulou +${boost}.` };
+    }
     case 'prodigio': {
       const starts = p.prodigioStarts ?? 0;
       return { chips: [{ text: `+${prodigioStatBoost(starts)} EM CADA ATRIBUTO`, color: GREEN }], description: `+1 a cada ${PRODIGIO_STARTS_PER_BOOST} titularidade${PRODIGIO_STARTS_PER_BOOST === 1 ? '' : 's'}. Acumulou ${starts}.` };
@@ -243,6 +250,10 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     case 'apostador': {
       const wins = p.apostadorWins ?? 0;
       return { chips: [{ text: `+${apostadorStatBoost(wins)} EM CADA ATRIBUTO`, color: GREEN }], description: `+${APOSTADOR_STAT_BOOST_PER_WIN} permanente a cada aposta vencida com ele no elenco. Já venceu ${wins}.` };
+    }
+    case 'humilde': {
+      const boost = charBoost?.sources.find(s => s.type === 'humilde' && s.fromId === p.id)?.flatAll;
+      return { chips: boost === undefined ? [] : [{ text: `+${boost} EM TUDO AO TIME`, color: GREEN }], description: `Se for titular, cada Bronze titular dá +${HUMILDE_BRONZE_BOOST} e cada Prata titular dá +${HUMILDE_SILVER_BOOST} em cada atributo a todos os titulares. Mais de um Humilde acumula.` };
     }
     case 'agregador': {
       const boost = charBoost?.sources.find(s => s.type === 'agregador' && s.fromId === p.id)?.flatAll;
@@ -290,6 +301,7 @@ const TEAMCHAR: Record<string, { icon: string; label: string; color: string }> =
   arrogante: { icon: '👑', label: 'ARROGANTE', color: '#E879F9' },
   padrinho: { icon: '🤵', label: 'PADRINHO', color: '#C4B5FD' },
   agregador: { icon: '🔗', label: 'AGREGADOR', color: '#A5ACC2' },
+  humilde: { icon: '🌱', label: 'HUMILDE', color: '#FF2BD6' },
   fominha: { icon: '🍽️', label: 'FOMINHA', color: '#B32D45' },
   poliglota: { icon: '💬', label: 'POLIGLOTA', color: '#8FD6B4' },
   desenfreado: { icon: '🚀', label: 'DESENFREADO', color: '#D2A86E' },

@@ -1179,13 +1179,16 @@ describe('applyShopVariant — variant stat math (no pool mutation)', () => {
     expect(v.pace).toBe(src.pace - 7);
     expect(v.baseOverall).toBe(src.overall);
   });
-  it('🩹 Frágil adds 7 to every attribute and records baseOverall', () => {
+  it('🩹 Frágil keeps its injury risk and unlocks a recovery bonus instead of baking stats', () => {
     const v = applyShopVariant(src, 'fragil');
     expect(v.fragil).toBe(true);
-    expect(v.overall).toBe(src.overall + 7);
-    expect(v.pace).toBe(src.pace + 7);
-    expect(v.composure).toBe(src.composure + 7);
-    expect(v.baseOverall).toBe(src.overall);
+    expect(v.fragilProgressive).toBe(true);
+    expect(v.fragilRecoveries).toBe(0);
+    expect(v.fragilRecovered).toBeUndefined();
+    expect(v.overall).toBe(src.overall);
+    expect(v.pace).toBe(src.pace);
+    expect(v.composure).toBe(src.composure);
+    expect(v.baseOverall).toBeUndefined();
   });
   it('flag-only variants (idolo / decimoHomem / coringa / colecionador / resiliente / estribado / todosPorUm / arrogante) leave stats untouched', () => {
     for (const key of ['idolo', 'decimoHomem', 'coringa', 'colecionador', 'resiliente', 'estribado', 'todosPorUm', 'arrogante'] as const) {
