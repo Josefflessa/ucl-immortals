@@ -4,10 +4,10 @@
 import { useSoundOnMount } from '../../audio/uiSound';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Activity, Award, BadgeCheck, BrickWall, CalendarCheck, CalendarDays, Castle, ChartColumnIncreasing, Check, ChevronsUp,
-  ChevronRight, CircleCheck, ClipboardList, Compass, Crown, Flag, Flame, Gamepad2, Gem, Globe, Goal, Hand, Handshake, Heart, HeartHandshake,
+  Activity, Award, BadgeCheck, BookOpen, BrickWall, CalendarCheck, CalendarDays, Castle, ChartColumnIncreasing, Check, ChevronsUp,
+  ChevronDown, ChevronRight, ChevronUp, CircleCheck, ClipboardList, Compass, Crown, Flag, Flame, Gamepad2, Gem, Globe, Goal, Hand, Handshake, Heart, HeartHandshake,
   Lock, Medal, Mountain, Pencil, Repeat, Shield, ShieldCheck, ShieldPlus, Shirt, Skull, Sparkles, Star, Sword, Swords,
-  Target, Timer, TrendingUp, Trophy, Users, Wifi, Zap, RotateCcw, FlaskConical, Leaf, Vault, CircleDot, Coins, ListChecks, Eye, Crosshair, Package, Search, type LucideIcon,
+  Target, Timer, TrendingUp, Trophy, Users, Wifi, Zap, RotateCcw, FlaskConical, Leaf, Vault, CircleDot, Coins, ListChecks, Eye, Crosshair, Package, X, type LucideIcon,
 } from 'lucide-react';
 import {
   ACHIEVEMENT_BY_ID,
@@ -24,7 +24,7 @@ import {
   type RecordCategory,
   type ShowcaseItem,
 } from '@shared/game/achievements';
-import { COACHES, DIFFICULTY_LEVELS, getRarityColor, type Player, type Rarity } from '@shared/game/gameData';
+import { COACHES, DIFFICULTY_LEVELS, getRarityColor, POSITION_GROUPS, POS_PT, type Rarity } from '@shared/game/gameData';
 import DifficultyEmblem from '../game/DifficultyEmblem';
 import PlayerCard from '../game/PlayerCard';
 import SelectMenu, { type SelectMenuOption } from './SelectMenu';
@@ -34,8 +34,11 @@ import { levelForCopies, type AlbumLevel } from '@shared/game/album';
 import { seasonAt, seasonLabel } from '@shared/game/seasons';
 import { albumCard, CATALOG, RARITY_LABEL } from '../album/albumData';
 import { useAlbum } from '../../contexts/AlbumContext';
+import { useAccount } from '../../contexts/AccountContext';
+import AlbumFilterToolbar from '../album/AlbumFilterToolbar';
+import { LevelStars } from '../album/AlbumPieces';
 import type { AchievementRarity, AchievementState, AchievementsPayload, ProfileRecordEntry } from '../../contexts/AccountContext';
-import { Button, GameModal, Input, SectionHeader, StatusBanner, Tab, TabList, TabPanel, Tabs } from '../../design-system';
+import { Button, GameModal, SectionHeader, StatusBanner, Tab, TabList, TabPanel, Tabs } from '../../design-system';
 import { cn } from '../../lib/utils';
 
 const ACHIEVEMENT_ICONS: Record<string, LucideIcon> = {
@@ -285,12 +288,23 @@ function AlbumCardShowcaseTile({ item }: { item: Extract<ShowcaseItem, { type: '
   const player = albumCard(item.cardId);
   if (!player) return null;
   const color = getRarityColor(player.rarity);
+  const level = item.albumLevel ?? 1;
   return (
-    <article className={SHOWCASE_TILE} style={{ borderColor: `color-mix(in srgb, ${color} 45%, var(--ui-line-subtle))` }} aria-label={`${player.shortName}, carta do álbum, ${RARITY_LABEL[player.rarity]}`}>
-      <PlayerCard player={player} lite flat scale={0.35} albumLevel={item.albumLevel as AlbumLevel | undefined} />
-      <strong className="mt-1 line-clamp-1 text-sm text-[var(--ui-text)]">{player.shortName}</strong>
-      <span className="line-clamp-1 text-[11px] text-[var(--ui-text-muted)]">{player.club}</span>
-      <span className="text-[11px] font-black uppercase tracking-wider" style={{ color }}>{RARITY_LABEL[player.rarity]}{item.albumLevel ? ` · ★${item.albumLevel}` : ''}</span>
+    <article className={cn(SHOWCASE_TILE, 'gap-2.5 px-3 py-4 sm:py-5')} style={{ borderColor: `color-mix(in srgb, ${color} 58%, var(--ui-line-subtle))` }} aria-label={`${player.shortName}, carta do Álbum, nível do Álbum ${level} de 5, ${RARITY_LABEL[player.rarity]}`}>
+      <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em]" style={{ borderColor: `color-mix(in srgb, ${color} 40%, transparent)`, color, background: `color-mix(in srgb, ${color} 10%, transparent)` }}>
+        <BookOpen size={13} aria-hidden="true" /> DO ÁLBUM
+      </span>
+      <PlayerCard player={player} lite flat scale={0.5} albumLevel={level as AlbumLevel} />
+      <div className="w-full min-w-0">
+        <strong className="block truncate text-base font-black text-[var(--ui-text)]">{player.shortName}</strong>
+        <span className="block truncate text-xs text-[var(--ui-text-muted)]">{player.club}</span>
+      </div>
+      <span className="rounded-md px-2 py-0.5 text-[11px] font-black uppercase tracking-wider" style={{ color, background: `color-mix(in srgb, ${color} 11%, transparent)` }}>{RARITY_LABEL[player.rarity]}</span>
+      <span className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs font-bold text-[var(--ui-text-soft)]">
+        <LevelStars level={level} size={13} />
+        <span>Nível do Álbum {level}/5</span>
+      </span>
+      <span className="text-[11px] font-semibold text-[var(--ui-text-faint)]">Nº {CATALOG.stickers.get(item.cardId)?.number ?? '—'} do Álbum</span>
     </article>
   );
 }
@@ -326,7 +340,7 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
     return [wrapper(<AlbumCardShowcaseTile item={item} />)];
   });
   return (
-    <section aria-label="Mural" className="space-y-3">
+    <section aria-label="Mural" className="space-y-5 sm:space-y-6">
       <SectionHeader
         title="Mural"
         className="mb-0 items-center"
@@ -336,7 +350,7 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
           </Button>
         ) : undefined}
       />
-      {tiles.length > 0 ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">{tiles}</div> : null}
+      {tiles.length > 0 ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-6 sm:gap-4">{tiles}</div> : null}
       {tiles.length > 0
         ? null
         : <div className="!mt-6 rounded-xl border border-dashed border-[var(--ui-line-strong)] p-4 text-center text-xs text-[var(--ui-text-muted)]">{emptyText}</div>}
@@ -345,6 +359,16 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
 }
 
 const CATEGORY_ORDER: AchievementCategory[] = ['titles', 'campaign', 'career', 'difficulty', 'online'];
+type ShowcaseCardSort = 'number' | 'name' | 'level' | 'spares' | 'rarity';
+type ShowcasePositionGroup = 'all' | keyof typeof POSITION_GROUPS;
+const SHOWCASE_RARITY_ORDER: Rarity[] = ['bronze', 'silver', 'gold', 'legendary', 'immortal', 'unique'];
+const SHOWCASE_POSITION_LABEL: Record<keyof typeof POSITION_GROUPS, string> = {
+  GK: 'Goleiros', DEF: 'Defensores', MID: 'Meio-campistas', ATT: 'Atacantes',
+};
+
+function normalizeCardSearch(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
 
 /** Every achievement, grouped by category, with progress and rarity. */
 export function AchievementsSection({ payload, heading = true }: { payload: AchievementsPayload; heading?: boolean }) {
@@ -403,19 +427,30 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
   onSave: (items: ShowcaseItem[]) => Promise<void>;
 }) {
   const { album } = useAlbum();
+  const { eventCards } = useAccount();
   const [selected, setSelected] = useState<ShowcaseItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [section, setSection] = useState<'achievements' | 'records' | 'cards'>('achievements');
   const [cardSearch, setCardSearch] = useState('');
+  const [cardSort, setCardSort] = useState<ShowcaseCardSort>('rarity');
+  const [cardDirection, setCardDirection] = useState<'asc' | 'desc'>('desc');
   const [cardRarity, setCardRarity] = useState<Rarity | 'all'>('all');
+  const [cardPositionGroup, setCardPositionGroup] = useState<ShowcasePositionGroup>('all');
+  const [cardLevel, setCardLevel] = useState<'all' | '1' | '2' | '3' | '4' | '5'>('all');
+  const [cardCopies, setCardCopies] = useState<'all' | 'spares'>('all');
   useEffect(() => {
     if (!open) return;
     setSelected(payload.showcase.automatic ? [] : payload.showcase.items);
     setError('');
     setSection('achievements');
     setCardSearch('');
+    setCardSort('rarity');
+    setCardDirection('desc');
     setCardRarity('all');
+    setCardPositionGroup('all');
+    setCardLevel('all');
+    setCardCopies('all');
   }, [open, payload.showcase]);
 
   const unlocked = payload.achievements.filter(state => state.level > 0).sort((a, b) => b.level - a.level);
@@ -450,21 +485,43 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   const shownRecords = ownedRecords.filter(record => record.difficulty_id === recordDifficulty);
-  const ownedAlbumCards = useMemo(() => Array.from(album?.stickers.entries() ?? [])
-    .flatMap(([id, sticker]) => {
+  const ownedAlbumCards = useMemo(() => {
+    const eventCardIds = new Set(eventCards);
+    const ownedIds = new Set([...Array.from(album?.stickers.keys() ?? []), ...eventCards]);
+    return Array.from(ownedIds)
+    .flatMap(id => {
       const player = albumCard(id);
       const number = CATALOG.stickers.get(id)?.number;
-      return player && number && sticker.copies > 0
-        ? [{ id, player, number, level: levelForCopies(sticker.copies) as AlbumLevel }]
-        : [];
+      if (!player || number === undefined) return [];
+      const sticker = album?.stickers.get(id);
+      const copies = sticker?.copies ?? (eventCardIds.has(id) ? 1 : 0);
+      const level = levelForCopies(copies) || (eventCardIds.has(id) ? 1 : 0);
+      return copies > 0 ? [{ id, player, number, level, copies, spares: sticker?.spare ?? 0 }] : [];
     })
-    .sort((a, b) => a.number - b.number), [album]);
+    .sort((a, b) => a.number - b.number);
+  }, [album, eventCards]);
   const shownAlbumCards = useMemo(() => {
-    const needle = cardSearch.trim().toLocaleLowerCase('pt-BR');
-    return ownedAlbumCards.filter(({ player, number }) =>
+    const needle = normalizeCardSearch(cardSearch);
+    return ownedAlbumCards.filter(({ player, number, level, spares }) =>
       (cardRarity === 'all' || player.rarity === cardRarity)
-      && (!needle || `${player.shortName} ${player.club} ${number}`.toLocaleLowerCase('pt-BR').includes(needle)));
-  }, [cardRarity, cardSearch, ownedAlbumCards]);
+      && (cardPositionGroup === 'all' || POSITION_GROUPS[cardPositionGroup].includes(player.position))
+      && (cardLevel === 'all' || level === Number(cardLevel))
+      && (cardCopies === 'all' || spares > 0)
+      && (!needle || normalizeCardSearch(`${player.shortName} ${player.fullName ?? ''} ${player.club} ${number} ${POS_PT[player.position] ?? player.position} ${player.position} ${RARITY_LABEL[player.rarity]} nível ${level} ${spares ? 'repetida repetidas' : ''}`).includes(needle)))
+      .sort((a, b) => {
+        let result = 0;
+        if (cardSort === 'name') result = a.player.shortName.localeCompare(b.player.shortName, 'pt-BR');
+        else if (cardSort === 'level') result = a.level - b.level;
+        else if (cardSort === 'spares') result = a.spares - b.spares;
+        else if (cardSort === 'rarity') {
+          result = SHOWCASE_RARITY_ORDER.indexOf(a.player.rarity) - SHOWCASE_RARITY_ORDER.indexOf(b.player.rarity);
+          if (result !== 0) return cardDirection === 'asc' ? result : -result;
+          return b.player.overall - a.player.overall || a.number - b.number;
+        } else result = a.number - b.number;
+        if (result === 0) result = a.number - b.number;
+        return cardDirection === 'asc' ? result : -result;
+      });
+  }, [cardCopies, cardDirection, cardLevel, cardPositionGroup, cardRarity, cardSearch, cardSort, ownedAlbumCards]);
   const cardRarityOptions: SelectMenuOption<Rarity | 'all'>[] = [
     { value: 'all', text: 'Todas as raridades', label: 'Todas as raridades' },
     ...(['immortal', 'legendary', 'gold', 'silver', 'bronze', 'unique'] as Rarity[]).map(rarity => ({
@@ -474,6 +531,29 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
       label: RARITY_LABEL[rarity],
     })),
   ];
+  const cardPositionOptions: SelectMenuOption<ShowcasePositionGroup>[] = [
+    { value: 'all', text: 'Todas as posições', label: 'Todas as posições' },
+    ...(Object.keys(POSITION_GROUPS) as Array<keyof typeof POSITION_GROUPS>).map(group => ({
+      value: group,
+      text: SHOWCASE_POSITION_LABEL[group],
+      label: SHOWCASE_POSITION_LABEL[group],
+    })),
+  ];
+  const cardLevelOptions: SelectMenuOption<'all' | '1' | '2' | '3' | '4' | '5'>[] = [
+    { value: 'all', text: 'Todos os níveis', label: 'Todos os níveis' },
+    ...([1, 2, 3, 4, 5] as const).map(level => ({ value: String(level) as '1' | '2' | '3' | '4' | '5', text: `Nível ${level}`, label: `Nível ${level}` })),
+  ];
+  const cardCopiesOptions: SelectMenuOption<'all' | 'spares'>[] = [
+    { value: 'all', text: 'Todas as cartas', label: 'Todas as cartas' },
+    { value: 'spares', text: 'Com repetidas', label: 'Com repetidas' },
+  ];
+  const cardSortOptions = [
+    { value: 'number', label: 'Nº do álbum' },
+    { value: 'name', label: 'Nome' },
+    { value: 'level', label: 'Nível' },
+    { value: 'spares', label: 'Repetidas' },
+    { value: 'rarity', label: 'Raridade' },
+  ] as const;
   const recordDifficultyOptions: SelectMenuOption<string>[] = [...RANKED_DIFFICULTY_IDS].reverse().map(id => ({
     value: id,
     text: difficultyName(id),
@@ -493,6 +573,49 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
     if (item.type === 'card') return albumCard(item.cardId)?.shortName ?? 'Carta do álbum';
     const record = findRecord(records, item);
     return record ? `${RECORD_META[item.category].label} · ${difficultyName(item.difficultyId)}` : 'Recorde';
+  };
+  const selectedPresentation = (item: ShowcaseItem) => {
+    if (item.type === 'achievement') {
+      const state = payload.achievements.find(entry => entry.id === item.id);
+      const tier = state ? tierForLevel(state.level) : null;
+      return {
+        kind: 'CONQUISTA',
+        label: selectedLabel(item),
+        detail: tier ? ACHIEVEMENT_TIER_LABELS[tier] : 'Conquista desbloqueada',
+        Icon: ACHIEVEMENT_ICONS[item.id] ?? Trophy,
+        color: state ? achievementLevelColor(state.level) : 'var(--ui-brand-strong)',
+      };
+    }
+    if (item.type === 'card') {
+      const player = albumCard(item.cardId);
+      const level = item.albumLevel ?? 1;
+      return {
+        kind: 'CARTA DO ÁLBUM',
+        label: player?.shortName ?? 'Carta do álbum',
+        detail: `${player?.club ?? 'Álbum'} · Nível do Álbum ${level}/5`,
+        Icon: BookOpen,
+        color: player ? getRarityColor(player.rarity) : 'var(--ui-brand-strong)',
+      };
+    }
+    const record = findRecord(records, item);
+    const meta = RECORD_META[item.category] ?? RECORD_META.goals;
+    return {
+      kind: 'RECORDE',
+      label: selectedLabel(item),
+      detail: record ? `${record.value.toLocaleString('pt-BR')} ${meta.suffix} · ${seasonLabel(record.season ?? seasonAt(record.completed_at))}` : difficultyName(item.difficultyId),
+      Icon: meta.icon,
+      color: isRankedDifficulty(item.difficultyId) ? getRarityColor(item.difficultyId as Rarity) : 'var(--ui-brand-strong)',
+    };
+  };
+  const moveSelected = (index: number, offset: -1 | 1) => {
+    const target = index + offset;
+    if (target < 0 || target >= selected.length) return;
+    setSelected(current => {
+      const next = [...current];
+      const [item] = next.splice(index, 1);
+      next.splice(target, 0, item);
+      return next;
+    });
   };
   const save = async (items: ShowcaseItem[]) => {
     setSaving(true);
@@ -546,22 +669,37 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
     >
       <div className="space-y-4">
         {error ? <StatusBanner tone="danger" title="Não foi possível salvar">{error}</StatusBanner> : null}
-        <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-bold text-[var(--ui-text)]">Destaques escolhidos</p>
-              <p className="mt-0.5 text-xs text-[var(--ui-text-muted)]">Toque em um item para adicionar ou remover.</p>
+        <section aria-label="Destaques escolhidos" className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3.5 sm:p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-sm font-black text-[var(--ui-text)]">Destaques escolhidos</h3>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">Eles aparecem no mural nesta ordem. Use as setas para organizar.</p>
             </div>
-            <span className="shrink-0 rounded-full bg-[var(--ui-surface-2)] px-2.5 py-1 text-xs font-bold tabular-nums text-[var(--ui-text-soft)]">{selected.length}/{SHOWCASE_MAX_ITEMS}</span>
+            <span className="shrink-0 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)] px-2.5 py-1.5 text-xs font-black tabular-nums text-[var(--ui-text-soft)]">{selected.length}<span className="mx-1 text-[var(--ui-text-faint)]">/</span>{SHOWCASE_MAX_ITEMS}</span>
           </div>
-          {selected.length > 0 ? <ol className="mt-3 flex flex-wrap gap-2">
-            {selected.map((item, index) => <li key={showcaseKey(item)}>
-              <button type="button" aria-label={`Remover ${selectedLabel(item)} do mural`} onClick={() => toggle(item)} disabled={saving} className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-lg border border-[var(--ui-brand)]/35 bg-[var(--ui-brand-soft)] px-2.5 text-left text-xs font-semibold text-[var(--ui-text)] hover:border-[var(--ui-brand)]">
-                <span className="font-bold tabular-nums text-[var(--ui-brand-strong)]">{index + 1}.</span><span className="max-w-40 truncate">{selectedLabel(item)}</span><span aria-hidden="true" className="text-[var(--ui-text-muted)]">×</span>
-              </button>
-            </li>)}
-          </ol> : <p className="mt-3 rounded-lg border border-dashed border-[var(--ui-line-subtle)] px-3 py-2 text-xs text-[var(--ui-text-faint)]">Nenhum destaque escolhido. O mural automático continua disponível.</p>}
-        </div>
+          {selected.length > 0 ? <ol className="mt-3 grid gap-2 sm:grid-cols-2">
+            {selected.map((item, index) => {
+              const presentation = selectedPresentation(item);
+              const ItemIcon = presentation.Icon;
+              return (
+                <li key={showcaseKey(item)} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-2.5">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border text-xs font-black tabular-nums" style={{ borderColor: `color-mix(in srgb, ${presentation.color} 40%, var(--ui-line-subtle))`, color: presentation.color, background: `color-mix(in srgb, ${presentation.color} 10%, transparent)` }}>{index + 1}</span>
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ui-surface-2)]" style={{ color: presentation.color }}><ItemIcon size={16} aria-hidden="true" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">{presentation.kind}</span>
+                    <strong className="block truncate text-xs text-[var(--ui-text)]">{presentation.label}</strong>
+                    <span className="block truncate text-[11px] text-[var(--ui-text-muted)]">{presentation.detail}</span>
+                  </span>
+                  <span className="grid shrink-0 grid-cols-2 gap-1">
+                    <button type="button" aria-label={`Mover ${selectedLabel(item)} para cima`} title="Mover para cima" disabled={saving || index === 0} onClick={() => moveSelected(index, -1)} className="flex size-7 items-center justify-center rounded-md border border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] disabled:cursor-not-allowed disabled:opacity-30"><ChevronUp size={15} aria-hidden="true" /></button>
+                    <button type="button" aria-label={`Mover ${selectedLabel(item)} para baixo`} title="Mover para baixo" disabled={saving || index === selected.length - 1} onClick={() => moveSelected(index, 1)} className="flex size-7 items-center justify-center rounded-md border border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] disabled:cursor-not-allowed disabled:opacity-30"><ChevronDown size={15} aria-hidden="true" /></button>
+                    <button type="button" aria-label={`Remover ${selectedLabel(item)} do mural`} title="Remover do mural" disabled={saving} onClick={() => toggle(item)} className="col-span-2 flex h-7 items-center justify-center gap-1 rounded-md border border-[var(--ui-line-subtle)] text-[11px] font-bold text-[var(--ui-text-muted)] hover:border-[var(--ui-danger)]/40 hover:bg-[var(--ui-danger)]/10 hover:text-[var(--ui-danger)] disabled:opacity-40"><X size={13} aria-hidden="true" /> Remover</button>
+                  </span>
+                </li>
+              );
+            })}
+          </ol> : <div className="mt-3 rounded-lg border border-dashed border-[var(--ui-line-subtle)] px-3 py-3 text-center"><p className="text-xs font-semibold text-[var(--ui-text-soft)]">Nenhum destaque escolhido</p><p className="mt-1 text-[11px] text-[var(--ui-text-faint)]">Seu mural continuará automático. Escolha itens abaixo para personalizá-lo.</p></div>}
+        </section>
         <Tabs value={section} onValueChange={value => setSection(value as typeof section)}>
           <TabList aria-label="Tipo de destaque" className="grid w-full grid-cols-3">
             <Tab value="achievements">Conquistas <span className="ml-1 text-[var(--ui-text-muted)]">{unlocked.length}</span></Tab>
@@ -618,31 +756,60 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
             })}
         </TabPanel>
         <TabPanel value="cards" className="space-y-3 pt-3">
-          <div>
-            <div className="ui-kicker">Cartas que você possui</div>
-            <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">Escolha uma carta do seu Álbum para destacar no perfil.</p>
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <div className="ui-kicker">Cartas do seu Álbum</div>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">Escolha cartas que você já conquistou. Busca, ordem e filtros seguem o padrão de Minhas cartas.</p>
+            </div>
+            <span className="rounded-md bg-[var(--ui-surface-2)] px-2 py-1 text-[11px] font-bold tabular-nums text-[var(--ui-text-soft)]">{shownAlbumCards.length} de {ownedAlbumCards.length}</span>
           </div>
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <label className="relative block">
-              <span className="sr-only">Buscar cartas do álbum</span>
-              <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)]" />
-              <Input value={cardSearch} onChange={event => setCardSearch(event.target.value)} placeholder="Buscar por jogador, clube ou número" className="pl-9" />
-            </label>
-            <SelectMenu label="Raridade das cartas" value={cardRarity} options={cardRarityOptions} onChange={setCardRarity} />
-          </div>
+          <AlbumFilterToolbar
+            className="mb-2"
+            search={cardSearch}
+            onSearchChange={setCardSearch}
+            searchLabel="Buscar cartas do Álbum"
+            placeholder="Jogador, clube, nº, posição ou nível"
+            sortLabel="minhas cartas"
+            sortValue={cardSort}
+            onSortChange={value => setCardSort(value as ShowcaseCardSort)}
+            sortOptions={cardSortOptions}
+            direction={cardDirection}
+            onDirectionChange={() => setCardDirection(value => value === 'asc' ? 'desc' : 'asc')}
+            hasActiveFilters={cardSearch.trim() !== '' || cardSort !== 'rarity' || cardDirection !== 'desc' || cardRarity !== 'all' || cardPositionGroup !== 'all' || cardLevel !== 'all' || cardCopies !== 'all'}
+            onClear={() => {
+              setCardSearch('');
+              setCardSort('rarity');
+              setCardDirection('desc');
+              setCardRarity('all');
+              setCardPositionGroup('all');
+              setCardLevel('all');
+              setCardCopies('all');
+            }}
+            extraFilters={(
+              <div className="grid w-full grid-cols-2 gap-2 md:grid-cols-4">
+                <SelectMenu label="Filtrar por raridade" value={cardRarity} onChange={setCardRarity} appearance="neutral" className="w-full min-w-0" buttonClassName="w-full justify-between" options={cardRarityOptions} />
+                <SelectMenu label="Filtrar por posição" value={cardPositionGroup} onChange={setCardPositionGroup} appearance="neutral" className="w-full min-w-0" buttonClassName="w-full justify-between" options={cardPositionOptions} />
+                <SelectMenu label="Filtrar por nível do Álbum" value={cardLevel} onChange={setCardLevel} appearance="neutral" className="w-full min-w-0" buttonClassName="w-full justify-between" options={cardLevelOptions} />
+                <SelectMenu label="Filtrar por cópias repetidas" value={cardCopies} onChange={setCardCopies} appearance="neutral" className="w-full min-w-0" buttonClassName="w-full justify-between" options={cardCopiesOptions} />
+              </div>
+            )}
+          />
           {ownedAlbumCards.length === 0 ? <div className="rounded-xl border border-dashed border-[var(--ui-line-subtle)] p-5 text-center"><p className="text-sm font-semibold text-[var(--ui-text)]">Seu Álbum ainda está vazio</p><p className="mt-1 text-xs text-[var(--ui-text-muted)]">As cartas que você coletar aparecerão aqui.</p></div>
             : shownAlbumCards.length === 0 ? <p className="rounded-lg bg-[var(--ui-surface-inset)] p-3 text-center text-xs text-[var(--ui-text-muted)]">Nenhuma carta encontrada com esses filtros.</p>
               : <div className="grid max-h-[min(50vh,420px)] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
-                {shownAlbumCards.map(({ id, player, number, level }) => option(`c:${id}`, (
+                {shownAlbumCards.map(({ id, player, number, level, spares }) => option(`c:${id}`, (
                   <>
-                    <span className="shrink-0"><PlayerCard player={player as Player} lite flat scale={0.24} albumLevel={level} /></span>
+                    <span className="shrink-0"><PlayerCard player={player} lite flat scale={0.3} albumLevel={level as AlbumLevel} /></span>
                     <span className="min-w-0 flex-1">
                       <strong className="block truncate text-sm text-[var(--ui-text)]">{player.shortName}</strong>
                       <span className="block truncate text-xs text-[var(--ui-text-muted)]">{player.club}</span>
-                      <span className="block text-[11px] font-semibold" style={{ color: getRarityColor(player.rarity) }}>Nº {number} · {RARITY_LABEL[player.rarity]}{level > 1 ? ` · ★${level}` : ''}</span>
+                      <span className="mt-0.5 block text-[10px] font-black uppercase tracking-wide" style={{ color: getRarityColor(player.rarity) }}>{RARITY_LABEL[player.rarity]}</span>
+                      <span className="mt-1 block text-[10px] font-semibold text-[var(--ui-text-soft)]">Nº {number} · {POS_PT[player.position] ?? player.position}</span>
+                      <span className="mt-0.5 block text-[10px] font-semibold text-[var(--ui-text-soft)]">Nível do Álbum {level}/5</span>
+                      <span className="mt-0.5 inline-flex items-center gap-1"><LevelStars level={Math.max(1, level)} size={9} />{spares > 0 ? <span className="text-[10px] text-[var(--ui-text-muted)]">+{spares}</span> : null}</span>
                     </span>
                   </>
-                ), () => toggle({ type: 'card', cardId: id, albumLevel: level }))) }
+                ), () => toggle({ type: 'card', cardId: id, albumLevel: Math.max(1, level) as AlbumLevel }))) }
               </div>}
         </TabPanel>
         </Tabs>

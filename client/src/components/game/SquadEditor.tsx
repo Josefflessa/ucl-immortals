@@ -6,7 +6,7 @@
 import TacticIcon from './TacticIcon';
 import TraitIcon from './TraitIcon';
 import { CardIcon, InjuryIcon } from './StatusIcon';
-import { Armchair, ArrowLeftRight, GraduationCap, Repeat, Search, Star, TriangleAlert } from 'lucide-react';
+import { Armchair, ArrowLeftRight, GraduationCap, Minus, Plus, Repeat, Search, Star, TriangleAlert } from 'lucide-react';
 import { INLINE_ICON } from './inlineIcon';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
@@ -852,16 +852,28 @@ export default function SquadEditor({
                             const maxForTarget = limit - current.filter(targetId => targetId !== id)
                               .reduce((sum, targetId) => sum + Math.max(0, Math.floor(distribution[targetId] ?? 0)), 0);
                             return (
-                              <label key={id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-2" style={{ background: '#0d090d', border: '1px solid #B91C1C33' }}>
+                              <div key={id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-2" style={{ background: '#0d090d', border: '1px solid #B91C1C33' }}>
                                 <span className="min-w-0 truncate text-[13px] font-bold text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{target.shortName}</span>
-                                <span className="flex shrink-0 items-center gap-1.5">
+                                <span className="flex shrink-0 items-center gap-1">
+                                  <button type="button" aria-label={`Diminuir ponto do Mártir para ${target.shortName}`} disabled={amount <= 0}
+                                    onClick={() => setAmount(id, amount - 1)}
+                                    className="grid h-8 w-8 place-items-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-35"
+                                    style={{ background: '#171018', border: '1px solid #7F1D1D', color: '#FCA5A5' }}>
+                                    <Minus size={14} strokeWidth={3} />
+                                  </button>
                                   <input aria-label={`Pontos do Mártir para ${target.shortName}`} type="number" min={0} max={maxForTarget} step={1} value={amount}
                                     onChange={event => setAmount(id, Number(event.target.value))}
                                     className="w-[4.5rem] rounded-md px-2 py-1 text-center text-[13px] font-black text-white outline-none"
                                     style={{ background: '#171018', border: '1px solid #7F1D1D', fontFamily: 'var(--font-game), sans-serif' }} />
+                                  <button type="button" aria-label={`Aumentar ponto do Mártir para ${target.shortName}`} disabled={amount >= maxForTarget}
+                                    onClick={() => setAmount(id, amount + 1)}
+                                    className="grid h-8 w-8 place-items-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-35"
+                                    style={{ background: '#171018', border: '1px solid #7F1D1D', color: '#FCA5A5' }}>
+                                    <Plus size={14} strokeWidth={3} />
+                                  </button>
                                   <span className="text-[11px] font-bold" style={{ color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}>EM TUDO</span>
                                 </span>
-                              </label>
+                              </div>
                             );
                           })}
                         </div>
