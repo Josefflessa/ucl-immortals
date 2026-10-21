@@ -27,7 +27,7 @@ const FONT = { fontFamily: 'var(--font-game), sans-serif' };
 const MUTED = '#9693A5';
 const PACK_HEIGHT = 'min(52vh, 460px)';
 const PACK_BOX = { height: PACK_HEIGHT, width: `calc(${PACK_HEIGHT} * ${ALBUM_PACK_ASPECT})` };
-const TEAR_MS = 900;
+const TEAR_MS = 580;
 
 /** What a completed page unlocked: a club's frame and cover, or packs. */
 export function PageRewardCard({ reward }: { reward: PageReward }) {
@@ -84,7 +84,7 @@ function EnvelopeFront({ itemKey, opening, onOpen }: { itemKey: AlbumItemKey; op
       <div aria-hidden="true" className="pointer-events-none absolute -inset-[40%] -z-[1] rounded-full" style={{ background: `radial-gradient(circle, ${itemColor(itemKey)}44 0%, transparent 70%)` }} />
       <motion.div
         animate={opening ? { scale: [1, 1.06, .2], opacity: [1, 1, 0], rotate: [0, -2, 6] } : { scale: [1, 1.015, 1] }}
-        transition={opening ? { duration: .7, ease: 'easeIn' } : { duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+        transition={opening ? { duration: TEAR_MS / 1000, ease: 'easeIn' } : { duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
       >
         <ItemArt itemKey={itemKey} height={300} />
       </motion.div>
@@ -149,10 +149,7 @@ function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: {
           </section>
 
           <section aria-label="Cartas recebidas">
-            <div className="mb-2 flex items-baseline justify-between gap-3">
-              <h3 className="text-sm font-black text-white sm:text-base" style={FONT}>Cartas recebidas</h3>
-              <span className="text-xs tabular-nums text-white/55">{cards.length} {cards.length === 1 ? 'tipo' : 'tipos'}</span>
-            </div>
+            <h3 className="mb-2 text-sm font-black text-white sm:text-base" style={FONT}>Cartas recebidas</h3>
             <div className="grid grid-cols-2 items-start gap-x-2 gap-y-4 min-[420px]:grid-cols-3 sm:grid-cols-4 sm:gap-x-3 lg:grid-cols-6 xl:grid-cols-8">
               {cards.map(({ id, player, number, total, newCopies, repeatCopies }) => {
                 const level = levelForCopies(album?.stickers.get(id)?.copies ?? 0);
@@ -349,9 +346,9 @@ export default function AlbumPackOpening({ items, onClose, bulk = false, remaini
                     ref={packRef}
                     style={PACK_BOX}
                     animate={stage === 'tearing' ? { scale: [1, 1.018, .988, 1.006, 1], rotate: [0, -.35, .35, -.18, 0] } : { scale: 1, rotate: 0 }}
-                    transition={stage === 'tearing' ? { duration: .64, ease: 'easeOut' } : { duration: .14 }}
+                    transition={stage === 'tearing' ? { duration: TEAR_MS / 1000, ease: 'easeOut' } : { duration: .14 }}
                   >
-                    <PackFront rarity={parsed.tier} art={<AlbumPackArt tier={parsed.tier} className="block h-full w-full" />} tearAt={ALBUM_PACK_TEAR_AT} cutProgress={cutProgress} isTearing={stage === 'tearing'} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} />
+                    <PackFront rarity={parsed.tier} art={<AlbumPackArt tier={parsed.tier} className="block h-full w-full" />} tearAt={ALBUM_PACK_TEAR_AT} tearDuration={TEAR_MS} cutProgress={cutProgress} isTearing={stage === 'tearing'} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} />
                   </motion.div>
                   <button type="button" onClick={startOpening} disabled={stage === 'tearing'} className="mt-5 text-[12px] font-bold tracking-[0.14em] text-[#7D7A8C] transition-colors hover:text-white disabled:opacity-40" style={FONT}>
                     ABRIR SEM ANIMAÇÃO

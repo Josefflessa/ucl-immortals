@@ -28,11 +28,13 @@ const PACK_SIZE = { height: PACK_HEIGHT, width: `calc(${PACK_HEIGHT} * ${PACK_AS
 const TEAR_AT = 9;
 const TEAR_PATH = 'M 0.8 8.3 L 2.8 9.7 L 4.8 8.3 L 6.8 9.7 L 8.8 8.3 L 10.8 9.7 L 12.8 8.3 L 14.8 9.7 L 16.8 8.3 L 18.8 9.7 L 20.8 8.3 L 22.8 9.7 L 24.8 8.3 L 26.8 9.7 L 28.8 8.3 L 30.8 9.7 L 32.8 8.3 L 34.8 9.7 L 36.8 8.3 L 38.8 9.7 L 40.8 8.3 L 42.8 9.7 L 44.8 8.3 L 46.8 9.7 L 48.8 8.3 L 50.8 9.7 L 52.8 8.3 L 54.8 9.7 L 56.8 8.3 L 58.8 9.7 L 60.8 8.3 L 62.8 9.7 L 64.8 8.3 L 66.8 9.7 L 68.8 8.3 L 70.8 9.7 L 72.8 8.3 L 74.8 9.7 L 76.8 8.3 L 78.8 9.7 L 80.8 8.3 L 82.8 9.7 L 84.8 8.3 L 86.8 9.7 L 88.8 8.3 L 90.8 9.7 L 92.8 8.3 L 94.8 9.7 L 96.8 8.3 L 98.8 9.7';
 
-export function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMove, onPointerUp, art, tearAt = TEAR_AT }: {
+export function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPointerMove, onPointerUp, art, tearAt = TEAR_AT, tearDuration = 660 }: {
   rarity: PlayerPackRarity;
   /** Artwork drawn instead of the card pack's (the album's sticker packets), and its tear line in %. */
   art?: ReactNode;
   tearAt?: number;
+  /** Tear animation duration in milliseconds. */
+  tearDuration?: number;
   cutProgress: number;
   isTearing: boolean;
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -71,7 +73,7 @@ export function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPoi
             style={{ top: `${tearAt - 2}%`, height: '26%', background: `radial-gradient(ellipse at 50% 0%, #FFFFFF 0%, ${accent} 26%, ${accent}00 70%)`, mixBlendMode: 'screen' }}
             initial={{ opacity: 0, scaleY: 0.2 }}
             animate={{ opacity: [0, 1, 0.85], scaleY: [0.2, 1.25, 1] }}
-            transition={{ duration: 0.7, ease: 'easeOut' }}
+            transition={{ duration: tearDuration / 1000, ease: 'easeOut' }}
           />
         )}
       </AnimatePresence>
@@ -83,7 +85,7 @@ export function PackFront({ rarity, cutProgress, isTearing, onPointerDown, onPoi
         animate={isTearing
           ? { x: '118%', y: '-16%', rotate: -9, rotateY: -18, skewX: -7, opacity: 0 }
           : { x: 0, y: cutProgress > 0 ? cutProgress * -.02 : 0, rotate: cutProgress > 0 ? cutProgress * 0.008 : 0, rotateY: 0, skewX: 0, opacity: 1 }}
-        transition={isTearing ? { duration: .66, ease: [0.22, 1, 0.36, 1] } : { duration: .08 }}
+        transition={isTearing ? { duration: tearDuration / 1000, ease: [0.22, 1, 0.36, 1] } : { duration: .08 }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

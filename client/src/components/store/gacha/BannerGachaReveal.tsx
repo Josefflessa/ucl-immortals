@@ -335,7 +335,7 @@ const FlipCard = memo(function FlipCard({ draw, tier, scale, flipped, charging, 
 });
 
 /** Several cards on a wide screen: dealt face down and flipped in order. On a phone the same grid is only the summary (autoplay off: everything is already face up). */
-function GridReveal({ draws, onClose, reduced, autoplay, summary, leave }: { draws: BannerBatchResult; onClose: () => void; reduced: boolean; autoplay: boolean; summary?: RevealSummary; leave: (action: () => void) => void }) {
+function GridReveal({ draws, onClose, reduced, autoplay, skipInitialPause, summary, leave }: { draws: BannerBatchResult; onClose: () => void; reduced: boolean; autoplay: boolean; skipInitialPause: boolean; summary?: RevealSummary; leave: (action: () => void) => void }) {
   const { width, height } = useViewport();
   const cards = draws.cards;
   const order = useMemo(() => flipOrder(cards.map(draw => draw.rarity)), [cards]);
@@ -351,7 +351,8 @@ function GridReveal({ draws, onClose, reduced, autoplay, summary, leave }: { dra
     const tier = tierOf(cards[position].rarity);
     const previous = step > 0 ? tierOf(cards[order[step - 1]].rarity) : null;
     // A card with a burst (gold and up) is given time to settle before it turns: its pulse, sparks and rays are built with it, and turning it while they are still being drawn made it blink on phones.
-    const wait = reduced ? 160 : Math.max(tier.rank >= 2 ? 900 : 0, step === 0 ? 550 : previous && previous.rank >= 3 ? 1000 : 430);
+    const isFirstAfterTear = skipInitialPause && step === 0;
+    const wait = isFirstAfterTear ? (reduced ? 50 : 100) : reduced ? 160 : Math.max(tier.rank >= 2 ? 900 : 0, step === 0 ? 550 : previous && previous.rank >= 3 ? 1000 : 430);
     let suspense: ReturnType<typeof setTimeout> | undefined;
     let begin: ReturnType<typeof setTimeout> | undefined;
     const flip = () => {
@@ -364,10 +365,10 @@ function GridReveal({ draws, onClose, reduced, autoplay, summary, leave }: { dra
     };
     flipNow.current = flip;
     begin = setTimeout(() => {
-      if (tier.suspenseMs > 0 && !reduced) { setCharging(position); suspense = setTimeout(flip, tier.suspenseMs); } else flip();
+      if (!isFirstAfterTear && tier.suspenseMs > 0 && !reduced) { setCharging(position); suspense = setTimeout(flip, tier.suspenseMs); } else flip();
     }, wait);
     return () => { clearTimeout(begin); clearTimeout(suspense); };
-  }, [step, order, cards, reduced]);
+  }, [step, order, cards, reduced, skipInitialPause]);
 
   const skipAll = useCallback(() => {
     setCharging(null);
@@ -434,7 +435,7 @@ function Warmup({ draws }: { draws: BannerBatchResult }) {
 // ── Several cards on a phone: one big card at a time ─────────────────────────────
 
 /** The cards come up one by one, big, weakest first. A tap flips, then moves on; it also moves by itself. */
-function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; reduced: boolean; onDone: () => void }) {
+function StackReveal({ draws, reduced, skipInitialPause, onDone }: { draws: BannerBatchResult; reduced: boolean; skipInitialPause: boolean; onDone: () => void }) {
   const { width, height } = useViewport();
   const cards = draws.cards;
   const order = useMemo(() => flipOrder(cards.map(draw => draw.rarity)), [cards]);
@@ -469,9 +470,10 @@ function StackReveal({ draws, reduced, onDone }: { draws: BannerBatchResult; red
     };
     flipNow.current = flip;
     advanceNow.current = null;
+    const isFirstAfterTear = skipInitialPause && step === 0;
     begin = setTimeout(() => {
-      if (tier.suspenseMs > 0 && !reduced) { setChargingStep(step); suspense = setTimeout(flip, tier.suspenseMs); } else flip();
-    }, reduced ? 120 : tier.rank >= 2 ? 900 : 520);
+      if (!isFirstAfterTear && tier.suspenseMs > 0 && !reduced) { setChargingStep(step); suspense = setTimeout(flip, tier.suspenseMs); } else flip();
+    }, isFirstAfterTear ? (reduced ? 50 : 100) : reduced ? 120 : tier.rank >= 2 ? 900 : 520);
     return () => { clearTimeout(begin); clearTimeout(suspense); clearTimeout(hold); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
@@ -576,9 +578,9 @@ export default function BannerGachaReveal({ draws: incomingDraws, onClose, skipC
         ) : draws.cards.length === 1 && best && albumCard(best.card.id) ? (
           <HeroReveal player={albumCard(best.card.id)!} rarity={best.rarity} isNew={best.card.isNew} pity={best.pityTriggered} pageRewards={draws.pageRewards} ctaLabel="CONTINUAR" onCta={close} summary={summary} leave={leave} />
         ) : narrow && !stackDone ? (
-          <StackReveal draws={draws} reduced={reduced} onDone={() => setStackDone(true)} />
+          <StackReveal draws={draws} reduced={reduced} skipInitialPause={skipCharge} onDone={() => setStackDone(true)} />
         ) : (
-          <GridReveal draws={draws} onClose={close} reduced={reduced} autoplay={!narrow} summary={summary} leave={leave} />
+          <GridReveal draws={draws} onClose={close} reduced={reduced} autoplay={!narrow} skipInitialPause={skipCharge} summary={summary} leave={leave} />
         )}
         {phase === 'reveal' ? <Flash tier={stageTier} /> : null}
         {warm ? <Warmup draws={draws} /> : null}
