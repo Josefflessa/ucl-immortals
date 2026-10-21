@@ -215,6 +215,8 @@ export type AlbumItemKey = `${AlbumItemKind}:${AlbumPackTier}`;
 
 export const PACK_SIZE = 5;
 export const ENVELOPE_SIZE = 2;
+/** Bound one opening to a single atomic inventory-and-sticker batch. */
+export const MAX_BULK_ITEM_OPEN = 50;
 
 export const ALBUM_TIER_META: Record<AlbumPackTier, { label: string; color: string }> = {
   bronze: { label: 'Bronze', color: '#CD7F32' },

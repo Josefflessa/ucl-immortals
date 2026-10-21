@@ -60,7 +60,7 @@ interface AlbumContextValue {
     levels: ReadonlyMap<string, AlbumLevel>;
     pageBonuses: ReadonlyMap<string, AlbumPageBonus>;
   }>;
-  open: (item: AlbumItemKey) => Promise<OpenResult>;
+  open: (item: AlbumItemKey, quantity?: number) => Promise<OpenResult>;
   applyCopy: (cardId: string, quantity?: number) => Promise<void>;
   sell: (cardId: string, quantity: number) => Promise<number>;
   sellBatch: (sales: readonly { cardId: string; quantity: number }[]) => Promise<{ coins: number; copies: number }>;
@@ -81,6 +81,8 @@ interface AlbumContextValue {
 /** The server's album error codes, for people. */
 const ERROR_MESSAGES: Record<string, string> = {
   item_not_owned: 'Este pacote já foi aberto.',
+  not_enough_items: 'A quantidade disponível mudou. Atualize o inventário e tente novamente.',
+  invalid_quantity: 'Essa quantidade não pode ser aberta de uma vez.',
   no_spare_copy: 'Você não tem cópias extras desta carta.',
   max_level: 'Esta carta já está no nível máximo.',
   not_enough_coins: 'Moedas insuficientes.',
@@ -283,7 +285,7 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
     refreshIfStale,
     captureCompetitionLevels,
     captureCompetitionSnapshot,
-    open: item => post<OpenResult>('open', { item }),
+    open: (item, quantity = 1) => post<OpenResult>('open', { item, quantity }),
     applyCopy: async (cardId, quantity = 1) => { await post('apply', { cardId, quantity }); },
     sell: async (cardId, quantity) => (await post<{ coins: number }>('sell', { cardId, quantity })).coins,
     sellBatch: sales => post<{ coins: number; copies: number }>('sell-batch', { sales }),

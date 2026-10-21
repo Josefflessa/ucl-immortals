@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Check, ChevronLeft, ChevronRight, Package } from 'lucide-react';
-import { copiesToNextLevel, levelForCopies, MAX_COPIES, SELL_VALUE, type AlbumItemKey, type AlbumLevel } from '@shared/game/album';
+import { copiesToNextLevel, levelForCopies, MAX_BULK_ITEM_OPEN, MAX_COPIES, SELL_VALUE, type AlbumItemKey, type AlbumLevel } from '@shared/game/album';
 import { getRarityColor, type Rarity } from '@shared/game/gameData';
 import { Button, EmptyState, GameModal } from '../../design-system';
 import PlayerCard from '../game/PlayerCard';
@@ -162,7 +162,9 @@ export default function AlbumInventory() {
                     <Package size={14} aria-hidden="true" /> Abrir
                   </Button>
                   {quantity > 1 ? (
-                    <Button intent="ghost" onClick={() => setOpening(Array.from({ length: quantity }, () => key))} className="min-h-8 w-full text-xs">Abrir todos ({quantity})</Button>
+                    <Button intent="ghost" onClick={() => setOpening(Array.from({ length: Math.min(quantity, MAX_BULK_ITEM_OPEN) }, () => key))} className="min-h-8 w-full text-xs">
+                      <Package size={13} aria-hidden="true" /> {quantity > MAX_BULK_ITEM_OPEN ? `Abrir ${MAX_BULK_ITEM_OPEN} de ${quantity}` : `Abrir todos (${quantity})`}
+                    </Button>
                   ) : null}
                 </div>
               </div>
@@ -288,7 +290,7 @@ export default function AlbumInventory() {
         )}
       </section>
 
-      {opening ? <AlbumPackOpening items={opening} onClose={() => setOpening(null)} /> : null}
+      {opening ? <AlbumPackOpening items={opening} bulk={opening.length > 1} onClose={() => setOpening(null)} /> : null}
       <StickerSheet cardId={selected} onClose={() => setSelected(null)} />
       <GameModal
         open={confirmBulkSale}

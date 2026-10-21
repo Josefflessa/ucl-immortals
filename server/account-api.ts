@@ -17,7 +17,7 @@ import { chooseEventOption, loadOwnedEventCards, loadOwnedFrames, loadOwnedNameS
 import { isNameStyleKey } from '../shared/game/nameStyles.js';
 import { isAvatarFrameKey } from '../shared/game/events.js';
 import { isClubRewardKey } from '../shared/game/clubRewards.js';
-import { albumSummary, applyCopy, buyAvatarFrame, buyDailyBannerCard, buyDailyBannerCards, buyNameStyle, buyPack, buyProfileCover, buyWeeklyBannerCard, buyWeeklyBannerCards, dailyBannerRotations, ensureAlbum, loadOwnedCovers, openItem, sellCopies, sellCopiesBatch, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, weeklyBannerRotations, type ItemGrant } from './album.js';
+import { albumSummary, applyCopy, buyAvatarFrame, buyDailyBannerCard, buyDailyBannerCards, buyNameStyle, buyPack, buyProfileCover, buyWeeklyBannerCard, buyWeeklyBannerCards, dailyBannerRotations, ensureAlbum, loadOwnedCovers, openItems, sellCopies, sellCopiesBatch, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, weeklyBannerRotations, type ItemGrant } from './album.js';
 import { albumCatalog, levelForCopies } from '../shared/game/album.js';
 import { WEEKLY_PACK_REWARDS } from '../shared/game/dailyRewards.js';
 import { currentSeason, seasonAt, seasonBounds } from '../shared/game/seasons.js';
@@ -1957,7 +1957,7 @@ async function grantCampaignRewards(env: AccountEnv, userId: string): Promise<It
 
 const ALBUM_ERROR_STATUS: Record<string, number> = {
   invalid_item: 400, invalid_card: 400, invalid_quantity: 400, not_for_sale: 400,
-  item_not_owned: 409, no_spare_copy: 409, max_level: 409, already_owned: 409, not_enough_coins: 409, banner_unavailable: 503,
+  item_not_owned: 409, not_enough_items: 409, no_spare_copy: 409, max_level: 409, already_owned: 409, not_enough_coins: 409, banner_unavailable: 503,
   banner_purchase_in_progress: 409, operation_failed: 500,
 };
 
@@ -1977,7 +1977,7 @@ async function albumAction(request: Request, env: AccountEnv, account: Authentic
   await ensureAlbum(env.DB, account.id);
   let result: Record<string, unknown>;
   switch (action) {
-    case 'open': result = await openItem(env.DB, account.id, String(body.item ?? '')) as unknown as Record<string, unknown>; break;
+    case 'open': result = await openItems(env.DB, account.id, String(body.item ?? ''), Number(body.quantity ?? 1)) as unknown as Record<string, unknown>; break;
     case 'apply': result = await applyCopy(env.DB, account.id, String(body.cardId ?? ''), Number(body.quantity ?? 1)); break;
     case 'sell': result = await sellCopies(env.DB, account.id, String(body.cardId ?? ''), Number(body.quantity ?? 1)); break;
     case 'sell-batch': result = await sellCopiesBatch(env.DB, account.id, Array.isArray(body.sales) ? body.sales.map((sale: unknown) => ({

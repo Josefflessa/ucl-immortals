@@ -340,7 +340,7 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
     return [wrapper(<AlbumCardShowcaseTile item={item} />)];
   });
   return (
-    <section aria-label="Mural" className="space-y-5 sm:space-y-6">
+    <section aria-label="Mural" className="space-y-8 sm:space-y-10">
       <SectionHeader
         title="Mural"
         className="mb-0 items-center"
@@ -677,23 +677,25 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
             </div>
             <span className="shrink-0 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)] px-2.5 py-1.5 text-xs font-black tabular-nums text-[var(--ui-text-soft)]">{selected.length}<span className="mx-1 text-[var(--ui-text-faint)]">/</span>{SHOWCASE_MAX_ITEMS}</span>
           </div>
-          {selected.length > 0 ? <ol className="mt-3 grid gap-2 sm:grid-cols-2">
+          {selected.length > 0 ? <ol className="mt-4 grid gap-2.5 sm:grid-cols-2">
             {selected.map((item, index) => {
               const presentation = selectedPresentation(item);
               const ItemIcon = presentation.Icon;
               return (
-                <li key={showcaseKey(item)} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-2.5">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border text-xs font-black tabular-nums" style={{ borderColor: `color-mix(in srgb, ${presentation.color} 40%, var(--ui-line-subtle))`, color: presentation.color, background: `color-mix(in srgb, ${presentation.color} 10%, transparent)` }}>{index + 1}</span>
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ui-surface-2)]" style={{ color: presentation.color }}><ItemIcon size={16} aria-hidden="true" /></span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">{presentation.kind}</span>
-                    <strong className="block truncate text-xs text-[var(--ui-text)]">{presentation.label}</strong>
-                    <span className="block truncate text-[11px] text-[var(--ui-text-muted)]">{presentation.detail}</span>
+                <li key={showcaseKey(item)} className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-3 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-3 sm:p-3.5">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border text-xs font-black tabular-nums" style={{ borderColor: `color-mix(in srgb, ${presentation.color} 40%, var(--ui-line-subtle))`, color: presentation.color, background: `color-mix(in srgb, ${presentation.color} 10%, transparent)` }}>{index + 1}</span>
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--ui-surface-2)]" style={{ color: presentation.color }}><ItemIcon size={17} aria-hidden="true" /></span>
+                  <span className="min-w-0">
+                    <span className="block text-[10px] font-black uppercase text-[var(--ui-text-faint)]">{presentation.kind}</span>
+                    <strong className="block whitespace-normal break-words text-sm leading-snug text-[var(--ui-text)]">{presentation.label}</strong>
+                    <span className="mt-0.5 block whitespace-normal break-words text-xs leading-snug text-[var(--ui-text-muted)]">{presentation.detail}</span>
                   </span>
-                  <span className="grid shrink-0 grid-cols-2 gap-1">
-                    <button type="button" aria-label={`Mover ${selectedLabel(item)} para cima`} title="Mover para cima" disabled={saving || index === 0} onClick={() => moveSelected(index, -1)} className="flex size-7 items-center justify-center rounded-md border border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] disabled:cursor-not-allowed disabled:opacity-30"><ChevronUp size={15} aria-hidden="true" /></button>
-                    <button type="button" aria-label={`Mover ${selectedLabel(item)} para baixo`} title="Mover para baixo" disabled={saving || index === selected.length - 1} onClick={() => moveSelected(index, 1)} className="flex size-7 items-center justify-center rounded-md border border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] disabled:cursor-not-allowed disabled:opacity-30"><ChevronDown size={15} aria-hidden="true" /></button>
-                    <button type="button" aria-label={`Remover ${selectedLabel(item)} do mural`} title="Remover do mural" disabled={saving} onClick={() => toggle(item)} className="col-span-2 flex h-7 items-center justify-center gap-1 rounded-md border border-[var(--ui-line-subtle)] text-[11px] font-bold text-[var(--ui-text-muted)] hover:border-[var(--ui-danger)]/40 hover:bg-[var(--ui-danger)]/10 hover:text-[var(--ui-danger)] disabled:opacity-40"><X size={13} aria-hidden="true" /> Remover</button>
+                  <span className="col-span-3 flex min-w-0 items-center justify-between gap-3 border-t border-[var(--ui-line-subtle)] pt-2.5">
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <button type="button" aria-label={`Mover ${selectedLabel(item)} para cima`} title="Mover para cima" disabled={saving || index === 0} onClick={() => moveSelected(index, -1)} className="flex size-9 items-center justify-center rounded-md border border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] disabled:cursor-not-allowed disabled:opacity-30"><ChevronUp size={16} aria-hidden="true" /></button>
+                      <button type="button" aria-label={`Mover ${selectedLabel(item)} para baixo`} title="Mover para baixo" disabled={saving || index === selected.length - 1} onClick={() => moveSelected(index, 1)} className="flex size-9 items-center justify-center rounded-md border border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] disabled:cursor-not-allowed disabled:opacity-30"><ChevronDown size={16} aria-hidden="true" /></button>
+                    </span>
+                    <button type="button" aria-label={`Remover ${selectedLabel(item)} do mural`} title="Remover do mural" disabled={saving} onClick={() => toggle(item)} className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-[var(--ui-line-subtle)] px-3 text-xs font-bold text-[var(--ui-text-muted)] hover:border-[var(--ui-danger)]/40 hover:bg-[var(--ui-danger)]/10 hover:text-[var(--ui-danger)] disabled:opacity-40"><X size={14} aria-hidden="true" /> Remover</button>
                   </span>
                 </li>
               );
@@ -796,17 +798,21 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
           />
           {ownedAlbumCards.length === 0 ? <div className="rounded-xl border border-dashed border-[var(--ui-line-subtle)] p-5 text-center"><p className="text-sm font-semibold text-[var(--ui-text)]">Seu Álbum ainda está vazio</p><p className="mt-1 text-xs text-[var(--ui-text-muted)]">As cartas que você coletar aparecerão aqui.</p></div>
             : shownAlbumCards.length === 0 ? <p className="rounded-lg bg-[var(--ui-surface-inset)] p-3 text-center text-xs text-[var(--ui-text-muted)]">Nenhuma carta encontrada com esses filtros.</p>
-              : <div className="grid max-h-[min(50vh,420px)] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
+              : <div className="grid max-h-[min(55vh,520px)] grid-cols-1 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
                 {shownAlbumCards.map(({ id, player, number, level, spares }) => option(`c:${id}`, (
                   <>
                     <span className="shrink-0"><PlayerCard player={player} lite flat scale={0.3} albumLevel={level as AlbumLevel} /></span>
-                    <span className="min-w-0 flex-1">
-                      <strong className="block truncate text-sm text-[var(--ui-text)]">{player.shortName}</strong>
-                      <span className="block truncate text-xs text-[var(--ui-text-muted)]">{player.club}</span>
-                      <span className="mt-0.5 block text-[10px] font-black uppercase tracking-wide" style={{ color: getRarityColor(player.rarity) }}>{RARITY_LABEL[player.rarity]}</span>
-                      <span className="mt-1 block text-[10px] font-semibold text-[var(--ui-text-soft)]">Nº {number} · {POS_PT[player.position] ?? player.position}</span>
-                      <span className="mt-0.5 block text-[10px] font-semibold text-[var(--ui-text-soft)]">Nível do Álbum {level}/5</span>
-                      <span className="mt-0.5 inline-flex items-center gap-1"><LevelStars level={Math.max(1, level)} size={9} />{spares > 0 ? <span className="text-[10px] text-[var(--ui-text-muted)]">+{spares}</span> : null}</span>
+                    <span className="min-w-0 flex-1 self-center py-1">
+                      <strong className="block whitespace-normal break-words text-sm font-black leading-snug text-[var(--ui-text)]">{player.shortName}</strong>
+                      <span className="mt-0.5 block whitespace-normal break-words text-xs leading-snug text-[var(--ui-text-muted)]">{player.club}</span>
+                      <span className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span className="rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase" style={{ color: getRarityColor(player.rarity), background: `color-mix(in srgb, ${getRarityColor(player.rarity)} 12%, transparent)` }}>{RARITY_LABEL[player.rarity]}</span>
+                        <span className="rounded-md bg-[var(--ui-surface-2)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--ui-text-soft)]">Nº {number} · {POS_PT[player.position] ?? player.position}</span>
+                      </span>
+                      <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold text-[var(--ui-text-soft)]">
+                        <span className="inline-flex flex-wrap items-center gap-1"><LevelStars level={Math.max(1, level)} size={11} /><span>Nível do Álbum {level}/5</span></span>
+                        {spares > 0 ? <span className="rounded-md bg-[var(--ui-surface-2)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]">+{spares} repetidas</span> : null}
+                      </span>
                     </span>
                   </>
                 ), () => toggle({ type: 'card', cardId: id, albumLevel: Math.max(1, level) as AlbumLevel }))) }

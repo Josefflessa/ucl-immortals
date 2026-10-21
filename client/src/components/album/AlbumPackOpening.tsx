@@ -4,8 +4,9 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BookOpen, Check } from 'lucide-react';
-import { parseItemKey, type AlbumItemKey } from '@shared/game/album';
+import { BookOpen, Check, Copy, Package, Sparkles } from 'lucide-react';
+import { ENVELOPE_SIZE, PACK_SIZE, parseItemKey, type AlbumItemKey } from '@shared/game/album';
+import { getRarityColor, type Rarity } from '@shared/game/gameData';
 import { getCrest } from '@shared/game/crests';
 import BannerGachaReveal from '../store/gacha/BannerGachaReveal';
 import { playSound } from '../../audio/uiSound';
@@ -14,8 +15,10 @@ import { PackFront } from '../game/UniquePackOpening';
 import AlbumPackArt, { ALBUM_PACK_ASPECT, ALBUM_PACK_TEAR_AT } from './AlbumPackArt';
 import { ClubCover, ClubFrameRing } from '../account/ClubRewards';
 import { useAlbum, type OpenResult, type PageReward } from '../../contexts/AlbumContext';
-import { albumCard, CATALOG, groupKeys, itemColor, itemLabel } from './albumData';
+import { Button } from '../../design-system';
+import { albumCard, CATALOG, groupKeys, itemColor, itemLabel, RARITY_LABEL } from './albumData';
 import { ItemArt } from './AlbumPieces';
+import PlayerPortrait from '../game/PlayerPortrait';
 
 type Stage = 'sealed' | 'tearing' | 'revealed';
 
@@ -88,7 +91,117 @@ function EnvelopeFront({ itemKey, opening, onOpen }: { itemKey: AlbumItemKey; op
   );
 }
 
-export default function AlbumPackOpening({ items, onClose }: { items: readonly AlbumItemKey[]; onClose: () => void }) {
+const BULK_RARITY_ORDER: Record<Rarity, number> = { bronze: 0, silver: 1, gold: 2, legendary: 3, immortal: 4, unique: 5 };
+
+function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: { itemKey: AlbumItemKey; quantity: number; result: OpenResult; onClose: () => void }) {
+  const grouped = new Map<string, { id: string; total: number; newCopies: number; repeatCopies: number }>();
+  for (const draw of result.cards) {
+    const row = grouped.get(draw.id) ?? { id: draw.id, total: 0, newCopies: 0, repeatCopies: 0 };
+    row.total += 1;
+    if (draw.isNew) row.newCopies += 1;
+    else row.repeatCopies += 1;
+    grouped.set(draw.id, row);
+  }
+  const cards = Array.from(grouped.values()).flatMap(row => {
+    const player = albumCard(row.id);
+    return player ? [{ ...row, player, number: CATALOG.stickers.get(row.id)?.number ?? 0 }] : [];
+  }).sort((a, b) => BULK_RARITY_ORDER[b.player.rarity] - BULK_RARITY_ORDER[a.player.rarity]
+    || b.newCopies - a.newCopies
+    || b.total - a.total
+    || a.number - b.number);
+  const newCount = result.cards.filter(draw => draw.isNew).length;
+  const repeatCount = result.cards.length - newCount;
+
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label="Resultado da abertura em lote" className="fixed inset-0 z-[80] flex flex-col overflow-hidden text-white" style={{ background: 'radial-gradient(circle at 50% 0%, #191827 0%, #090A12 52%, #05060B 100%)' }}>
+      <header className="shrink-0 border-b border-white/10 px-4 py-4 sm:px-8">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[11px] font-black tracking-[0.18em] text-[#E9C46A]" style={FONT}>ABERTURA EM LOTE</div>
+            <h2 className="mt-1 truncate text-lg font-black text-white sm:text-xl" style={FONT}>{quantity}× {itemLabel(itemKey)}</h2>
+          </div>
+          <Package className="size-6 shrink-0 text-[#E9C46A]" aria-hidden="true" />
+        </div>
+      </header>
+
+      <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-6">
+        <div className="mx-auto w-full max-w-6xl space-y-5">
+          <section aria-label="Resumo da abertura" className="grid grid-cols-3 gap-2 sm:gap-3">
+            {[
+              { label: 'CARTAS', value: result.cards.length, color: '#FFFFFF' },
+              { label: 'NOVAS', value: newCount, color: '#7BD88F' },
+              { label: 'REPETIDAS', value: repeatCount, color: '#E9C46A' },
+            ].map(metric => (
+              <div key={metric.label} className="min-w-0 rounded-xl border border-white/10 bg-white/[.04] px-2 py-3 text-center sm:px-4 sm:py-4">
+                <div className="font-display text-2xl leading-none tabular-nums sm:text-3xl" style={{ color: metric.color }}>{metric.value.toLocaleString('pt-BR')}</div>
+                <div className="mt-1.5 text-[9px] font-black tracking-[0.12em] text-white/55 sm:text-[11px]">{metric.label}</div>
+              </div>
+            ))}
+          </section>
+
+          <section aria-label="Cartas recebidas">
+            <div className="mb-2 flex items-baseline justify-between gap-3">
+              <h3 className="text-sm font-black text-white sm:text-base" style={FONT}>Cartas recebidas</h3>
+              <span className="text-xs tabular-nums text-white/55">{cards.length} {cards.length === 1 ? 'tipo' : 'tipos'}</span>
+            </div>
+            <div className="grid max-h-[min(52dvh,620px)] grid-cols-1 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+              {cards.map(({ id, player, number, total, newCopies, repeatCopies }) => {
+                const color = getRarityColor(player.rarity);
+                return (
+                  <article key={id} className="flex min-w-0 items-center gap-3 rounded-xl border border-white/10 bg-white/[.035] p-2.5 sm:p-3">
+                    <PlayerPortrait playerId={id} alt="" loading="lazy" className="size-12 shrink-0 rounded-lg border border-white/10 bg-black/30 object-cover" fallback={<span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-white/5 text-xs font-black text-white/50">{player.shortName.slice(0, 2)}</span>} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-start justify-between gap-2">
+                        <strong className="min-w-0 break-words text-sm leading-snug text-white">{player.shortName}</strong>
+                        <span className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase" style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}>{RARITY_LABEL[player.rarity]}</span>
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px] text-white/55">{player.club} · Nº {number}</div>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {newCopies > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-[#7BD88F]/10 px-2 py-0.5 text-[10px] font-bold text-[#7BD88F]"><Sparkles size={10} aria-hidden="true" />{newCopies} {newCopies === 1 ? 'nova' : 'novas'}</span> : null}
+                        {repeatCopies > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-[#E9C46A]/10 px-2 py-0.5 text-[10px] font-bold text-[#E9C46A]"><Copy size={10} aria-hidden="true" />{repeatCopies} {repeatCopies === 1 ? 'repetida' : 'repetidas'}</span> : null}
+                        {total > 1 ? <span className="rounded-full bg-white/[.08] px-2 py-0.5 text-[10px] font-bold tabular-nums text-white/55">×{total} no lote</span> : null}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+
+          {result.pageRewards.length > 0 ? (
+            <section aria-label="Páginas completadas" className="space-y-2">
+              <h3 className="text-sm font-black text-white sm:text-base" style={FONT}>Páginas completadas · {result.pageRewards.length}</h3>
+              {result.pageRewards.map(reward => {
+                const page = CATALOG.pageById.get(reward.pageId);
+                const rewards = [
+                  ...(reward.frameKey ? ['Moldura de perfil'] : []),
+                  ...(reward.coverKey ? ['Fundo de perfil'] : []),
+                  ...groupKeys(reward.items).map(([key, count]) => `${count > 1 ? `${count}× ` : ''}${itemLabel(key)}`),
+                ];
+                return (
+                  <div key={reward.pageId} className="flex min-w-0 items-start gap-2.5 rounded-lg border border-[#E9C46A]/20 bg-[#E9C46A]/[.05] p-3">
+                    <BookOpen size={16} className="mt-0.5 shrink-0 text-[#E9C46A]" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <strong className="block break-words text-xs text-white">{page?.title ?? 'Página do Álbum'}</strong>
+                      <span className="mt-0.5 block break-words text-[11px] text-white/55">Recompensas: {rewards.length > 0 ? rewards.join(' · ') : 'página completada'}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </section>
+          ) : null}
+        </div>
+      </main>
+
+      <footer className="shrink-0 border-t border-white/10 bg-[#090A12]/95 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-8">
+        <Button intent="primary" size="large" onClick={onClose} className="mx-auto w-full max-w-md">CONCLUIR</Button>
+      </footer>
+    </div>,
+    document.body,
+  );
+}
+
+export default function AlbumPackOpening({ items, onClose, bulk = false }: { items: readonly AlbumItemKey[]; onClose: () => void; bulk?: boolean }) {
   useMusicDuck();
   const { open } = useAlbum();
   const [index, setIndex] = useState(0);
@@ -99,13 +212,15 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
   const [cutStartX, setCutStartX] = useState<number | null>(null);
   /** The staged reveal of the cards runs once per pack, on top of the summary screen. */
   const [staged, setStaged] = useState(false);
+  const [bulkResult, setBulkResult] = useState<OpenResult | null>(null);
   const packRef = useRef<HTMLDivElement | null>(null);
   const timer = useRef<number | null>(null);
 
-  const itemKey = items[index];
+  const isBulk = bulk && items.length > 1;
+  const itemKey = isBulk ? items[0] : items[index];
   const parsed = itemKey ? parseItemKey(itemKey) : null;
   const accent = itemKey ? itemColor(itemKey) : '#C9A84C';
-  const remaining = items.length - index - 1;
+  const remaining = isBulk ? 0 : items.length - index - 1;
 
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
   // Esc closes (the stickers already drawn stay in the album).
@@ -128,8 +243,13 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
     setCutStartX(null);
     setError(null);
     const minDelay = new Promise(resolve => { timer.current = window.setTimeout(resolve, TEAR_MS); });
-    Promise.all([open(itemKey), minDelay])
+    Promise.all([open(itemKey, isBulk ? items.length : 1), minDelay])
       .then(([opened]) => {
+        if (isBulk) {
+          setStage('revealed');
+          setBulkResult(opened);
+          return;
+        }
         setResult(opened);
         setStaged(true);
         setStage('revealed');
@@ -173,19 +293,20 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
   };
 
   if (!itemKey || !parsed) return null;
+  if (bulkResult && isBulk) return <AlbumBulkOpenSummary itemKey={itemKey} quantity={items.length} result={bulkResult} onClose={onClose} />;
 
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={`Abrindo ${itemLabel(itemKey)}`}
+      aria-label={isBulk ? `Abrindo ${items.length} ${itemLabel(itemKey)}` : `Abrindo ${itemLabel(itemKey)}`}
       className="fixed inset-0 z-[80] flex flex-col overflow-hidden text-white"
       style={{ background: 'radial-gradient(circle at 50% 40%, #181827 0%, #090A12 50%, #05060B 100%)' }}
     >
       <header className="flex shrink-0 items-center gap-2 px-4 py-3 sm:gap-3 sm:px-8 sm:py-5">
         <div className="min-w-0 whitespace-nowrap text-sm font-bold tracking-[0.12em] sm:text-base sm:tracking-[0.2em]" style={{ color: accent, ...FONT }}>
-          {itemLabel(itemKey).toUpperCase()}
-          {items.length > 1 ? <span className="ml-2 text-white/45">{index + 1}/{items.length}</span> : null}
+          {isBulk ? `${items.length}× ${itemLabel(itemKey).toUpperCase()}` : itemLabel(itemKey).toUpperCase()}
+          {!isBulk && items.length > 1 ? <span className="ml-2 text-white/45">{index + 1}/{items.length}</span> : null}
         </div>
       </header>
 
@@ -201,7 +322,9 @@ export default function AlbumPackOpening({ items, onClose }: { items: readonly A
           {stage !== 'revealed' ? (
             <motion.section key={`sealed-${index}`} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -18 }} className="flex w-full flex-col items-center">
               <p className="mb-5 text-center text-xs" style={{ color: MUTED, ...FONT }}>
-                {parsed.kind === 'pack' ? '5 cartas para o seu álbum.' : '2 cartas para o seu álbum.'}
+                {isBulk
+                  ? `Serão adicionadas ${items.length * (parsed.kind === 'pack' ? PACK_SIZE : ENVELOPE_SIZE)} cartas de uma vez.`
+                  : parsed.kind === 'pack' ? `${PACK_SIZE} cartas para o seu álbum.` : `${ENVELOPE_SIZE} cartas para o seu álbum.`}
               </p>
               {parsed.kind === 'pack' ? (
                 <>

@@ -11,6 +11,7 @@ import {
   DAILY_BANNER_PITY_LIMIT,
   DAILY_BANNER_ODDS,
   DAILY_BANNER_PRICE,
+  MAX_BULK_ITEM_OPEN,
   MAX_COPIES,
   levelForCopies,
   pageBonusSnapshotForOwnedCards,
@@ -430,11 +431,19 @@ export async function syncAlbumPagesForCards(db: D1Database, userId: string, car
   return rewards;
 }
 
-function stickerUpsert(db: D1Database, userId: string, cardId: string, now: number): Statement {
-  // New: the first copy is applied. Already in the album: one more spare copy.
-  return db.prepare(`INSERT INTO user_stickers (user_id, card_id, copies, spare, first_at, updated_at) VALUES (?, ?, 1, 0, ?, ?)
-    ON CONFLICT(user_id, card_id) DO UPDATE SET spare = user_stickers.spare + 1, updated_at = excluded.updated_at`)
-    .bind(userId, cardId, now, now);
+function stickerUpserts(db: D1Database, userId: string, cardIds: readonly string[], now: number): Statement[] {
+  // Keep each SQL statement under D1's bound-parameter limit without a query per sticker.
+  const chunkSize = 24;
+  const statements: Statement[] = [];
+  for (let start = 0; start < cardIds.length; start += chunkSize) {
+    const chunk = cardIds.slice(start, start + chunkSize);
+    const values = chunk.map(() => '(?, ?, 1, 0, ?, ?)').join(', ');
+    const bindings = chunk.flatMap(cardId => [userId, cardId, now, now]);
+    statements.push(db.prepare(`INSERT INTO user_stickers (user_id, card_id, copies, spare, first_at, updated_at) VALUES ${values}
+      ON CONFLICT(user_id, card_id) DO UPDATE SET spare = user_stickers.spare + 1, updated_at = excluded.updated_at`)
+      .bind(...bindings));
+  }
+  return statements;
 }
 
 export interface OpenResult {
@@ -444,21 +453,28 @@ export interface OpenResult {
   pageRewards: PageReward[];
 }
 
-/** Opens one pack or envelope from the inventory. */
-export async function openItem(db: D1Database, userId: string, itemKey: string, rand: () => number = secureRandom, now = Date.now()): Promise<OpenResult | { error: string }> {
+/** Opens one or more packs or envelopes from the inventory in one atomic batch. */
+export async function openItems(db: D1Database, userId: string, itemKey: string, quantity: number, rand: () => number = secureRandom, now = Date.now()): Promise<OpenResult | { error: string }> {
   if (!parseItemKey(itemKey)) return { error: 'invalid_item' };
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > MAX_BULK_ITEM_OPEN) return { error: 'invalid_quantity' };
   const key = itemKey as AlbumItemKey;
-  // Take it out of the inventory first: two opens of the last one cannot both succeed.
-  const taken = await db.prepare('UPDATE user_inventory SET quantity = quantity - 1, updated_at = ? WHERE user_id = ? AND item_key = ? AND quantity > 0')
-    .bind(now, userId, key).run();
-  if ((taken.meta?.changes ?? 0) === 0) return { error: 'item_not_owned' };
+  // Reserve the whole batch atomically, so another tab cannot spend part of it.
+  const taken = await db.prepare('UPDATE user_inventory SET quantity = quantity - ?, updated_at = ? WHERE user_id = ? AND item_key = ? AND quantity >= ?')
+    .bind(quantity, now, userId, key, quantity).run();
+  if ((taken.meta?.changes ?? 0) === 0) return { error: quantity === 1 ? 'item_not_owned' : 'not_enough_items' };
   try {
-    return { item: key, ...(await placeStickers(db, userId, rollItem(key, rand), now)) };
+    const drawn = Array.from({ length: quantity }, () => rollItem(key, rand)).flat();
+    return { item: key, ...(await placeStickers(db, userId, drawn, now)) };
   } catch (error) {
-    // Give the item back: the draw was not stored.
-    await db.prepare('UPDATE user_inventory SET quantity = quantity + 1, updated_at = ? WHERE user_id = ? AND item_key = ?').bind(now, userId, key).run();
+    // Give the items back: the draw was not stored.
+    await db.prepare('UPDATE user_inventory SET quantity = quantity + ?, updated_at = ? WHERE user_id = ? AND item_key = ?').bind(quantity, now, userId, key).run();
     throw error;
   }
+}
+
+/** Opens one pack or envelope from the inventory. */
+export async function openItem(db: D1Database, userId: string, itemKey: string, rand: () => number = secureRandom, now = Date.now()): Promise<OpenResult | { error: string }> {
+  return openItems(db, userId, itemKey, 1, rand, now);
 }
 
 /** Places drawn stickers in the album (a new one, or a spare copy of one it has) and grants what
@@ -472,7 +488,7 @@ export async function placeStickers(db: D1Database, userId: string, drawn: reado
     return { id, isNew };
   });
   const pages = await pageRewards(db, userId, cards.filter(c => c.isNew).map(c => c.id), owned, now);
-  await db.batch([...drawn.map(id => stickerUpsert(db, userId, id, now)), ...pages.statements, ...extraStatements]);
+  await db.batch([...stickerUpserts(db, userId, drawn, now), ...pages.statements, ...extraStatements]);
   return { cards, pageRewards: pages.rewards };
 }
 
