@@ -10,7 +10,10 @@ import { CoinAmount, ItemArt } from './AlbumPieces';
 import AlbumPackOpening from './AlbumPackOpening';
 
 function headline(grants: readonly ItemGrant[]): string {
+  const achievements = grants.some(grant => grant.source === 'achievement');
   const titles = grants.filter(grant => grant.source === 'campaign' && grant.key.startsWith('pack:')).length;
+  if (achievements && titles > 0) return 'RECOMPENSAS DA CAMPANHA E CONQUISTAS';
+  if (achievements) return 'RECOMPENSAS DE CONQUISTAS';
   return titles > 0 ? 'RECOMPENSAS DO TÍTULO' : 'RECOMPENSAS DA CAMPANHA';
 }
 
@@ -68,6 +71,7 @@ export default function AlbumGrantsPrompt() {
       )}
     >
       <div className="space-y-3">
+        {pendingGrants.some(grant => grant.source === 'achievement') ? <p className="rounded-lg border border-[var(--ui-brand)]/25 bg-[var(--ui-brand-soft)] px-3 py-2 text-xs leading-relaxed text-[var(--ui-text-soft)]">Pacotes dos níveis de conquista que você alcançou foram adicionados ao inventário do Álbum.</p> : null}
         {coinsAwarded > 0 ? (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-3">
             <div className="min-w-0">

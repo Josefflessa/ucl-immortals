@@ -17,8 +17,10 @@ import {
   type ShowcaseItem,
 } from '../shared/game/achievements.js';
 import { RANKED_DIFFICULTY_IDS } from '../shared/game/competitionRanking.js';
+import type { AlbumItemKey } from '../shared/game/album.js';
 import { ALL_UNIQUE_CARDS, PLAYERS } from '../shared/game/gameData.js';
 import type { CareerSummary } from '../shared/game/careerSummary.js';
+import { ensureAlbum, type ItemGrant } from './album.js';
 
 export interface AchievementState {
   id: string;
@@ -37,7 +39,7 @@ export interface AchievementUnlock {
 /** Share of players (in percent) holding each level: index 0 = Bronze or better. */
 export interface AchievementRarity {
   players: number;
-  percentByAchievement: Record<string, [number, number, number, number]>;
+  percentByAchievement: Record<string, [number, number, number, number, number]>;
 }
 
 interface CareerRow {
@@ -161,7 +163,7 @@ export async function loadAchievements(db: D1Database, userId: string): Promise<
   const stored = new Map(rows.results.map(row => [row.achievement_id, row]));
   return ACHIEVEMENTS.map(definition => {
     const row = stored.get(definition.id);
-    const level = Math.max(0, Math.min(4, Number(row?.level ?? 0))) as AchievementLevel;
+    const level = Math.max(0, Math.min(5, Number(row?.level ?? 0))) as AchievementLevel;
     return {
       id: definition.id,
       level,
@@ -234,20 +236,50 @@ export async function achievementRarity(db: D1Database): Promise<AchievementRari
   const players = Number(playersRow?.players ?? 0);
   const exact = new Map<string, number[]>();
   for (const row of holders.results) {
-    const levels = exact.get(row.achievement_id) ?? [0, 0, 0, 0, 0];
-    levels[Math.max(0, Math.min(4, Number(row.level)))] += Number(row.holders);
+    const levels = exact.get(row.achievement_id) ?? [0, 0, 0, 0, 0, 0];
+    levels[Math.max(0, Math.min(5, Number(row.level)))] += Number(row.holders);
     exact.set(row.achievement_id, levels);
   }
   const percentByAchievement: AchievementRarity['percentByAchievement'] = {};
   for (const definition of ACHIEVEMENTS) {
-    const levels = exact.get(definition.id) ?? [0, 0, 0, 0, 0];
+    const levels = exact.get(definition.id) ?? [0, 0, 0, 0, 0, 0];
     // "Has Bronze" includes everyone at Prata or above, and so on.
-    const atLeast = [1, 2, 3, 4].map(level => levels.slice(level).reduce((sum, value) => sum + value, 0));
+    const atLeast = [1, 2, 3, 4, 5].map(level => levels.slice(level).reduce((sum, value) => sum + value, 0));
     percentByAchievement[definition.id] = atLeast.map(holdersAtLeast => (players > 0
       ? Math.round((holdersAtLeast / players) * 1000) / 10
-      : 0)) as [number, number, number, number];
+      : 0)) as [number, number, number, number, number];
   }
   return { players, percentByAchievement };
+}
+
+const ACHIEVEMENT_PACKS: readonly AlbumItemKey[] = [
+  'pack:bronze', 'pack:silver', 'pack:gold', 'pack:legendary', 'pack:immortal',
+];
+
+/** Grants one matching pack for every achievement level reached, exactly once per account. */
+export async function syncAchievementPackRewards(db: D1Database, userId: string, now = Date.now()): Promise<ItemGrant[]> {
+  await ensureAlbum(db, userId, now);
+  const achievements = await loadAchievements(db, userId);
+  const reached = achievements.flatMap(state => Array.from({ length: state.level }, (_, index) => ({
+    achievementId: state.id,
+    level: index + 1,
+    key: ACHIEVEMENT_PACKS[index],
+  })));
+  if (reached.length === 0) return [];
+
+  const results = await db.batch(reached.flatMap(reward => [
+    db.prepare(`INSERT OR IGNORE INTO user_achievement_pack_rewards (user_id, achievement_id, level, granted_at)
+      VALUES (?, ?, ?, ?)`)
+      .bind(userId, reward.achievementId, reward.level, now),
+    db.prepare(`INSERT INTO user_inventory (user_id, item_key, quantity, updated_at)
+      SELECT ?, ?, 1, ? WHERE changes() = 1
+      ON CONFLICT(user_id, item_key) DO UPDATE SET
+        quantity = user_inventory.quantity + excluded.quantity, updated_at = excluded.updated_at`)
+      .bind(userId, reward.key, now),
+  ]));
+
+  return reached.filter((_, index) => Number(results[index * 2]?.meta?.changes ?? 0) === 1)
+    .map(reward => ({ key: reward.key, source: 'achievement' as const, achievementId: reward.achievementId, achievementLevel: reward.level }));
 }
 
 export async function loadShowcase(db: D1Database, userId: string): Promise<ShowcaseItem[]> {
@@ -261,7 +293,7 @@ export async function loadShowcase(db: D1Database, userId: string): Promise<Show
 
 /**
  * Stores a new showcase after checking the player really holds every pinned
- * item: an unlocked achievement or a verified record on that difficulty.
+ * item: an unlocked achievement, an owned album card, or a verified record on that difficulty.
  */
 export async function saveShowcase(db: D1Database, userId: string, raw: unknown): Promise<{ items: ShowcaseItem[] } | { error: string }> {
   const items = sanitizeShowcase(raw);
@@ -270,10 +302,15 @@ export async function saveShowcase(db: D1Database, userId: string, raw: unknown)
   const recordKeys = new Set((await db.prepare(`SELECT DISTINCT difficulty_id, category FROM competition_records
     WHERE user_id = ? AND verified = 1`).bind(userId).all<{ difficulty_id: string; category: string }>())
     .results.map(row => `r:${row.difficulty_id}:${row.category}`));
+  const cardIds = items.filter((item): item is Extract<ShowcaseItem, { type: 'card' }> => item.type === 'card').map(item => item.cardId);
+  const ownedCards = cardIds.length > 0
+    ? new Set((await db.prepare(`SELECT card_id FROM user_stickers WHERE user_id = ? AND copies > 0 AND card_id IN (${cardIds.map(() => '?').join(',')})`)
+      .bind(userId, ...cardIds).all<{ card_id: string }>()).results.map(row => row.card_id))
+    : new Set<string>();
   for (const item of items) {
     const owned = item.type === 'achievement'
       ? (achievements.get(item.id) ?? 0) > 0
-      : recordKeys.has(showcaseKey(item));
+      : item.type === 'record' ? recordKeys.has(showcaseKey(item)) : ownedCards.has(item.cardId);
     if (!owned) return { error: 'showcase_item_not_owned' };
   }
   await db.prepare('UPDATE profiles SET showcase_json = ?, updated_at = ? WHERE user_id = ?')

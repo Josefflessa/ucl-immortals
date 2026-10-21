@@ -1,5 +1,6 @@
 import { DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY, isProfileAvatarBackgroundKey } from '../shared/profileAppearance';
 import { PROFILE_COVER_BY_KEY } from '../shared/profileCovers.js';
+import type { ShowcaseItem } from '../shared/game/achievements.js';
 import { getTeamEffectiveStats, type Team } from '../shared/game/gameEngine.js';
 import { retainRecentCompetitionSnapshots } from './competition-history-retention.js';
 import {
@@ -10,15 +11,16 @@ import {
   loadShowcase,
   saveShowcase,
   syncAchievements,
+  syncAchievementPackRewards,
 } from './achievements.js';
 import { chooseEventOption, loadOwnedEventCards, loadOwnedFrames, loadOwnedNameStyles, syncEventRewards } from './events.js';
 import { isNameStyleKey } from '../shared/game/nameStyles.js';
 import { isAvatarFrameKey } from '../shared/game/events.js';
 import { isClubRewardKey } from '../shared/game/clubRewards.js';
 import { albumSummary, applyCopy, buyAvatarFrame, buyDailyBannerCard, buyDailyBannerCards, buyNameStyle, buyPack, buyProfileCover, buyWeeklyBannerCard, buyWeeklyBannerCards, dailyBannerRotations, ensureAlbum, loadOwnedCovers, openItem, sellCopies, sellCopiesBatch, syncAlbum, syncAlbumPagesForCards, syncCampaignGrants, weeklyBannerRotations, type ItemGrant } from './album.js';
-import { albumCatalog } from '../shared/game/album.js';
+import { albumCatalog, levelForCopies } from '../shared/game/album.js';
 import { WEEKLY_PACK_REWARDS } from '../shared/game/dailyRewards.js';
-import { currentSeason, seasonBounds } from '../shared/game/seasons.js';
+import { currentSeason, seasonAt, seasonBounds } from '../shared/game/seasons.js';
 import { claimSeasonReward, finalizeEndedSeasons, loadSeasonReward, scoreTotalsBinds, scoreTotalsSql, seasonFromUrl, SCORE_RANKING_ORDER } from './seasons.js';
 import { isPushConfigured, isValidPushEndpoint, sendPushToUser, type PushEnvironment, type PushNotice } from './push.js';
 import {
@@ -868,12 +870,16 @@ async function historyCreate(request: Request, env: AccountEnv, account: Authent
     console.error('[achievements] evaluation after solo save failed:', error);
     return [];
   });
+  const achievementGrants = await syncAchievementPackRewards(env.DB, account.id).catch(error => {
+    console.error('[achievements] rewards after solo save failed:', error);
+    return [];
+  });
   const eventRewards = await syncEventRewards(env.DB, account.id).catch(error => {
     console.error('[events] evaluation after solo save failed:', error);
     return { unlocked: [], cardsUnlocked: [] };
   });
   // Album packs for campaigns saved since this account's album rewards were initialized.
-  const albumGrants = await grantCampaignRewards(env, account.id);
+  const albumGrants = [...await grantCampaignRewards(env, account.id), ...achievementGrants];
   return json({ id, duplicate: false, achievementsUnlocked, framesUnlocked: eventRewards.unlocked, eventCardsUnlocked: eventRewards.cardsUnlocked, albumGrants }, 201);
 }
 
@@ -922,6 +928,7 @@ async function publicRecords(env: AccountEnv, url: URL): Promise<Response> {
     const cardData = storedRecordCardData(playerCardJson, effectiveOverall, contextStats);
     return {
       ...record,
+      season: seasonAt(Number(record.completed_at)),
       ...(record.category === 'effective_overall' && effectiveOverall !== null ? { value: effectiveOverall } : {}),
       rank_position: Number(row.ranking_position),
       ...cardData,
@@ -1232,7 +1239,20 @@ async function achievementsPayload(env: AccountEnv, userId: string, records?: Ar
   const recordKeys = recordRows.map(row => ({ difficultyId: String(row.difficulty_id), category: String(row.category) }));
   // A pinned achievement stays on the mural only while it is unlocked (a rule change can lock it again).
   const levels = new Map(achievements.map(state => [state.id, state.level]));
-  const pinned = chosen.filter(item => item.type !== 'achievement' || (levels.get(item.id) ?? 0) > 0);
+  const cardIds = chosen.filter((item): item is Extract<ShowcaseItem, { type: 'card' }> => item.type === 'card').map(item => item.cardId);
+  const cardRows = cardIds.length > 0
+    ? await env.DB.prepare(`SELECT card_id, copies FROM user_stickers WHERE user_id = ? AND copies > 0 AND card_id IN (${cardIds.map(() => '?').join(',')})`)
+      .bind(userId, ...cardIds).all<{ card_id: string; copies: number }>()
+    : { results: [] as { card_id: string; copies: number }[] };
+  const cardLevels = new Map(cardRows.results.map(row => [row.card_id, levelForCopies(Number(row.copies))]));
+  const pinned = chosen.flatMap<ShowcaseItem>(item => {
+    if (item.type === 'achievement') return (levels.get(item.id) ?? 0) > 0 ? [item] : [];
+    if (item.type === 'card') {
+      const albumLevel = cardLevels.get(item.cardId);
+      return albumLevel ? [{ ...item, albumLevel: albumLevel as 1 | 2 | 3 | 4 | 5 }] : [];
+    }
+    return [item];
+  });
   const automatic = pinned.length === 0;
   return {
     achievements,
@@ -1258,7 +1278,7 @@ async function updateShowcase(request: Request, env: AccountEnv, account: Authen
   const result = await saveShowcase(env.DB, account.id, body.items);
   if ('error' in result) {
     const message = result.error === 'showcase_item_not_owned'
-      ? 'Só é possível fixar conquistas desbloqueadas e recordes que você tem.'
+      ? 'Só é possível fixar conquistas desbloqueadas, recordes seus e cartas do Álbum que você possui.'
       : 'Mural inválido.';
     return json({ error: result.error, message }, 400);
   }
@@ -1943,8 +1963,13 @@ const ALBUM_ERROR_STATUS: Record<string, number> = {
 
 /** The album state (after granting what is due) and the profile covers it won, plus whatever the operation returned. */
 async function albumResponse(env: AccountEnv, userId: string, extra: Record<string, unknown> = {}): Promise<Response> {
+  await ensureAchievementsCurrent(env.DB, userId);
+  const achievementGrants = await syncAchievementPackRewards(env.DB, userId).catch(error => {
+    console.error('[achievements] rewards during album sync failed:', error);
+    return [];
+  });
   const [{ state, grants }, covers] = await Promise.all([syncAlbum(env.DB, userId), loadOwnedCovers(env.DB, userId)]);
-  return json({ ...state, grants, covers, ...extra });
+  return json({ ...state, grants: [...grants, ...achievementGrants], covers, ...extra });
 }
 
 async function albumAction(request: Request, env: AccountEnv, account: AuthenticatedAccount, action: string): Promise<Response> {

@@ -490,19 +490,26 @@ function FriendTradeDialog({ open, onOpenChange, friendshipId, friendName, frien
         {hasActiveTrade ? <StatusBanner tone="default">Já existe uma negociação em andamento. Continue pela aba Ofertas.</StatusBanner> : null}
         <div>
           <h3 className="text-sm font-bold text-[var(--ui-text)]">Escolha o que oferecer</h3>
-          <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">Depois de iniciar, os dois escolhem as repetidas e confirmam a troca juntos.</p>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">Sua carta inicia a negociação. {friendName} escolhe uma repetida de volta e vocês confirmam juntos.</p>
         </div>
         {spareCards.length === 0 ? <p className="text-sm text-[var(--ui-text-muted)]">Você não tem cópias extras para trocar.</p> : <>
           <label className="block space-y-1.5 text-xs font-semibold text-[var(--ui-text-muted)]">
             Buscar uma carta repetida
             <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome ou número no álbum" />
           </label>
-          <label className="block space-y-1.5 text-xs font-semibold text-[var(--ui-text-muted)]">
-            Carta que você oferece
-            <select className="ui-input w-full" value={selectedCardId} onChange={event => { setSelectedCardId(event.target.value); setQuantity(1); }}>
-              {filteredCards.length === 0 ? <option value="">Nenhuma carta encontrada</option> : filteredCards.map(card => <option key={card.id} value={card.id}>{card.name} · Nº {card.number} · {card.spare} extra(s)</option>)}
-            </select>
-          </label>
+          <div className="max-h-56 space-y-1 overflow-y-auto pr-1" aria-label="Cartas repetidas disponíveis">
+            {filteredCards.map(card => {
+              const player = albumCard(card.id);
+              if (!player) return null;
+              const active = selectedCardId === card.id;
+              return <button key={card.id} type="button" aria-pressed={active} onClick={() => { setSelectedCardId(card.id); setQuantity(1); }} className={`flex min-h-12 w-full items-center gap-2 rounded-lg border px-2 py-1 text-left ${active ? 'border-[var(--ui-brand)] bg-[var(--ui-brand-soft)]' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] hover:border-[var(--ui-line-strong)]'}`}>
+                <PlayerCard player={player} lite flat scale={0.17} />
+                <span className="min-w-0 flex-1"><strong className="block truncate text-xs text-[var(--ui-text)]">{player.shortName}</strong><span className="block truncate text-[11px] text-[var(--ui-text-muted)]">Nº {card.number} · {player.club}</span></span>
+                <span className="shrink-0 rounded-md bg-[var(--ui-surface-2)] px-2 py-1 text-[11px] font-semibold tabular-nums text-[var(--ui-text-soft)]">×{card.spare}</span>
+              </button>;
+            })}
+            {filteredCards.length === 0 ? <p className="rounded-lg border border-dashed border-[var(--ui-line-subtle)] p-3 text-center text-xs text-[var(--ui-text-muted)]">Nenhuma repetida encontrada.</p> : null}
+          </div>
           {selectedCard ? <div className="flex items-center gap-3 rounded-lg border border-[var(--ui-line-subtle)] bg-black/10 p-2">
             <PlayerCard player={albumCard(selectedCard.id)!} lite scale={0.22} />
             <div className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]">{selectedCard.name}</strong><span className="text-xs text-[var(--ui-text-muted)]">Nº {selectedCard.number} · {selectedCard.spare} cópia(s) extra(s)</span></div>
@@ -604,23 +611,71 @@ function FriendTradeSessionCard({ trade, isRequester, friendName, spareCards, on
     }
   };
 
+  const selectedPlayer = myCardId ? albumCard(myCardId) : undefined;
+  const otherPlayer = theirCardId ? albumCard(theirCardId) : undefined;
+  const canConfirm = Boolean(myCardId && selectedCard && theirCardId && theirQuantity);
+
   return <article className="space-y-4 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:p-4">
-    <div className="flex items-center justify-between gap-2"><div><h4 className="text-sm font-bold text-[var(--ui-text)]">Negociação ao vivo</h4><p className="text-xs text-[var(--ui-text-muted)]">Escolham uma repetida cada e confirmem.</p></div><span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-success)]"><span className="size-1.5 animate-pulse rounded-full bg-[var(--ui-success)]" />ao vivo</span></div>
-    <div className="grid gap-3 md:grid-cols-2">
-      <section className="min-w-0 space-y-3 rounded-lg border border-[var(--ui-line-subtle)] bg-black/10 p-3">
-        <div className="flex items-center justify-between gap-2"><div><strong className="text-xs text-[var(--ui-text)]">Sua carta</strong><p className="text-[11px] text-[var(--ui-text-muted)]">{myReady ? 'Você confirmou sua oferta.' : 'Selecione uma carta repetida.'}</p></div><OfferReadyState ready={myReady} /></div>
-        {myCardId && albumCard(myCardId) ? <div className="flex items-center gap-2"><PlayerCard player={albumCard(myCardId)!} compact lite /><div className="min-w-0 flex-1"><strong className="block truncate text-xs text-[var(--ui-text)]">{myQuantity}× {cardLabel(myCardId)}</strong><span className="text-[10px] text-[var(--ui-text-muted)]">{selectedCard?.spare ?? 0} extra(s)</span><div className="mt-1 flex items-center gap-1.5"><Button type="button" intent="ghost" aria-label="Diminuir quantidade" disabled={busy || myQuantity <= 1} onClick={() => void changeQuantity(-1)} className="size-7 min-h-7 px-0"><span aria-hidden="true">−</span></Button><span className="min-w-8 text-center text-xs tabular-nums text-[var(--ui-text)]">{myQuantity}</span><Button type="button" intent="ghost" aria-label="Aumentar quantidade" disabled={busy || myQuantity >= (selectedCard?.spare ?? 0)} onClick={() => void changeQuantity(1)} className="size-7 min-h-7 px-0"><span aria-hidden="true">+</span></Button></div></div></div> : <p className="rounded-md border border-dashed border-[var(--ui-line-subtle)] p-3 text-center text-xs text-[var(--ui-text-muted)]">Escolha sua carta abaixo.</p>}
-        <label className="block space-y-1 text-[11px] font-semibold text-[var(--ui-text-muted)]">Buscar repetida<Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome ou número" /></label>
-        {filteredCards.length ? <div className="grid max-h-48 grid-cols-3 justify-items-center gap-2 overflow-y-auto rounded-md p-1 sm:grid-cols-4">{filteredCards.map(card => { const player = albumCard(card.id); return player ? <div key={card.id} className="flex flex-col items-center gap-1"><PlayerCard player={player} compact lite selected={card.id === myCardId} onClick={() => void selectCard(card)} /><span className="text-[10px] text-[var(--ui-text-muted)]">{card.spare} extra(s)</span></div> : null; })}</div> : <p className="text-xs text-[var(--ui-text-muted)]">Sem repetidas disponíveis.</p>}
+    <header className="flex flex-wrap items-center justify-between gap-2">
+      <div className="min-w-0">
+        <h4 className="text-sm font-bold text-[var(--ui-text)]">Troca em andamento</h4>
+        <p className="mt-0.5 text-xs text-[var(--ui-text-muted)]">Cada pessoa oferece cartas repetidas. A troca acontece depois das duas confirmações.</p>
+      </div>
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--ui-success)]/25 bg-[var(--ui-success)]/10 px-2.5 py-1 text-[10px] font-bold uppercase text-[var(--ui-success)]"><span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--ui-success)]" />Ativa</span>
+    </header>
+
+    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start">
+      <section className="min-w-0 space-y-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] p-3" aria-label="Sua oferta">
+        <div className="flex items-center justify-between gap-2">
+          <div><h5 className="text-sm font-bold text-[var(--ui-text)]">Você oferece</h5><p className="text-xs text-[var(--ui-text-muted)]">Selecione uma carta repetida.</p></div>
+          <OfferReadyState ready={myReady} />
+        </div>
+        {selectedPlayer ? <div className="flex min-w-0 items-center gap-2 rounded-lg border border-[var(--ui-brand)]/25 bg-[var(--ui-brand-soft)] p-2">
+          <PlayerCard player={selectedPlayer} compact lite />
+          <div className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]">{cardLabel(myCardId!)}</strong><span className="text-xs text-[var(--ui-text-muted)]">{selectedCard?.spare ?? 0} repetida(s) disponíveis</span></div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button type="button" intent="ghost" aria-label="Diminuir quantidade oferecida" disabled={busy || myQuantity <= 1} onClick={() => void changeQuantity(-1)} className="size-8 min-h-8 px-0">−</Button>
+            <span className="min-w-7 text-center text-sm font-bold tabular-nums text-[var(--ui-text)]">{myQuantity}</span>
+            <Button type="button" intent="ghost" aria-label="Aumentar quantidade oferecida" disabled={busy || myQuantity >= (selectedCard?.spare ?? 0)} onClick={() => void changeQuantity(1)} className="size-8 min-h-8 px-0">+</Button>
+          </div>
+        </div> : <p className="rounded-lg border border-dashed border-[var(--ui-line-subtle)] px-3 py-4 text-center text-xs text-[var(--ui-text-muted)]">Escolha uma carta da lista abaixo.</p>}
+        <label className="block space-y-1.5 text-xs font-semibold text-[var(--ui-text-muted)]">Buscar nas repetidas<Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome ou número do álbum" /></label>
+        {filteredCards.length ? <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
+          {filteredCards.map(card => {
+            const player = albumCard(card.id);
+            if (!player) return null;
+            const active = card.id === myCardId;
+            return <button key={card.id} type="button" disabled={busy} aria-pressed={active} onClick={() => void selectCard(card)} className={`flex min-h-12 w-full items-center gap-2 rounded-lg border px-2 py-1 text-left ${active ? 'border-[var(--ui-brand)] bg-[var(--ui-brand-soft)]' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] hover:border-[var(--ui-line-strong)]'}`}>
+              <PlayerCard player={player} lite flat scale={0.17} />
+              <span className="min-w-0 flex-1"><strong className="block truncate text-xs text-[var(--ui-text)]">{player.shortName}</strong><span className="block truncate text-[11px] text-[var(--ui-text-muted)]">Nº {card.number} · {player.club}</span></span>
+              <span className="shrink-0 rounded-md bg-[var(--ui-surface-2)] px-2 py-1 text-[11px] font-semibold tabular-nums text-[var(--ui-text-soft)]">×{card.spare}</span>
+              {active ? <span className="sr-only">Selecionada</span> : null}
+            </button>;
+          })}
+        </div> : <p className="rounded-lg bg-[var(--ui-surface-inset)] p-3 text-center text-xs text-[var(--ui-text-muted)]">Você não tem repetidas disponíveis com essa busca.</p>}
       </section>
-      <section className="min-w-0 space-y-3 rounded-lg border border-[var(--ui-line-subtle)] bg-black/10 p-3">
-        <div className="flex items-center justify-between gap-2"><div><strong className="text-xs text-[var(--ui-text)]">Carta de {friendName}</strong><p className="text-[11px] text-[var(--ui-text-muted)]">{theirReady ? 'Amigo confirmou a oferta.' : 'A seleção aparece em tempo real.'}</p></div><OfferReadyState ready={theirReady} /></div>
-        {theirCardId && albumCard(theirCardId) ? <div className="flex items-center gap-2"><PlayerCard player={albumCard(theirCardId)!} compact lite /><div className="min-w-0"><strong className="block truncate text-xs text-[var(--ui-text)]">{theirQuantity}× {cardLabel(theirCardId)}</strong><span className="text-[10px] text-[var(--ui-text-muted)]">Oferta de {friendName}</span></div></div> : <div className="grid min-h-36 place-items-center rounded-md border border-dashed border-[var(--ui-line-subtle)] px-3 text-center"><div><ArrowLeftRight size={20} aria-hidden="true" className="mx-auto mb-2 text-[var(--ui-text-faint)]" /><p className="text-sm font-semibold text-[var(--ui-text)]">Aguardando carta</p><p className="mt-1 text-[11px] text-[var(--ui-text-muted)]">{friendName} ainda está escolhendo.</p></div></div>}
-        <div className="rounded-md border border-[var(--ui-line-subtle)] p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-[var(--ui-text-faint)]">Prontidão</p><p className="mt-2 flex items-center justify-between text-xs"><span className="text-[var(--ui-text-muted)]">Você</span><span className={myReady ? 'text-[var(--ui-success)]' : 'text-[var(--ui-text-faint)]'}>{myReady ? 'Pronto' : 'Escolhendo'}</span></p><p className="mt-1 flex items-center justify-between text-xs"><span className="text-[var(--ui-text-muted)]">{friendName}</span><span className={theirReady ? 'text-[var(--ui-success)]' : 'text-[var(--ui-text-faint)]'}>{theirReady ? 'Pronto' : 'Escolhendo'}</span></p></div>
+
+      <div aria-hidden="true" className="hidden pt-16 text-[var(--ui-brand-strong)] md:block"><ArrowLeftRight size={20} /></div>
+
+      <section className="min-w-0 space-y-3 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] p-3" aria-label={`Oferta de ${friendName}`}>
+        <div className="flex items-center justify-between gap-2">
+          <div><h5 className="text-sm font-bold text-[var(--ui-text)]">{friendName} oferece</h5><p className="text-xs text-[var(--ui-text-muted)]">A seleção aparece aqui em tempo real.</p></div>
+          <OfferReadyState ready={theirReady} />
+        </div>
+        {otherPlayer ? <div className="flex min-h-[100px] min-w-0 items-center gap-3 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-2">
+          <PlayerCard player={otherPlayer} compact lite />
+          <div className="min-w-0"><strong className="block truncate text-sm text-[var(--ui-text)]">{theirQuantity}× {cardLabel(theirCardId!)}</strong><span className="text-xs text-[var(--ui-text-muted)]">Carta repetida de {friendName}</span></div>
+        </div> : <div className="grid min-h-[100px] place-items-center rounded-lg border border-dashed border-[var(--ui-line-subtle)] px-3 text-center"><div><p className="text-sm font-semibold text-[var(--ui-text)]">Aguardando a oferta</p><p className="mt-1 text-xs text-[var(--ui-text-muted)]">{friendName} ainda está escolhendo a carta.</p></div></div>}
+        <div className="rounded-lg bg-[var(--ui-surface-inset)] px-3 py-2 text-xs leading-relaxed text-[var(--ui-text-muted)]">
+          {myReady && theirReady ? 'As duas ofertas foram confirmadas. Concluindo a troca…' : myReady ? `Sua oferta está confirmada. Aguardando ${friendName}.` : theirReady ? `${friendName} confirmou. Revise sua oferta e confirme quando estiver pronto.` : canConfirm ? 'Confira as duas cartas e confirme sua oferta.' : 'Para confirmar, os dois precisam escolher uma carta.'}
+        </div>
       </section>
     </div>
     {error ? <StatusBanner tone="danger">{error}</StatusBanner> : null}
-    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" intent="ghost" disabled={busy} onClick={() => void closeTrade()} className="min-h-9 px-3 text-xs">{isRequester ? 'CANCELAR NEGOCIAÇÃO' : 'RECUSAR TROCA'}</Button><Button type="button" intent={myReady ? 'secondary' : 'success'} loading={busy} disabled={!myCardId || !selectedCard || busy || (!myReady && (!theirCardId || !theirQuantity))} onClick={() => void setReady(!myReady)} className="min-h-9 px-3 text-xs">{myReady ? 'CONFIRMADO · DESFAZER' : 'CONFIRMAR MINHA OFERTA'}</Button></div>
+    <div className="flex flex-col-reverse gap-2 border-t border-[var(--ui-line-subtle)] pt-3 sm:flex-row sm:items-center sm:justify-between">
+      <Button type="button" intent="ghost" disabled={busy} onClick={() => void closeTrade()} className="min-h-9 px-3 text-xs">{isRequester ? 'CANCELAR TROCA' : 'RECUSAR TROCA'}</Button>
+      <Button type="button" intent={myReady ? 'secondary' : 'success'} loading={busy} disabled={!canConfirm || busy} onClick={() => void setReady(!myReady)} className="min-h-10 px-4 text-xs">{myReady ? 'DESFAZER CONFIRMAÇÃO' : 'CONFIRMAR MINHA OFERTA'}</Button>
+    </div>
   </article>;
 }
 

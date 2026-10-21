@@ -7,8 +7,16 @@ import { levelForCopies, pageBonusSnapshotForOwnedCards, type AlbumItemKey, type
 import type { Rarity } from '@shared/game/gameData';
 import { api, useAccount } from './AccountContext';
 
-export type GrantSource = 'campaign' | 'page' | 'shop';
-export interface ItemGrant { key: AlbumItemKey; source: GrantSource; competitionId?: string; pageId?: string; coinsAwarded?: number }
+export type GrantSource = 'campaign' | 'page' | 'shop' | 'achievement';
+export interface ItemGrant {
+  key: AlbumItemKey;
+  source: GrantSource;
+  competitionId?: string;
+  pageId?: string;
+  coinsAwarded?: number;
+  achievementId?: string;
+  achievementLevel?: number;
+}
 export interface PageReward { pageId: string; frameKey: string | null; coverKey: string | null; items: AlbumItemKey[]; recompleted: boolean }
 export interface OpenResult { item: AlbumItemKey; cards: { id: string; isNew: boolean }[]; pageRewards: PageReward[] }
 export interface BannerDraw { card: { id: string; isNew: boolean }; rarity: Rarity; pityTriggered: boolean }

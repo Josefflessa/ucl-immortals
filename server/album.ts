@@ -44,8 +44,16 @@ import {
   WEEKEND_COMPETITION_COIN_MULTIPLIER,
 } from '../shared/game/competitionRanking.js';
 
-export type GrantSource = 'campaign' | 'page' | 'shop';
-export interface ItemGrant { key: AlbumItemKey; source: GrantSource; competitionId?: string; pageId?: string; coinsAwarded?: number }
+export type GrantSource = 'campaign' | 'page' | 'shop' | 'achievement';
+export interface ItemGrant {
+  key: AlbumItemKey;
+  source: GrantSource;
+  competitionId?: string;
+  pageId?: string;
+  coinsAwarded?: number;
+  achievementId?: string;
+  achievementLevel?: number;
+}
 
 /** A page completed by the last operation and what it unlocked. */
 export interface PageReward {

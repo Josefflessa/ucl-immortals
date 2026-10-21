@@ -26,7 +26,7 @@ import DifficultyEmblem from '../components/game/DifficultyEmblem';
 import SelectMenu, { type SelectMenuOption } from '../components/account/SelectMenu';
 import FramedAvatar, { FrameImage } from '../components/account/AvatarFrame';
 import SeasonBar from '../components/account/SeasonPanel';
-import { currentSeason } from '@shared/game/seasons';
+import { currentSeason, seasonAt, seasonLabel } from '@shared/game/seasons';
 import GalleryPagination from '../components/account/GalleryPagination';
 import StyledName from '../components/account/StyledName';
 import { NAME_STYLES } from '@shared/game/nameStyles';
@@ -332,6 +332,7 @@ function PersonalRecordCard({ category, record }: { category: PublicRecordEntry[
             <Crest crestId={record.crest_id_snapshot} name={record.team_name_snapshot} size={26} className="shrink-0 rounded-full" />
             <div className="min-w-0">
               <span className="block truncate text-xs font-semibold text-[var(--ui-text)]">{record.team_name_snapshot}</span>
+              <span className="block text-[11px] font-semibold text-[var(--ui-brand-strong)]">{seasonLabel(record.season ?? seasonAt(record.completed_at))}</span>
               <time className="block text-[11px] text-[var(--ui-text-muted)]" dateTime={new Date(record.completed_at).toISOString()}>{formatDate(record.completed_at)}</time>
             </div>
           </div>
@@ -379,7 +380,7 @@ function ProfileCareerContent({
   achievementsLoading = false,
   onEditShowcase,
   twoColumns = false,
-  showcaseEmptyText = 'Nenhum destaque ainda: conquistas e recordes podem ser fixados aqui conforme as competições são concluídas.',
+  showcaseEmptyText = 'Nenhum destaque ainda: conquistas, recordes e cartas do Álbum podem ser fixados aqui.',
 }: {
   scorePosition: ScoreLeaderboardPosition | null;
   scorePositionLoading?: boolean;

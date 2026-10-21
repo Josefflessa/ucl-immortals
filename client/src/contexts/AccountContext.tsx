@@ -24,8 +24,8 @@ export interface AchievementUnlock {
 
 export interface AchievementRarity {
   players: number;
-  /** Percent of players holding each level or better: [Bronze, Prata, Ouro, Lendário]. */
-  percentByAchievement: Record<string, [number, number, number, number]>;
+  /** Percent of players holding each level or better: Bronze through Imortal. */
+  percentByAchievement: Record<string, [number, number, number, number, number]>;
 }
 
 export interface FrameUnlock {
@@ -260,6 +260,8 @@ export interface ProfileRecordEntry {
   mode: 'solo' | 'online';
   format_id: string;
   completed_at: number;
+  /** Season containing the competition date; absent on older server payloads. */
+  season?: number;
 }
 
 export interface RecordCardEffectiveStats {

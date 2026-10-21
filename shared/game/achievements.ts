@@ -7,15 +7,16 @@ import { isCompetitionFinishStage, isRankedDifficulty, type CompetitionFinishSta
 import type { CareerSummary } from './careerSummary';
 
 /** Bumped whenever definitions or the evaluation change, to re-evaluate accounts. */
-export const ACHIEVEMENTS_VERSION = 5;
+export const ACHIEVEMENTS_VERSION = 6;
 
-export const ACHIEVEMENT_TIERS = ['bronze', 'silver', 'gold', 'legendary'] as const;
+export const ACHIEVEMENT_TIERS = ['bronze', 'silver', 'gold', 'legendary', 'immortal'] as const;
 export type AchievementTier = (typeof ACHIEVEMENT_TIERS)[number];
 export const ACHIEVEMENT_TIER_LABELS: Record<AchievementTier, string> = {
   bronze: 'Bronze',
   silver: 'Prata',
   gold: 'Ouro',
   legendary: 'Lendário',
+  immortal: 'Imortal',
 };
 
 /** One completed competition, as the history stores it. */
@@ -289,13 +290,15 @@ export interface AchievementDefinition {
   name: string;
   category: AchievementCategory;
   metric: keyof CareerMetrics;
-  /** Value needed for Bronze, Prata, Ouro and Lendário (strictly increasing). */
+  /** Values for Bronze, Prata, Ouro and Lendário. Imortal extends the last progression ratio. */
   thresholds: readonly [number, number, number, number];
+  /** Override for metrics with a known upper bound (for example, the five game difficulties). */
+  immortalThreshold?: number;
   /** Goal for a tier threshold (handles the singular). */
   goal: (n: string, one: boolean) => string;
   detail?: AchievementDetailKind;
   /** Each level only counts competitions at the difficulty of the same name or above
-   * (Bronze: any; Prata: Prata+; Ouro: Ouro+; Lendário: Lendário+). Set on the
+   * (Bronze: any; Prata: Prata+; Ouro: Ouro+; Lendário: Lendário+; Imortal: Imortal). Set on the
    * Títulos and Campanha achievements; see TIER_DIFFICULTY_FLOOR. */
   byDifficulty?: true;
 }
@@ -303,8 +306,8 @@ export interface AchievementDefinition {
 /** Ranked difficulty index (bronze 0 … immortal 4); -1 for anything else. */
 const DIFFICULTY_RANK = new Map<string, number>([['bronze', 0], ['silver', 1], ['gold', 2], ['legendary', 3], ['immortal', 4]]);
 /** Lowest difficulty that counts for each level of a byDifficulty achievement. */
-const TIER_DIFFICULTY_FLOOR = [0, 1, 2, 3] as const;
-const TIER_DIFFICULTY_LABEL = ['', 'Prata', 'Ouro', 'Lendário'] as const;
+const TIER_DIFFICULTY_FLOOR = [0, 1, 2, 3, 4] as const;
+const TIER_DIFFICULTY_LABEL = ['', 'Prata', 'Ouro', 'Lendário', 'Imortal'] as const;
 
 const times = (n: string, one: boolean, text: string) => (one ? text : `${text} ${n} vezes`);
 
@@ -314,7 +317,7 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
   { id: 'finalist', name: 'Finalista', category: 'titles', metric: 'finals', thresholds: [3, 10, 30, 80], goal: n => `Chegue à final ${n} vezes`, byDifficulty: true },
   { id: 'persistent_runner_up', name: 'Vice Persistente', category: 'titles', metric: 'runnerUps', thresholds: [1, 5, 15, 40], goal: (n, one) => (one ? 'Seja vice-campeão' : `Seja vice-campeão ${n} vezes`), byDifficulty: true },
   { id: 'dynasty', name: 'Hegemonia', category: 'titles', metric: 'bestTitleStreak', thresholds: [2, 3, 5, 8], goal: n => `Seja campeão em ${n} competições seguidas`, byDifficulty: true },
-  { id: 'ladder', name: 'Escalada', category: 'titles', metric: 'titleDifficulties', thresholds: [2, 3, 4, 5], goal: n => `Seja campeão em ${n} dificuldades diferentes` },
+  { id: 'ladder', name: 'Escalada', category: 'titles', metric: 'titleDifficulties', thresholds: [1, 2, 3, 4], immortalThreshold: 5, goal: n => `Seja campeão em ${n} dificuldades diferentes` },
   { id: 'perfect_campaign', name: 'Campanha Perfeita', category: 'titles', metric: 'perfectTitles', thresholds: [1, 2, 5, 10], goal: (n, one) => times(n, one, 'Seja campeão vencendo todos os jogos'), byDifficulty: true },
   { id: 'winning_coach', name: 'Técnico Vencedor', category: 'titles', metric: 'titleCoaches', thresholds: [2, 4, 7, 10], goal: n => `Seja campeão com ${n} técnicos diferentes`, byDifficulty: true },
   { id: 'crest_collector', name: 'Colecionador de Escudos', category: 'titles', metric: 'titleCrests', thresholds: [2, 5, 10, 20], goal: n => `Seja campeão com ${n} escudos diferentes`, byDifficulty: true },
@@ -358,7 +361,7 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
   { id: 'point_scorer', name: 'Pontuador', category: 'career', metric: 'rankingPoints', thresholds: [100, 500, 2000, 6000], goal: n => `Some ${n} pontos de ranking` },
   { id: 'loyal_crest', name: 'Fiel ao Escudo', category: 'career', metric: 'loyalCrest', thresholds: [5, 15, 40, 100], goal: n => `Conclua ${n} competições com o mesmo escudo`, detail: 'crest' },
   { id: 'lasting_partnership', name: 'Parceria Duradoura', category: 'career', metric: 'loyalCoach', thresholds: [5, 15, 40, 100], goal: n => `Conclua ${n} competições com o mesmo técnico`, detail: 'coach' },
-  { id: 'explorer', name: 'Explorador', category: 'career', metric: 'difficultiesPlayed', thresholds: [2, 3, 4, 5], goal: n => `Jogue em ${n} dificuldades diferentes` },
+  { id: 'explorer', name: 'Explorador', category: 'career', metric: 'difficultiesPlayed', thresholds: [1, 2, 3, 4], immortalThreshold: 5, goal: n => `Jogue em ${n} dificuldades diferentes` },
   { id: 'regular', name: 'Frequentador', category: 'career', metric: 'activeDays', thresholds: [3, 10, 30, 100], goal: n => `Conclua competições em ${n} dias diferentes` },
   // Dificuldade
   { id: 'immortal_legend', name: 'Lenda Imortal', category: 'difficulty', metric: 'immortalTitles', thresholds: [1, 3, 10, 25], goal: (n, one) => (one ? 'Seja campeão no Imortal' : `Seja campeão ${n} vezes no Imortal`) },
@@ -378,15 +381,22 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
 
 export const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map(achievement => [achievement.id, achievement]));
 
+/** Add the Imortal milestone using the same growth ratio as Ouro → Lendário. */
+export function achievementThresholds(definition: AchievementDefinition): readonly [number, number, number, number, number] {
+  const [bronze, silver, gold, legendary] = definition.thresholds;
+  const immortal = definition.immortalThreshold ?? Math.max(legendary + 1, Math.ceil(legendary * legendary / gold));
+  return [bronze, silver, gold, legendary, immortal];
+}
+
 export function achievementGoalText(definition: AchievementDefinition, tierIndex: number): string {
-  const tier = Math.max(0, Math.min(3, tierIndex));
-  const threshold = definition.thresholds[tier];
+  const tier = Math.max(0, Math.min(4, tierIndex));
+  const threshold = achievementThresholds(definition)[tier];
   const goal = definition.goal(threshold.toLocaleString('pt-BR'), threshold === 1);
   return definition.byDifficulty && tier > 0 ? `${goal} no ${TIER_DIFFICULTY_LABEL[tier]} ou acima` : goal;
 }
 
-/** 0 = locked, 1..4 = Bronze..Lendário. */
-export type AchievementLevel = 0 | 1 | 2 | 3 | 4;
+/** 0 = locked, 1..5 = Bronze..Imortal. */
+export type AchievementLevel = 0 | 1 | 2 | 3 | 4 | 5;
 
 export interface AchievementProgress {
   id: string;
@@ -398,7 +408,7 @@ export interface AchievementProgress {
 
 export function levelFor(definition: AchievementDefinition, value: number): AchievementLevel {
   let level = 0;
-  definition.thresholds.forEach((threshold, index) => { if (value >= threshold) level = index + 1; });
+  achievementThresholds(definition).forEach((threshold, index) => { if (value >= threshold) level = index + 1; });
   return level as AchievementLevel;
 }
 
@@ -421,15 +431,15 @@ export function evaluateAchievements(competitions: readonly CareerCompetition[])
     // A higher floor only drops competitions and the thresholds increase, so meeting
     // a level always means meeting the ones below it.
     let level = 0;
-    definition.thresholds.forEach((threshold, index) => { if (byFloor[index][definition.metric] >= threshold) level = index + 1; });
+    achievementThresholds(definition).forEach((threshold, index) => { if (byFloor[index][definition.metric] >= threshold) level = index + 1; });
     // Progress is shown towards the next level, so it is counted at that level's floor.
-    const progress = byFloor[Math.min(level, 3)][definition.metric];
+    const progress = byFloor[Math.min(level, 4)][definition.metric];
     return { id: definition.id, level: level as AchievementLevel, progress, detail: null };
   });
 }
 
 export function tierForLevel(level: number): AchievementTier | null {
-  return level >= 1 && level <= 4 ? ACHIEVEMENT_TIERS[level - 1] : null;
+  return level >= 1 && level <= 5 ? ACHIEVEMENT_TIERS[level - 1] : null;
 }
 
 /** Rarity wording for "N% of players have it". */
@@ -439,7 +449,8 @@ export const RECORD_CATEGORIES = ['goals', 'assists', 'saves', 'effective_overal
 export type RecordCategory = (typeof RECORD_CATEGORIES)[number];
 export type ShowcaseItem =
   | { type: 'achievement'; id: string }
-  | { type: 'record'; difficultyId: string; category: RecordCategory };
+  | { type: 'record'; difficultyId: string; category: RecordCategory }
+  | { type: 'card'; cardId: string; albumLevel?: 1 | 2 | 3 | 4 | 5 };
 
 /** Validates a client-sent showcase: known items, no duplicates, bounded size. */
 export function sanitizeShowcase(raw: unknown): ShowcaseItem[] | null {
@@ -456,6 +467,11 @@ export function sanitizeShowcase(raw: unknown): ShowcaseItem[] | null {
       && isRankedDifficulty(item.difficultyId)
       && (RECORD_CATEGORIES as readonly unknown[]).includes(item.category)) {
       normalized = { type: 'record', difficultyId: item.difficultyId, category: item.category as RecordCategory };
+    } else if (item.type === 'card'
+      && typeof item.cardId === 'string'
+      && item.cardId.length > 0
+      && item.cardId.length <= 128) {
+      normalized = { type: 'card', cardId: item.cardId };
     } else {
       return null;
     }
@@ -468,7 +484,9 @@ export function sanitizeShowcase(raw: unknown): ShowcaseItem[] | null {
 }
 
 export function showcaseKey(item: ShowcaseItem): string {
-  return item.type === 'achievement' ? `a:${item.id}` : `r:${item.difficultyId}:${item.category}`;
+  if (item.type === 'achievement') return `a:${item.id}`;
+  if (item.type === 'record') return `r:${item.difficultyId}:${item.category}`;
+  return `c:${item.cardId}`;
 }
 
 /** Normalizes a stored finish stage for career evaluation. */
