@@ -6,7 +6,8 @@ interface NarrationStripProps {
   minute: number;
   isFinished: boolean;
   userPaused: boolean;
-  danger: { forMe: boolean; stage: number; message: string } | null;
+  /** `label` replaces the default "chance" / "perigo" title (a red card, for instance). */
+  danger: { forMe: boolean; stage: number; message: string; label?: string } | null;
   text: string;
   finishedContent: ReactNode;
 }
@@ -32,7 +33,7 @@ function useHeldText(text: string): string {
 export default function NarrationStrip({ minute, isFinished, userPaused, danger, text, finishedContent }: NarrationStripProps) {
   const heldText = useHeldText(text);
   const accent = danger ? (danger.forMe ? '#22C55E' : '#EF4444') : '#eab308';
-  const label = isFinished ? 'FIM DE JOGO' : userPaused ? 'PAUSADO' : danger ? (danger.forMe ? 'CHANCE DO SEU TIME' : 'PERIGO NO SEU GOL') : 'AO VIVO';
+  const label = isFinished ? 'FIM DE JOGO' : userPaused ? 'PAUSADO' : danger ? (danger.label ?? (danger.forMe ? 'CHANCE DO SEU TIME' : 'PERIGO NO SEU GOL')) : 'AO VIVO';
   return (
     <div className="narration-strip p-2 sm:p-3 border-b flex flex-col justify-center flex-shrink-0 transition-colors" style={{ background: danger ? `${accent}14` : 'linear-gradient(90deg, #0e0e1d, #14142b)', borderColor: danger ? `${accent}4d` : '#171725' }}>
       <div className="flex items-center justify-between mb-0.5">

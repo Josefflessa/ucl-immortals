@@ -36,7 +36,7 @@ export default function ShootoutPanel(props: ShootoutPanelProps) {
           const slots = Math.max(5, col.pens.length + (shooting ? 1 : 0));
           return (
             <div key={ci} className="text-center rounded-xl py-2 px-1 transition-all" style={{ background: shooting ? 'rgba(255,215,0,0.08)' : 'transparent', border: `1px solid ${shooting ? 'rgba(255,215,0,0.4)' : 'transparent'}` }}>
-              <div className="text-sm sm:text-base font-black truncate" style={{ fontFamily: 'var(--font-display), sans-serif', color: shooting ? '#ffd700' : '#fff' }}>{col.team.name.toUpperCase()}</div>
+              <div className="whitespace-normal break-words text-sm font-black leading-tight sm:text-base" style={{ fontFamily: 'var(--font-display), sans-serif', color: shooting ? '#ffd700' : '#fff' }}>{col.team.name.toUpperCase()}</div>
               <div className="flex gap-1 justify-center mt-1 flex-wrap">
                 {Array.from({ length: slots }).map((_, i) => {
                   const v = col.pens[i];
@@ -51,7 +51,7 @@ export default function ShootoutPanel(props: ShootoutPanelProps) {
       <p className="mt-2 text-center text-xs sm:text-sm font-bold text-gray-100 uppercase whitespace-pre-line leading-relaxed" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{commentary}</p>
       {winnerId && (
         <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="mt-3 text-center">
-          <div className="text-xl sm:text-2xl font-black text-yellow-500 mb-2 tracking-wider" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
+          <div className="mb-2 whitespace-normal break-words text-xl font-black leading-tight tracking-wider text-yellow-500 sm:text-2xl" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
             {isFinal
               ? `${(winnerId === homeTeam.id ? homeTeam.name : awayTeam.name).toUpperCase()} É CAMPEÃO!`
               : `${(winnerId === homeTeam.id ? homeTeam.name : awayTeam.name).toUpperCase()} AVANÇA!`}

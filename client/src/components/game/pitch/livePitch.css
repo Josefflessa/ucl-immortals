@@ -394,3 +394,187 @@
 .live-pitch__face--aside { opacity: .9; }
 .live-pitch__face--aside .live-pitch__face-img { scale: .85; }
 @media (prefers-reduced-motion: reduce) { .live-pitch__face { transition: none; } }
+
+/* The referee (red card scenes): a yellow shirt, a ring when he whistles and the card he holds up. */
+.live-pitch__ref {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(var(--dot) * 1.3);
+  height: calc(var(--dot) * 1.3);
+  margin: calc(var(--dot) * -.65) 0 0 calc(var(--dot) * -.65);
+  border-radius: 50%;
+  background: #fff;
+  border: calc(var(--dot) * .16) solid #0b0b12;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+  transition: opacity 250ms;
+  will-change: transform;
+  z-index: 6;
+}
+.live-pitch__ref-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .9);
+  animation: live-pitch-whistle 900ms ease-out forwards;
+}
+.live-pitch__ref-card {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--dot) * .25);
+  width: calc(var(--dot) * 1);
+  height: calc(var(--dot) * 1.4);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .55);
+  transform-origin: 50% 100%;
+  animation: live-pitch-card-up 200ms cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.live-pitch__ref-card--red { background: #e11d2e; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 0 14px rgba(225, 29, 46, .75), 0 2px 6px rgba(0, 0, 0, .55); }
+.live-pitch__ref-card--yellow { background: #facc15; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 0 12px rgba(250, 204, 21, .6), 0 2px 6px rgba(0, 0, 0, .55); }
+@keyframes live-pitch-whistle {
+  from { transform: scale(1); opacity: .95; }
+  to { transform: scale(3.4); opacity: 0; }
+}
+@keyframes live-pitch-card-up {
+  from { transform: translate(-50%, 70%) scale(.4) rotate(-12deg); opacity: 0; }
+  to { transform: translate(-50%, 0) scale(1) rotate(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-pitch__ref-ring, .live-pitch__ref-card { animation: none; }
+}
+.live-pitch__card-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 7;
+  animation: live-pitch-card-flash 520ms ease-out forwards;
+}
+.live-pitch__card-flash--red { background: radial-gradient(ellipse at center, rgba(225, 29, 46, 0) 38%, rgba(225, 29, 46, .32) 100%); }
+.live-pitch__card-flash--yellow { background: radial-gradient(ellipse at center, rgba(250, 204, 21, 0) 42%, rgba(250, 204, 21, .22) 100%); }
+@keyframes live-pitch-card-flash {
+  0% { opacity: 0; }
+  14% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-pitch__card-flash { animation: none; opacity: 0; }
+}
+
+/* The foul: who did it (red) and who suffered it (amber), at a glance. */
+.live-pitch__face--culprit .live-pitch__face-img { box-shadow: 0 0 0 2px #ef4444, 0 2px 5px rgba(0, 0, 0, .55); }
+.live-pitch__face--culprit .live-pitch__name { background: #b91c1c; color: #fff; }
+.live-pitch__face--victim .live-pitch__face-img { box-shadow: 0 0 0 2px #fbbf24, 0 2px 5px rgba(0, 0, 0, .55); }
+/* What the foul is: an icon and a caption pop up at the contact. */
+.live-pitch__contact {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+  z-index: 7;
+  animation: live-pitch-contact-life 1600ms ease-out both;
+}
+.live-pitch__contact-ring {
+  position: absolute;
+  left: calc(var(--dot) * -1);
+  top: calc(var(--dot) * -1);
+  width: calc(var(--dot) * 2);
+  height: calc(var(--dot) * 2);
+  border-radius: 50%;
+  border: 3px solid #fff;
+  animation: live-pitch-contact-ring 420ms ease-out both;
+}
+.live-pitch__contact-icon {
+  position: absolute;
+  left: 0;
+  bottom: calc(var(--dot) * 1.3);
+  transform: translateX(-50%);
+  font-size: calc(var(--dot) * 2);
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .7));
+  animation: live-pitch-contact-pop 240ms cubic-bezier(.2, 1.5, .4, 1) both;
+}
+.live-pitch__contact-text {
+  position: absolute;
+  left: 0;
+  bottom: calc(var(--dot) * 3.7);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #b91c1c;
+  color: #fff;
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .85), 0 3px 8px rgba(0, 0, 0, .55);
+  font: 900 clamp(9px, 1.5cqw, 13px) / 1.2 var(--font-game), sans-serif;
+  letter-spacing: .06em;
+  animation: live-pitch-contact-pop 240ms 50ms cubic-bezier(.2, 1.5, .4, 1) both;
+}
+@keyframes live-pitch-contact-ring { from { transform: scale(.3); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
+@keyframes live-pitch-contact-pop { from { opacity: 0; scale: .3; } to { opacity: 1; scale: 1; } }
+@keyframes live-pitch-contact-life { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+/* The card, said big: the player and what he got. */
+.live-pitch__stamp {
+  position: absolute;
+  left: 50%;
+  top: 11%;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: clamp(6px, 1.4cqw, 12px);
+  padding: clamp(5px, 1cqw, 9px) clamp(10px, 2cqw, 18px) clamp(5px, 1cqw, 9px) clamp(6px, 1.2cqw, 10px);
+  border-radius: 12px;
+  background: rgba(8, 9, 16, .86);
+  box-shadow: 0 0 0 2px var(--stamp), 0 6px 16px rgba(0, 0, 0, .5);
+  pointer-events: none;
+  animation: live-pitch-stamp 1100ms cubic-bezier(.2, 1.3, .4, 1) both;
+}
+.live-pitch__stamp--red { --stamp: #e11d2e; }
+.live-pitch__stamp--yellow { --stamp: #facc15; }
+.live-pitch__stamp-card { width: clamp(16px, 3.2cqw, 28px); height: clamp(22px, 4.5cqw, 40px); border-radius: 3px; background: var(--stamp); box-shadow: 0 0 10px var(--stamp); transform: rotate(-8deg); }
+.live-pitch__stamp-face { width: clamp(30px, 6.4cqw, 52px); height: clamp(30px, 6.4cqw, 52px); border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 2px var(--stamp); background: #1b1b2b; }
+.live-pitch__stamp-face img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.live-pitch__stamp-text { display: flex; flex-direction: column; line-height: 1.05; font-family: var(--font-game), sans-serif; text-transform: uppercase; }
+.live-pitch__stamp-text b { color: var(--stamp); font-size: clamp(13px, 2.8cqw, 24px); font-weight: 900; letter-spacing: .08em; }
+.live-pitch__stamp-text i { color: #fff; font-style: normal; font-weight: 800; font-size: clamp(10px, 1.9cqw, 16px); letter-spacing: .04em; }
+@keyframes live-pitch-stamp {
+  0% { transform: translate(-50%, -30px) scale(.5) rotate(-4deg); opacity: 0; }
+  14% { transform: translate(-50%, 0) scale(1.08) rotate(0); opacity: 1; }
+  22% { transform: translate(-50%, 0) scale(1); }
+  86% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -8px) scale(.96); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-pitch__contact, .live-pitch__contact-ring, .live-pitch__contact-icon, .live-pitch__contact-text, .live-pitch__stamp { animation: none; }
+}
+
+/* A hand on the shirt: a line pulled between the two players. */
+.live-pitch__tug {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 3px;
+  margin-top: -1.5px;
+  transform-origin: 0 50%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, .95), rgba(255, 90, 90, .95));
+  box-shadow: 0 0 8px rgba(255, 90, 90, .7);
+  transition: opacity 120ms;
+  z-index: 5;
+  will-change: transform;
+}
+/* The referee with a card out: a little bigger (--ref-scale, set by the pitch), the arm up. */
+.live-pitch__ref-card::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: calc(var(--dot) * .18);
+  height: calc(var(--dot) * .5);
+  transform: translateX(-50%);
+  background: #fff;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .45);
+}
+.live-pitch__stamp-text em { color: #facc15; font-style: normal; font-weight: 800; font-size: clamp(8px, 1.5cqw, 12px); letter-spacing: .08em; }
+/* The red card of a second yellow shows the yellow one behind it. */
+.live-pitch__stamp-card--double { position: relative; box-shadow: 0 0 10px var(--stamp); }
+.live-pitch__stamp-card--double::before { content: ''; position: absolute; inset: 0; transform: translate(-45%, 8%) rotate(10deg); background: #facc15; border-radius: 3px; z-index: -1; box-shadow: 0 0 6px rgba(250, 204, 21, .7); }

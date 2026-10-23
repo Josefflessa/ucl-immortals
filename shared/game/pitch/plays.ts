@@ -192,7 +192,7 @@ export type DangerOutcome = 'goal' | 'save' | 'miss' | 'duel';
 export type CastRole = 'finisher' | 'creator' | 'defender' | 'goalkeeper';
 export interface CastEntry { slot: number; role: CastRole }
 /** 'flip': a bicycle kick (upside down in the air); 'dive': a diving header (flat, head first). */
-export type BeatKind = 'net' | 'save' | 'post' | 'block' | 'tackle' | 'lunge' | 'flip' | 'dive' | 'out' | 'cut' | 'strike' | 'normal';
+export type BeatKind = 'net' | 'save' | 'post' | 'block' | 'tackle' | 'lunge' | 'flip' | 'dive' | 'out' | 'cut' | 'strike' | 'normal' | 'whistle' | 'card' | 'contact' | 'fall' | 'tug';
 /**
  * A moment of the play. A sliding tackle or a lunge also names who makes it (`slot`), for how
  * long it shows (`ms`) and its line on the grass, from (`fx`, `fy`) to (`x`, `y`).
@@ -203,11 +203,18 @@ export interface Beat {
   x: number;
   y: number;
   slot?: number;
+  /** A second player (a `tug` runs between `slot` and `slot2`). */
+  slot2?: number;
   ms?: number;
   /** Time from a strike contact to its arrival; rebound strikes have a shorter flight. */
   flightMs?: number;
   fx?: number;
   fy?: number;
+  /** A card shown by the referee (`x`, `y` is where he stands, `slot` the player carded). */
+  card?: 'yellow' | 'red';
+  /** A foul's icon and caption, shown where it happened (`contact`). */
+  icon?: string;
+  label?: string;
 }
 /** Someone playing the ball (a pass, a carry, a header, a strike, a save...), at time t. */
 export interface Touch { t: number; slot: number }

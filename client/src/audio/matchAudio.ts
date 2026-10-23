@@ -9,7 +9,7 @@
 
 import { soundSettings } from './soundSettings';
 
-export type MatchSound = 'whistleStart' | 'whistleEnd' | 'goal' | 'save' | 'miss' | 'post';
+export type MatchSound = 'whistleStart' | 'whistleEnd' | 'goal' | 'save' | 'miss' | 'post' | 'whistleFoul';
 type Track = MatchSound | 'crowd';
 
 /** Recorded sounds (the whistles are synthesised: see WHISTLES). */
@@ -25,6 +25,8 @@ const FILES: Partial<Record<Track, string>> = {
 const WHISTLES: Partial<Record<Track, { at: number; dur: number }[]>> = {
   whistleStart: [{ at: 0, dur: 1.15 }],
   whistleEnd: [{ at: 0, dur: 0.3 }, { at: 0.45, dur: 0.3 }, { at: 0.9, dur: 1.25 }],
+  /** A foul: one firm blast. */
+  whistleFoul: [{ at: 0, dur: 0.55 }],
 };
 
 /**
@@ -36,6 +38,7 @@ const TARGET: Record<Track, number> = {
   crowd: 0.058,
   whistleStart: 0.12,
   whistleEnd: 0.12,
+  whistleFoul: 0.12,
   goal: 0.45,
   save: 0.185,
   miss: 0.1,

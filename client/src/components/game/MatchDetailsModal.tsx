@@ -87,15 +87,15 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
           <div className="mb-4 flex-shrink-0">
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2.5 sm:gap-4">
               <div className="flex min-w-0 items-center justify-end gap-2">
-                <span className="min-w-0 truncate text-right text-sm font-bold" style={{ color: '#FFF', fontFamily: 'var(--font-game), sans-serif' }}>{homeName}</span>
-                <Crest crestId={homeTeam?.crestId} name={homeName} size={30} />
+                <span className="min-w-0 whitespace-normal break-words text-right text-sm font-bold leading-tight" style={{ color: '#FFF', fontFamily: 'var(--font-game), sans-serif' }}>{homeName}</span>
+                <Crest crestId={homeTeam?.crestId} name={homeName} size={26} />
               </div>
-              <div className="font-display whitespace-nowrap px-1 text-4xl tabular-nums text-[var(--ui-brand-strong)]">
+              <div className="font-display whitespace-nowrap px-1 text-3xl tabular-nums text-[var(--ui-brand-strong)] sm:text-4xl">
                 {result.homeGoals} <span style={{ opacity: .45 }}>-</span> {result.awayGoals}
               </div>
               <div className="flex min-w-0 items-center justify-start gap-2">
-                <Crest crestId={awayTeam?.crestId} name={awayName} size={30} />
-                <span className="min-w-0 truncate text-sm font-bold" style={{ color: '#FFF', fontFamily: 'var(--font-game), sans-serif' }}>{awayName}</span>
+                <Crest crestId={awayTeam?.crestId} name={awayName} size={26} />
+                <span className="min-w-0 whitespace-normal break-words text-sm font-bold leading-tight" style={{ color: '#FFF', fontFamily: 'var(--font-game), sans-serif' }}>{awayName}</span>
               </div>
             </div>
             {result.penaltyWinner && ((result.homePenalties ?? 0) + (result.awayPenalties ?? 0)) > 0 && (
@@ -157,10 +157,10 @@ export default function MatchDetailsModal({ result, homeTeam, awayTeam, homeName
           {/* Alternar entre os dois times */}
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-1 gap-2">
-              <button onClick={() => setSide('home')} className="ui-tab min-w-0 flex-1 truncate" data-active={side === 'home'}>
+              <button onClick={() => setSide('home')} className="ui-tab h-auto min-h-[42px] min-w-0 flex-1 whitespace-normal break-words px-1 text-center leading-tight" data-active={side === 'home'}>
                 {homeName}
               </button>
-              <button onClick={() => setSide('away')} className="ui-tab min-w-0 flex-1 truncate" data-active={side === 'away'}>
+              <button onClick={() => setSide('away')} className="ui-tab h-auto min-h-[42px] min-w-0 flex-1 whitespace-normal break-words px-1 text-center leading-tight" data-active={side === 'away'}>
                 {awayName}
               </button>
             </div>

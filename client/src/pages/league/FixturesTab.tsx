@@ -180,12 +180,12 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                  <div className="flex items-center justify-between">
                   {/* Home Team */}
                   <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
-                    <span className="font-semibold text-sm truncate lg:whitespace-normal lg:text-right lg:leading-tight lg:line-clamp-2" style={{ fontFamily: 'var(--font-game), sans-serif', color: homeColor }}>{homeName}</span>
+                    <span className="min-w-0 whitespace-normal break-words text-right text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: homeColor }}>{homeName}</span>
                     <Crest crestId={allTeams.find(t => t.id === fixture.homeTeamId)?.crestId} name={homeName} size={22} />
                   </div>
 
                   {/* Score / VS */}
-                  <div className="w-28 shrink-0 text-center flex flex-col items-center justify-center lg:w-24">
+                  <div className="w-20 shrink-0 text-center flex flex-col items-center justify-center sm:w-28 lg:w-24">
                     {fixture.played && fixture.result && !hideRoundScore ? (
                       <>
                         <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
@@ -213,7 +213,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                   {/* Away Team */}
                   <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
                     <Crest crestId={allTeams.find(t => t.id === fixture.awayTeamId)?.crestId} name={awayName} size={22} />
-                    <span className="font-semibold text-sm truncate lg:whitespace-normal lg:leading-tight lg:line-clamp-2" style={{ fontFamily: 'var(--font-game), sans-serif', color: awayColor }}>{awayName}</span>
+                    <span className="min-w-0 whitespace-normal break-words text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: awayColor }}>{awayName}</span>
                   </div>
                  </div>
 

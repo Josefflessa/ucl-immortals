@@ -92,20 +92,20 @@ export function HubSummary({ hub }: { hub: LeagueHub }) {
               border: `1px solid ${qualifies ? '#22C55E44' : '#EF444444'}`,
             }}
           >
-            <div className="flex items-center gap-3">
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-3 sm:flex sm:gap-3">
               <div className="flex-shrink-0 text-3xl font-black" style={{
                 fontFamily: 'var(--font-display), sans-serif',
                 color: qualifies ? 'var(--ui-success)' : 'var(--ui-danger)',
               }}>
                 {playerPosition}º
               </div>
-              <div className="flex min-w-0 flex-1 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2 sm:flex-1">
                 <Crest crestId={playerTeam?.crestId} name={playerTeam?.name} size={34} />
-                <div className="min-w-0 truncate text-lg font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFFFFF' }}>
+                <div className="min-w-0 whitespace-normal break-words text-lg font-black leading-tight" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFFFFF' }}>
                   {playerTeam?.name}
                 </div>
               </div>
-              <div className="ml-auto grid flex-shrink-0 grid-cols-4 gap-2 text-center sm:gap-4">
+              <div className="col-span-2 grid grid-cols-4 gap-2 text-center sm:ml-auto sm:flex-shrink-0 sm:gap-4">
                 {[
                   { label: 'PTS', value: playerStanding.points },
                   { label: 'V', value: playerStanding.won },

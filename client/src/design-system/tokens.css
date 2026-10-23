@@ -1069,6 +1069,22 @@ body.home-menu-scroll-lock {
 }
 
 @media (max-width: 899px) {
+  .ui-tabs--equal {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .ui-tabs--equal > .ui-tab {
+    width: 100%;
+    flex: none;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    line-height: 1.1;
+    min-height: 48px;
+  }
+
   .ui-tabs--split-mobile {
     gap: 0;
     overflow-x: hidden;
@@ -1078,10 +1094,13 @@ body.home-menu-scroll-lock {
     min-width: 0;
     width: 50%;
     flex: 1 1 0;
-    overflow: hidden;
+    overflow: visible;
     padding-inline: 6px;
     text-align: center;
-    text-overflow: ellipsis;
+    text-overflow: clip;
+    white-space: normal;
+    line-height: 1.15;
+    min-height: 48px;
   }
 }
 

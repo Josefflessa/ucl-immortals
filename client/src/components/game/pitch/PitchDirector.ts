@@ -9,12 +9,14 @@
  */
 import type { MatchEvent, PenaltyKick } from '@shared/game/engine/teamModel';
 import {
-  BALL_SLOT, buildDangerTimeline, buildShootoutKick, kickoffPositions, otherSide, PLAYERS_PER_SIDE,
+  BALL_SLOT, buildDangerTimeline, buildRedCardTimeline, buildShootoutKick, kickoffPositions, otherSide, PLAYERS_PER_SIDE,
   quickEventCue, sampleTimeline, shootoutLineup, sideOfTeam, slotBase, slotOfPlayer, stageStartMs, thirdFor, ZoneModel, DEFAULT_TIMING, type DangerTiming, type LeadIn,
-  type Beat, type CastEntry, type Cue, type Touch, type DangerOutcome, type PitchSides, type PitchView, type Side, type Timeline, type Zone,
+  type Beat, type CastEntry, type Key, type Cue, type Touch, type DangerOutcome, type PitchSides, type PitchView, type Side, type Timeline, type Zone,
 } from '@shared/game/pitch';
 import type { FinishStyle, PlayVariant } from '@shared/game/playVariants';
+import type { RedKind, RedVariant } from '@shared/game/redCards';
 import { seedFromString } from '@shared/game/random';
+import { sampleTrack } from '@shared/game/pitch';
 
 export type PitchMode = 'flow' | 'danger' | 'shootout' | 'idle';
 export type PitchBeat = Beat & { id: number };
@@ -40,6 +42,8 @@ export interface PitchSnapshot {
   timing: DangerTiming;
   /** The current danger is one of the rare, memorable plays. */
   epic: boolean;
+  /** The referee is on the pitch (a red card scene); his place comes from sampleReferee(). */
+  referee: boolean;
 }
 
 const KEPT_BEATS = 8;
@@ -57,6 +61,8 @@ export class PitchDirector {
   private nextBeat = 0;
   private seq = 0;
   private lastAttackSide: Side = 'left';
+  /** The red card scene on screen: the referee's path, the camera in each stage, who goes off and who restarts. */
+  private redScene: { referee: Key[]; camera: Key[]; focus: PitchView[]; offender: number; restart: Zone } | null = null;
   private dominance = 0.5;
   private snapshot: PitchSnapshot;
   private readonly listeners = new Set<() => void>();
@@ -66,7 +72,7 @@ export class PitchDirector {
     this.zone = new ZoneModel({ side: 'left', third: 1 });
     this.snapshot = {
       mode: 'flow', zone: this.zone.zone, cast: [], cue: null, tactic: null, beats: [], touches: [],
-      sentOff: new Set(), injured: new Set(), focus: null, strikeFocus: null, threat: null, timing: DEFAULT_TIMING, epic: false,
+      sentOff: new Set(), injured: new Set(), focus: null, strikeFocus: null, threat: null, timing: DEFAULT_TIMING, epic: false, referee: false,
     };
   }
 
@@ -219,6 +225,54 @@ export class PitchDirector {
     return danger.lead;
   }
 
+  // ── Red cards ──
+  /** Plays a red card: the foul, the referee, the card and the walk off. */
+  startRedCard(event: MatchEvent, eventIndex: number, play: { kind: RedKind; variant: RedVariant; victimId?: string }): void {
+    const offSide = sideOfTeam(this.sides, event.teamId) ?? 'left';
+    const fromRadio = this.snapshot.mode === 'flow' || this.snapshot.mode === 'idle';
+    this.sample();
+    const scene = buildRedCardTimeline({
+      sides: this.sides, event, kind: play.kind, variant: play.variant, victimId: play.victimId,
+      prev: Float32Array.from(this.pos), sentOff: this.snapshot.sentOff, entry: fromRadio ? 'fade' : 'cut',
+      seed: seedFromString(`${this.matchKey}|red|${eventIndex}`),
+    });
+    this.lastAttackSide = scene.fouledSide;
+    // The fouled side restarts with a free kick, in the third where it happened.
+    const frameX = scene.focus[1].x;
+    const x = scene.fouledSide === 'left' ? frameX : 105 - frameX;
+    this.redScene = { referee: scene.referee, camera: scene.camera, focus: scene.focus, offender: scene.offenderSlot, restart: { side: scene.fouledSide, third: x < 35 ? 0 : x < 70 ? 1 : 2 } };
+    this.play(scene.timeline, scene.beats);
+    this.emit({
+      mode: 'danger', zone: null, cast: scene.cast, focus: scene.focus[0], strikeFocus: null, threat: { side: offSide, stage: 1 },
+      cue: null, touches: scene.touches, timing: scene.timing, epic: false, referee: true,
+    });
+  }
+
+  /** The referee's place (x, y in out[0..1]); false when he is not on the pitch. */
+  sampleReferee(out: Float32Array): boolean {
+    if (!this.redScene || this.snapshot.mode !== 'danger') return false;
+    sampleTrack(this.redScene.referee, this.elapsed(), out, 0);
+    return true;
+  }
+
+  /** Where the camera looks in a red card scene (x, y, zoom in out[0..2]); false outside one. */
+  sampleCamera(out: Float32Array): boolean {
+    if (!this.redScene || this.snapshot.mode !== 'danger') return false;
+    sampleTrack(this.redScene.camera, this.elapsed(), out, 0);
+    return true;
+  }
+
+  /** Back to the radio view: the offender is off, and the fouled side takes the free kick. */
+  endRedCard(): void {
+    this.sample();
+    const scene = this.redScene;
+    this.redScene = null;
+    const zone: Zone = scene?.restart ?? { side: otherSide(this.lastAttackSide), third: 1 };
+    this.startZone(zone);
+    const sentOff = scene ? new Set(Array.from(this.snapshot.sentOff).concat(scene.offender)) : this.snapshot.sentOff;
+    this.emit({ mode: 'flow', zone, cast: [], focus: null, threat: null, touches: [], timing: DEFAULT_TIMING, epic: false, referee: false, sentOff });
+  }
+
   /** Time into the current danger (ms), or -1 when none is playing. The narration follows it. */
   playTime(): number {
     return (this.snapshot.mode === 'danger' || this.snapshot.mode === 'shootout') && this.segment ? this.elapsed() : -1;
@@ -231,7 +285,10 @@ export class PitchDirector {
     const drift = this.elapsed() - target;
     // The narration follows the pitch's clock; only a real gap (a long stall) is corrected.
     if (Math.abs(drift) > 300) this.segmentStart += drift;
-    if (this.snapshot.threat && this.snapshot.threat.stage !== stage) this.emit({ threat: { ...this.snapshot.threat, stage } });
+    if (this.snapshot.threat && this.snapshot.threat.stage !== stage) {
+      const focus = this.redScene?.focus[stage - 1];
+      this.emit({ threat: { ...this.snapshot.threat, stage }, ...(focus ? { focus } : {}) });
+    }
   }
 
   /** Back to the radio view: the players leave and the ball glides to where play restarts. */
@@ -241,7 +298,7 @@ export class PitchDirector {
       ? { side: otherSide(goalScoredBy), third: 1 } // kick-off on the centre spot
       : { side: otherSide(this.lastAttackSide), third: 0 }; // the keeper restarts
     this.startZone(zone);
-    this.emit({ mode: 'flow', zone, cast: [], focus: null, threat: null, touches: [], timing: DEFAULT_TIMING, epic: false });
+    this.emit({ mode: 'flow', zone, cast: [], focus: null, threat: null, touches: [], timing: DEFAULT_TIMING, epic: false, referee: false });
   }
 
   // ── Shootout ──
@@ -276,7 +333,7 @@ export class PitchDirector {
       this.pos.set(shootoutLineup(this.sides));
       this.emit({ mode: 'shootout', zone: null, cast: [], focus: { x: 97, y: 34, zoom: 1.6 }, threat: null, cue: null });
     } else {
-      this.emit({ mode: 'idle', zone: null, cast: [], focus: null, threat: null, cue: null });
+      this.emit({ mode: 'idle', zone: null, cast: [], focus: null, threat: null, cue: null, referee: false });
     }
   }
 }

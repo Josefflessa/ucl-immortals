@@ -7,3 +7,4 @@ export * from './zone';
 export * from './plays';
 export * from './cues';
 export * from './shootout';
+export * from './redcard';

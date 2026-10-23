@@ -1,7 +1,7 @@
 // The minute-by-minute match simulation.
 
 import { Player, Coach, COACHES, FORMATIONS, getCompetitionAlbumBonus, getTacticById } from '../gameData';
-import { selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc, frangoDesc, screamedDesc, deflectedDesc, woodworkDesc, penaltyGoalDesc, penaltySaveDesc, penaltyMissDesc, freeKickGoalDesc, freeKickSaveDesc, freeKickMissDesc, cornerGoalDesc, cornerSaveDesc, cornerMissDesc, flowDesc, Approach, LastKeyCtx, foulDesc, yellowCardDesc, straightRedDesc, secondYellowDesc, injuryDesc } from '../matchNarrative';
+import { selectApproach, buildUpDesc, goalDesc, ownGoalDesc, saveDesc, missDesc, duelDesc, frangoDesc, screamedDesc, deflectedDesc, woodworkDesc, penaltyGoalDesc, penaltySaveDesc, penaltyMissDesc, freeKickGoalDesc, freeKickSaveDesc, freeKickMissDesc, cornerGoalDesc, cornerSaveDesc, cornerMissDesc, flowDesc, Approach, LastKeyCtx, foulDesc, yellowCardDesc, straightRedPlay, secondYellowDesc, injuryDesc } from '../matchNarrative';
 import { activePlayerTraits, getGoalkeeperTraitBonus, getPenaltyComposureBonus, hasPlayerTrait } from '../traits';
 import { stadiumFor, type Stadium } from '../stadium';
 import { projectLevel } from '../clubProjects';
@@ -520,8 +520,9 @@ export function runMatchSimulation(
       stat.rating -= 1.5;
     }
     // 🟥 narração dramática e VARIADA — vermelho direto (viés por compostura) vs segundo amarelo.
+    const straight = reason === 'second-yellow' ? null : straightRedPlay(p.shortName, (p.composure ?? 65) + getCompetitionAlbumBonus(p));
     events.push({ minute: min, type: 'red', teamId: team.id, playerId: p.id, secondYellow: reason === 'second-yellow',
-      description: reason === 'second-yellow' ? secondYellowDesc(p.shortName) : straightRedDesc(p.shortName, (p.composure ?? 65) + getCompetitionAlbumBonus(p)) });
+      description: straight ? straight.text : secondYellowDesc(p.shortName), redKind: straight ? straight.kind : 'secondyellow', redVariant: straight?.variant });
     sentOff.add(statKey(team.id, p.id));
     const pen = matchRoleForPlayer(team, p) === 'GK' ? RED_GK_PENALTY : RED_PENALTY;
     if (team.id === home.id) homeExtraPenalty += pen; else awayExtraPenalty += pen;

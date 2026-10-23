@@ -9,6 +9,9 @@ import type { MatchEvent, PlayKind } from '@shared/game/engine/teamModel';
 import { DANGER_KINDS, SHOOTOUT_BUILDUP_MS, SHOOTOUT_HOLD_MS, stageStartMs, type DangerOutcome } from '@shared/game/pitch';
 import { seededRandom, withRandomSource } from '@shared/game/random';
 import { duelStylesFor, epicFinishesFor, EPIC_FINISHES, finishesFor, isEpicVariant, PLAY_VARIANTS, type FinishStyle, type PlayVariant } from '@shared/game/playVariants';
+import { narrateRedCard } from '@shared/game/redCardNarration';
+import { secondYellowDesc } from '@shared/game/matchNarrative';
+import { RED_KINDS, RED_VARIANTS, type RedKind, type RedVariant } from '@shared/game/redCards';
 import LivePitch from '../../components/game/pitch/LivePitch';
 import PitchErrorBoundary from '../../components/game/pitch/PitchErrorBoundary';
 import { PitchDirector } from '../../components/game/pitch/PitchDirector';
@@ -116,6 +119,41 @@ export default function PitchGalleryPage() {
     }
   };
 
+  // The red card: its kind and variant, who goes off, and the three lines it is narrated with.
+  const [redKind, setRedKind] = useState<RedKind>('tackle');
+  const [redVariant, setRedVariant] = useState<RedVariant | ''>('');
+  const [redSide, setRedSide] = useState<'left' | 'right'>('right');
+  const [redText, setRedText] = useState<{ stage: number; line: string } | null>(null);
+  useEffect(() => { setRedVariant(''); }, [redKind]);
+  const fireRed = () => {
+    clear();
+    setFlow(false);
+    const off = redSide === 'left' ? left : right;
+    const fouled = redSide === 'left' ? right : left;
+    const event: MatchEvent = {
+      minute: 63, type: 'red', teamId: off.id, playerId: off.players[3].id, secondYellow: redKind === 'secondyellow',
+      redKind, redVariant: redVariant || undefined, description: redKind === 'secondyellow' ? secondYellowDesc(off.players[3].shortName) : `🟥 EXPULSO! ${off.players[3].shortName} é expulso de campo!`,
+    };
+    const narration = narrateRedCard({ event, eventIndex: ++eventIndex.current, homeTeam: left, awayTeam: right, victimId: fouled.players[9].id, force: { kind: redKind, variant: redVariant || undefined } });
+    virtual.current.frozen = null;
+    virtual.current.start = virtual.current.t;
+    director.startRedCard(event, eventIndex.current, { kind: narration.kind, variant: narration.variant, victimId: narration.victimId });
+    const timing = director.getSnapshot().timing;
+    const stageLine = [narration.buildUp, narration.attempt, narration.reveal];
+    setRedText({ stage: 1, line: stageLine[0] });
+    const frozen = freezeAt === '' ? null : Math.max(0, Number(freezeAt));
+    if (frozen !== null) {
+      virtual.current.frozen = frozen;
+      const stage = frozen >= stageStartMs(3, timing) ? 3 : frozen >= stageStartMs(2, timing) ? 2 : 1;
+      director.syncStage(stage, frozen - stageStartMs(stage, timing));
+      setRedText({ stage, line: stageLine[stage - 1] });
+      return;
+    }
+    after(stageStartMs(2, timing), () => { director.syncStage(2, 0); setRedText({ stage: 2, line: stageLine[1] }); });
+    after(stageStartMs(3, timing), () => { director.syncStage(3, 0); setRedText({ stage: 3, line: stageLine[2] }); });
+    after(timing.endMs, () => { director.endRedCard(); setFlow(true); setRedText(null); });
+  };
+
   const button = 'rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-bold text-white hover:bg-white/10';
   return (
     <div className="min-h-screen bg-[#0b0b14] p-4 text-white">
@@ -124,6 +162,29 @@ export default function PitchGalleryPage() {
         <PitchErrorBoundary>
           <LivePitch director={director} players={players} colors={{ left: '#ffd700', right: '#6366f1' }} teamNames={{ left: 'MEU TIME', right: 'ADVERSÁRIO' }} className="rounded-xl" />
         </PitchErrorBoundary>
+      </div>
+      <div className="mx-auto mt-4 flex max-w-4xl flex-wrap items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3">
+        <span className="text-sm font-black text-red-400">🟥 Cartão vermelho</span>
+        <select className="rounded-lg bg-white/10 p-2" value={redKind} onChange={e => setRedKind(e.target.value as RedKind)}>
+          {RED_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+        </select>
+        <select className="rounded-lg bg-white/10 p-2" value={redVariant} onChange={e => setRedVariant(e.target.value as RedVariant | '')}>
+          <option value="">variação aleatória</option>
+          {(RED_VARIANTS[redKind] as readonly RedVariant[]).map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <select className="rounded-lg bg-white/10 p-2" value={redSide} onChange={e => setRedSide(e.target.value as 'left' | 'right')}>
+          <option value="right">adversário é expulso</option><option value="left">meu time é expulso</option>
+        </select>
+        <button className={button} onClick={fireRed}>Disparar vermelho</button>
+        {redText && (
+          <div className="flex w-full items-center gap-3">
+            <span className="flex items-center gap-1" aria-label={`Etapa ${redText.stage} de 3`}>
+              {[1, 2, 3].map(step => <span key={step} className="h-2 w-2 rounded-full" style={{ background: step <= redText.stage ? '#EF4444' : 'transparent', border: '1px solid #EF4444' }} />)}
+            </span>
+            <span className="text-xs font-black tracking-widest text-red-400">{['A JOGADA', 'A FALTA', 'O CARTÃO'][redText.stage - 1]}</span>
+            <p className="text-sm text-white/90">{redText.line}</p>
+          </div>
+        )}
       </div>
       <div className="mx-auto mt-4 flex max-w-4xl flex-wrap items-center gap-2">
         <select className="rounded-lg bg-white/10 p-2" value={kind} onChange={e => setKind(e.target.value as PlayKind)}>

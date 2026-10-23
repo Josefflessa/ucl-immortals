@@ -276,7 +276,7 @@ export default function KnockoutTiesTab() {
                   <div className="flex items-center gap-2 sm:gap-4">
                     {/* Home team */}
                     <div className={`flex-1 text-right min-w-0 ${homeIsPlayer ? 'text-yellow-400' : ''}`}>
-                      <div className="text-sm sm:text-lg font-black leading-tight truncate"
+                      <div className="whitespace-normal break-words text-sm font-black leading-tight sm:text-lg"
                         style={{
                           fontFamily: 'var(--font-display), sans-serif',
                           color: homeIsPlayer ? 'var(--ui-brand)' : homeIsHuman ? '#A5B4FC' : '#FFFFFF',
@@ -335,7 +335,7 @@ export default function KnockoutTiesTab() {
                     {/* Away team */}
                     <Crest crestId={awayCrestId} name={awayName} size={26} />
                     <div className={`flex-1 min-w-0 ${awayIsPlayer ? 'text-yellow-400' : ''}`}>
-                      <div className="text-sm sm:text-lg font-black leading-tight truncate"
+                      <div className="whitespace-normal break-words text-sm font-black leading-tight sm:text-lg"
                         style={{
                           fontFamily: 'var(--font-display), sans-serif',
                           color: awayIsPlayer ? 'var(--ui-brand)' : awayIsHuman ? '#A5B4FC' : '#FFFFFF',

@@ -1,6 +1,7 @@
 // Cards, teams, match plans and match results; post-match card growth.
 
 import { Player, FORMATIONS, getCompetitionAlbumBonus, effectiveSecondaries } from '../gameData';
+import type { RedKind, RedVariant } from '../redCards';
 import { type ClubProjectsState } from '../clubProjects';
 import type { AlbumLevel } from '../album';
 import { LAPIDADOR_RESERVE_BOOST, MIDIATICO_CREDITS_PER_GOAL, FAZ_TUDO_STARTS_TO_LEARN, MARTIR_STAT_PENALTY, FRAGIL_LEGACY_BAKED_BOOST } from './draft';
@@ -383,6 +384,10 @@ export interface MatchEvent {
   isSpecial?: boolean;
   triggerId?: string;
   tacticAction?: MatchTriggerAction;
+  /** What kind of play got him sent off (red cards only; replays recorded before it existed have none). */
+  redKind?: RedKind;
+  /** How that play unfolded, when the line the feed shows says so (otherwise the replay draws it). */
+  redVariant?: RedVariant;
   secondYellow?: boolean; // 🟨🟨 vermelho por 2º amarelo (o amarelo daquele jogo NÃO conta no acúmulo da temporada)
   /** Rating changes (statKey → delta) produced during this event's minute, so the replay
    * rebuilds the live ratings exactly as the engine computed them. */

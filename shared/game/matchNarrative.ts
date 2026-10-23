@@ -4,6 +4,7 @@
  * screen (MatchSimPage), so both describe plays with the same wording.
  */
 import { random } from './random';
+import type { RedKind, RedVariant } from './redCards';
 
 export type Approach = 'cross' | 'through' | 'dribble' | 'longrange' | 'counter';
 
@@ -623,32 +624,46 @@ export function yellowCardDesc(player: string, composure = 65, position = '', cu
 }
 
 // Vermelho direto — compostura baixa puxa pra "cabeça quente/violência"; alta, pra "falta
-// profissional" (último homem, impede gol). Continua sorteando dos dois (é só viés).
-export function straightRedDesc(player: string, composure = 65): string {
-  const temperament = [
-    `🟥 EXPULSÃO DIRETA! ${player} comete uma falta violentíssima e vai para o chuveiro!`,
-    `🟥 CARTÃO VERMELHO! ${player} chega com a sola na canela do rival — o juiz não titubeia!`,
-    `🟥 ${player} está EXPULSO! Entrada criminosa que revoltou o banco adversário!`,
-    `🟥 ${player} perde a cabeça e acerta uma cotovelada — expulsão imediata!`,
-    `🟥 ${player} vai com tudo, dois pés na frente, e é EXPULSO de campo!`,
-    `🟥 Confusão! ${player} se desentende com o rival e o árbitro mostra o vermelho!`,
-    `🟥 Que entrada horrível de ${player}! Expulsão sem discussão nenhuma!`,
-    `🟥 ${player} acerta a trava no peito do adversário — cartão vermelho na hora!`,
-    `🟥 Agressão flagrante! ${player} é expulso e ainda pode pegar gancho!`,
-    `🟥 ${player} decepa o rival numa arrancada e recebe o vermelho direto!`,
-  ];
-  const professional = [
-    `🟥 VERMELHO DIRETO! ${player} impede um gol claro e deixa o time com um a menos!`,
-    `🟥 Falta como último homem! ${player} derruba o atacante lançado e vê o vermelho!`,
-    `🟥 ${player} segura o adversário na cara do gol — expulso por chance clara de gol!`,
-    `🟥 CARTÃO VERMELHO para ${player}! O time joga com dez a partir de agora!`,
-    `🟥 ${player} comete pênalti e ainda impede o gol certo: vermelho direto!`,
-    `🟥 ${player} para o contra-ataque com uma falta cínica e é EXPULSO!`,
-    `🟥 O árbitro vai direto ao vermelho! ${player} deixa o gramado mais cedo!`,
-  ];
+// profissional" (último homem, impede gol). Continua sorteando dos dois (é só viés). Cada frase
+// leva o TIPO do lance (RedKind), para o campo e a narração contarem a mesma história do feed.
+type RedLine = { kind: RedKind; variant: RedVariant; text: (player: string) => string };
+const red = (kind: RedKind, variant: RedVariant, text: (player: string) => string): RedLine => ({ kind, variant, text });
+const TEMPER_REDS: RedLine[] = [
+  red('tackle', 'behind', p => `🟥 EXPULSÃO DIRETA! ${p} comete uma falta violentíssima e vai para o chuveiro!`),
+  red('tackle', 'highboot', p => `🟥 CARTÃO VERMELHO! ${p} chega com a sola na canela do rival — o juiz não titubeia!`),
+  red('tackle', 'behind', p => `🟥 ${p} está EXPULSO! Entrada criminosa que revoltou o banco adversário!`),
+  red('elbow', 'blind', p => `🟥 ${p} perde a cabeça e acerta uma cotovelada — expulsão imediata!`),
+  red('tackle', 'twofoot', p => `🟥 ${p} vai com tudo, dois pés na frente, e é EXPULSO de campo!`),
+  red('brawl', 'melee', p => `🟥 Confusão! ${p} se desentende com o rival e o árbitro mostra o vermelho!`),
+  red('tackle', 'behind', p => `🟥 Que entrada horrível de ${p}! Expulsão sem discussão nenhuma!`),
+  red('tackle', 'highboot', p => `🟥 ${p} acerta a trava no peito do adversário — cartão vermelho na hora!`),
+  red('elbow', 'blind', p => `🟥 Agressão flagrante! ${p} é expulso e ainda pode pegar gancho!`),
+  red('tackle', 'behind', p => `🟥 ${p} decepa o rival numa arrancada e recebe o vermelho direto!`),
+  red('elbow', 'aerial', p => `🟥 Cotovelada no duelo aéreo! ${p} acerta o rosto do adversário e é expulso!`),
+  red('brawl', 'shove', p => `🟥 Empurra-empurra e testa com testa: ${p} é expulso pela confusão!`),
+];
+const PROFESSIONAL_REDS: RedLine[] = [
+  red('lastman', 'pull', p => `🟥 VERMELHO DIRETO! ${p} impede um gol claro e deixa o time com um a menos!`),
+  red('lastman', 'clip', p => `🟥 Falta como último homem! ${p} derruba o atacante lançado e vê o vermelho!`),
+  red('lastman', 'pull', p => `🟥 ${p} segura o adversário na cara do gol — expulso por chance clara de gol!`),
+  red('lastman', 'bodycheck', p => `🟥 CARTÃO VERMELHO para ${p}! O time joga com dez a partir de agora!`),
+  red('lastman', 'clip', p => `🟥 ${p} comete pênalti e ainda impede o gol certo: vermelho direto!`),
+  red('lastman', 'pull', p => `🟥 ${p} para o contra-ataque com uma falta cínica e é EXPULSO!`),
+  red('handball', 'line', p => `🟥 MÃO NA BOLA! ${p} tira em cima da linha com o braço e é expulso!`),
+  red('handball', 'block', p => `🟥 ${p} bloqueia o chute com a mão — gol evitado na marra, e vermelho no bolso!`),
+  red('lastman', 'bodycheck', p => `🟥 O árbitro vai direto ao vermelho! ${p} deixa o gramado mais cedo!`),
+];
+
+/** The red card of a foul: its line and what kind of play it was. */
+export function straightRedPlay(player: string, composure = 65): { text: string; kind: RedKind; variant: RedVariant } {
   // Vermelho é dramático dos dois lados; compostura baixa pesa mais no temperamento.
   const pTemper = 0.45 + (70 - composure) * 0.008;
-  return biasedPick(temperament, professional, pTemper);
+  const line = random() < Math.max(0.05, Math.min(0.85, pTemper)) ? pick(TEMPER_REDS) : pick(PROFESSIONAL_REDS);
+  return { text: line.text(player), kind: line.kind, variant: line.variant };
+}
+
+export function straightRedDesc(player: string, composure = 65): string {
+  return straightRedPlay(player, composure).text;
 }
 
 export function secondYellowDesc(player: string): string {

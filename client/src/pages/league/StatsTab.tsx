@@ -123,7 +123,7 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                       return (
                         <div
                           key={`${statsSubTab}-${player.id}`}
-                          className="flex items-center gap-3.5 px-4 py-4 break-inside-avoid sm:gap-4 sm:px-5"
+                          className="flex items-center gap-2 px-3 py-3 break-inside-avoid sm:gap-4 sm:px-5 sm:py-4"
                           style={{
                             background: isPlayerTeam ? 'var(--ui-surface-2)' : i % 2 === 0 ? '#0A0A14' : 'var(--ui-bg)',
                           }}
@@ -137,11 +137,11 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                           </span>
 
                           {/* Player face avatar (robust fallback) */}
-                          <PlayerAvatar playerId={player.id} photoUrl={player.photoUrl} rarity={player.rarity} size={48} />
+                          <PlayerAvatar playerId={player.id} photoUrl={player.photoUrl} rarity={player.rarity} size={40} />
 
                           {/* Player details */}
                           <div className="flex-1 min-w-0">
-                            <div className="text-base font-black text-white truncate" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                            <div className="whitespace-normal break-words text-base font-black leading-tight text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                               {player.shortName}
                             </div>
                             <div className="mt-1 min-w-0 space-y-1 text-sm font-semibold text-[#6A6A7A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
@@ -150,9 +150,9 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                                   {POS_PT[player.position] ?? player.position}
                                 </span>
                               </div>
-                              <div className="flex min-w-0 items-center gap-1.5">
+                              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
                                 {displayTeamName && <>
-                                  <span className="min-w-0 truncate">{displayTeamName}</span>
+                                  <span className="min-w-0 whitespace-normal break-words leading-tight">{displayTeamName}</span>
                                   <span className="shrink-0" aria-hidden="true">·</span>
                                 </>}
                                 <span className="shrink-0 text-[#8A8A9A]">{player.stats.played} {player.stats.played === 1 ? 'jogo' : 'jogos'}</span>
@@ -168,7 +168,7 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                             }}>
                               {metricVal}
                             </div>
-                            <div className="text-sm font-black text-gray-500 tracking-wider uppercase" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                            <div className="max-w-[88px] whitespace-normal break-words text-xs font-black uppercase leading-tight tracking-wider text-gray-500 sm:max-w-none sm:text-sm" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                               {metricLabel}
                             </div>
                           </div>

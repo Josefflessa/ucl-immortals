@@ -62,8 +62,8 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
             {model.fit === 'secondary' && <span className="whitespace-nowrap rounded px-2 py-0.5 text-[12px] font-black" style={{ background: '#F59E0B22', color: '#F59E0B', border: '1px solid #F59E0B55', ...FONT }}><Repeat {...INLINE_ICON} />2ª POSIÇÃO · −5%</span>}
             {evolutionLevel > 0 && <span className="rounded px-2 py-0.5 text-[12px] font-black leading-none" style={{ background: 'linear-gradient(90deg,#0a7a2f,var(--ui-success))', color: '#04120a', letterSpacing: '0.06em' }}><Star {...INLINE_ICON} fill="currentColor" />NÍVEL {evolutionLevel}</span>}
           </div>
-          <div className="truncate text-xl font-black uppercase text-white" style={DISPLAY}>{player.shortName}</div>
-          <div className="truncate text-xs text-[var(--ui-text-muted)]" style={FONT}>{canonicalClubName(player.club)} · {player.nation}</div>
+          <div className="whitespace-normal break-words text-xl font-black uppercase leading-tight text-white" style={DISPLAY}>{player.shortName}</div>
+          <div className="whitespace-normal break-words text-xs leading-tight text-[var(--ui-text-muted)]" style={FONT}>{canonicalClubName(player.club)} · {player.nation}</div>
         </div>
         <div className="flex-shrink-0 text-right">
           <div className="text-[12px] font-bold text-[var(--ui-text-faint)]" style={FONT}>GERAL EFETIVO</div>

@@ -78,7 +78,7 @@ export default function BracketTab({ reviewMode = false }: { reviewMode?: boolea
     const me = isMe(teamId);
     return (
       <div className="flex items-center justify-between gap-2 px-2 py-1">
-        <span className="font-ui flex items-center gap-1 truncate text-[13px] font-bold leading-tight"
+        <span className="font-ui flex min-w-0 flex-1 items-start gap-1 whitespace-normal break-words text-[13px] font-bold leading-tight"
           style={{
             fontFamily: 'var(--font-game), sans-serif',
             color: me ? 'var(--ui-brand)' : isWinner ? '#E6E6EE' : name ? 'var(--ui-text-muted)' : '#55556A',

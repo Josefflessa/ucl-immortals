@@ -739,7 +739,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                     <div className="inline-flex items-center gap-1.5 text-[11px] font-black tracking-[0.16em]" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
                       <Trophy size={13} strokeWidth={2.5} aria-hidden="true" />CAMPEÃO DA COMPETIÇÃO
                     </div>
-                    <div className="truncate text-lg font-black" style={{ color: '#fff', fontFamily: 'var(--font-display), sans-serif' }}>{championName}</div>
+                    <div className="whitespace-normal break-words text-lg font-black leading-tight" style={{ color: '#fff', fontFamily: 'var(--font-display), sans-serif' }}>{championName}</div>
                   </div>
                 </div>}
           </div>
@@ -873,8 +873,8 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                   <HighlightPortrait player={highlight.player} color={highlight.color} />
                   <div className="min-w-0 flex-1">
                     <div className="text-[12px] font-bold tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{highlight.label}</div>
-                    <div className="truncate text-base font-black" style={{ color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>{highlight.player.shortName}</div>
-                    <div className="truncate text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
+                    <div className="whitespace-normal break-words text-base font-black leading-tight" style={{ color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>{highlight.player.shortName}</div>
+                    <div className="whitespace-normal break-words text-xs leading-tight" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                       {highlight.teamName}{highlight.detail ? ` · ${highlight.detail}` : ''}
                     </div>
                   </div>
@@ -932,7 +932,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                   />
                   <div className="min-w-0">
                     <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{partialReport ? 'ELENCO DA CAMPANHA' : 'ESCALAÇÃO FINAL'}</div>
-                    <div className="truncate text-base font-black" style={{ color: '#FFFFFF', fontFamily: 'var(--font-game), sans-serif' }}>{playerTeam.name}</div>
+                    <div className="whitespace-normal break-words text-base font-black leading-tight" style={{ color: '#FFFFFF', fontFamily: 'var(--font-game), sans-serif' }}>{playerTeam.name}</div>
                   </div>
               </div>
               <div className="mt-4 grid w-full grid-cols-2 border-t pt-3" style={{ borderColor: 'var(--ui-surface-3)' }}>

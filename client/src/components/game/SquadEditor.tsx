@@ -442,7 +442,7 @@ export default function SquadEditor({
             title="Abrir configurações da formação"
           >
             <span className="block truncate text-[12px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>FORMAÇÃO</span>
-            <span className="block truncate text-base font-black leading-none text-[#F0D77A] sm:text-[17px]" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{formation?.name ?? formationId}</span>
+            <span className="block whitespace-normal break-words text-base font-black leading-tight text-[#F0D77A] sm:text-[17px]" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{formation?.name ?? formationId}</span>
           </button>
           <button
             type="button"
@@ -451,7 +451,7 @@ export default function SquadEditor({
             title="Abrir configurações da tática"
           >
             <span className="block truncate text-[12px] font-black tracking-widest text-[#B4B4C4]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>TÁTICA</span>
-            <span className="flex min-w-0 items-center gap-1.5 text-base font-black leading-none text-[#C7D2FE] sm:text-[17px]" style={{ fontFamily: 'var(--font-display), sans-serif' }}><TacticIcon tactic={activeTactic.id} fallback={activeTactic.icon} size={28} /><span className="truncate">{activeTactic.name}</span></span>
+            <span className="flex min-w-0 items-center gap-1.5 text-base font-black leading-tight text-[#C7D2FE] sm:text-[17px]" style={{ fontFamily: 'var(--font-display), sans-serif' }}><TacticIcon tactic={activeTactic.id} fallback={activeTactic.icon} size={28} /><span className="whitespace-normal break-words">{activeTactic.name}</span></span>
           </button>
         </div>
         {coach && showCoachCard && (
@@ -478,7 +478,7 @@ export default function SquadEditor({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13px] font-black tracking-[0.12em] text-[#B4B4C4]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>TÉCNICO{coachPrime ? ' · PRIME' : ''}</span>
-                <span className="block truncate text-[17px] font-black leading-none text-[#F0D77A] sm:text-lg" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{coach.name}</span>
+                <span className="block whitespace-normal break-words text-[17px] font-black leading-tight text-[#F0D77A] sm:text-lg" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{coach.name}</span>
               </span>
             </button>
           </div>
@@ -853,7 +853,7 @@ export default function SquadEditor({
                               .reduce((sum, targetId) => sum + Math.max(0, Math.floor(distribution[targetId] ?? 0)), 0);
                             return (
                               <div key={id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-2" style={{ background: '#0d090d', border: '1px solid #B91C1C33' }}>
-                                <span className="min-w-0 truncate text-[13px] font-bold text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{target.shortName}</span>
+                                <span className="min-w-0 whitespace-normal break-words text-[13px] font-bold leading-tight text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{target.shortName}</span>
                                 <span className="flex shrink-0 items-center gap-1">
                                   <button type="button" aria-label={`Diminuir ponto do Mártir para ${target.shortName}`} disabled={amount <= 0}
                                     onClick={() => setAmount(id, amount - 1)}
@@ -1108,7 +1108,7 @@ export default function SquadEditor({
                           <div className="flex-1 min-w-0">
                             {/* nome + características */}
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-sm font-black text-white truncate" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{candidate.shortName.toUpperCase()}</span>
+                              <span className="min-w-0 whitespace-normal break-words text-sm font-black leading-tight text-white" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{candidate.shortName.toUpperCase()}</span>
                               {variants.map(v => (
                                 <span key={v.key} title={v.label} className="inline-flex flex-shrink-0"><TraitIcon trait={v.key} fallback={v.icon} size={24} /></span>
                               ))}
@@ -1277,14 +1277,14 @@ export default function SquadEditor({
             <div className="rounded-xl border border-[#22C55E44] bg-[#22C55E0D] px-3 py-2.5">
               <div className="text-[12px] font-black tracking-widest text-[#4ADE80]">{pendingIsStarterSwap ? 'VAI PARA A POSIÇÃO' : 'ENTRA EM CAMPO'}</div>
               <div className="mt-1 flex items-center justify-between gap-3 text-sm font-bold text-white">
-                <span className="truncate">{pendingFromPlayer.shortName}</span>
+                <span className="min-w-0 flex-1 whitespace-normal break-words leading-tight">{pendingFromPlayer.shortName}</span>
                 <span className="shrink-0 text-xs text-[#86EFAC]">→ {POS_PT[pendingTargetRole ?? ''] ?? pendingTargetRole ?? 'TITULAR'}</span>
               </div>
             </div>
             <div className="rounded-xl border border-[#F59E0B44] bg-[#F59E0B0D] px-3 py-2.5">
               <div className="text-[12px] font-black tracking-widest text-[#FBBF24]">{pendingIsStarterSwap ? 'TROCA DE POSIÇÃO' : 'SAI DA VAGA'}</div>
               <div className="mt-1 flex items-center justify-between gap-3 text-sm font-bold text-white">
-                <span className="truncate">{pendingToPlayer.shortName}</span>
+                <span className="min-w-0 flex-1 whitespace-normal break-words leading-tight">{pendingToPlayer.shortName}</span>
                 <span className="shrink-0 text-xs text-[#FCD34D]">→ {pendingIsStarterSwap ? (POS_PT[pendingSourceRole ?? ''] ?? pendingSourceRole ?? 'TITULAR') : 'BANCO'}</span>
               </div>
             </div>

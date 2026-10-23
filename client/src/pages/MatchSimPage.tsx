@@ -12,6 +12,7 @@ import {
 } from '@shared/game/gameEngine';
 import GoalCelebration, { GOAL_CELEBRATION_FADE_MS, GOAL_CELEBRATION_MS, type GoalMoment } from '../components/game/match/GoalCelebration';
 import { leadLine, leadSteps, narrateDanger } from '@shared/game/dangerNarration';
+import { narrateRedCard } from '@shared/game/redCardNarration';
 import { forcedPlayFor } from './dev/forcedPlay';
 import { stageLengthMs, stageStartMs, shootoutMissKind, type Side } from '@shared/game/pitch';
 import LivePitch from '../components/game/pitch/LivePitch';
@@ -186,12 +187,14 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
      * Stage-1 lines still to come, at their moment (ms into the danger): a long lead-in's
      * lines along the way, then the decisive move's line as it starts.
      */
-    cues: { at: number; message: string }[];
+    cues: { at: number; message: string; stage?: number }[];
     /** Who scored, so the pitch can set up the kick-off; null for a save or a miss. */
     goalSide: Side | null;
     /** The crowd's reaction when the outcome is revealed (stage 3), and which danger it is. */
     sound: MatchSound;
     id: number;
+    /** A red card scene (the foul, the referee, the card): the pitch ends it with the offender off. */
+    red?: boolean;
   } | null>(null);
   // What the narration has said lately in this match (plays and lines), so it varies.
   const recentNarrationRef = useRef<{ plays: string[]; lines: string[] }>({ plays: [], lines: [] });
@@ -286,6 +289,14 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
     const timer = setTimeout(exitFullscreen, 2500);
     return () => clearTimeout(timer);
   }, [matchOver, isFullscreen, exitFullscreen]);
+  // A red card: the whistle of the foul, just after the contact.
+  const soundedWhistle = useRef(-1);
+  useEffect(() => {
+    if (!dangerState?.red || dangerState.stage !== 2 || soundedWhistle.current === dangerState.id) return;
+    soundedWhistle.current = dangerState.id;
+    const timer = setTimeout(() => matchAudio.play('whistleFoul'), 380);
+    return () => clearTimeout(timer);
+  }, [dangerState]);
   const soundedDanger = useRef(-1);
   useEffect(() => {
     if (!dangerState || dangerState.stage !== 3 || soundedDanger.current === dangerState.id) return;
@@ -327,9 +338,10 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
     // Within the build-up, each line gives way to the next at its moment (the decisive move's
     // as it starts).
     const now = played >= 0 ? played : clock.consumed;
-    const cueTimers = dangerState.stage === 1
-      ? dangerState.cues.map(cue => setTimeout(() => setDangerState(prev => (prev && prev.stage === 1 ? { ...prev, message: cue.message, cues: prev.cues.filter(c => c !== cue) } : prev)), Math.max(0, cue.at - now)))
-      : [];
+    const stageNow = dangerState.stage;
+    const cueTimers = dangerState.cues
+      .filter(cue => (cue.stage ?? 1) === stageNow)
+      .map(cue => setTimeout(() => setDangerState(prev => (prev && prev.stage === stageNow ? { ...prev, message: cue.message, cues: prev.cues.filter(c => c !== cue) } : prev)), Math.max(0, cue.at - now)));
 
     const timer = setTimeout(() => {
       if (dangerState.stage === 1) {
@@ -357,12 +369,14 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           pendingReplayGoals.current = null;
           return;
         }
-        pitchDirector.endDanger(null);
+        if (dangerState.red) pitchDirector.endRedCard();
+        else pitchDirector.endDanger(null);
         setDangerState(null);
         setIsPlaying(true);
         return;
       }
-      pitchDirector.endDanger(dangerState.goalSide);
+      if (dangerState.red) pitchDirector.endRedCard();
+      else pitchDirector.endDanger(dangerState.goalSide);
       setDangerState(null);
       pendingReplayGoals.current = null;
       setIsPlaying(true); // Resume the replay clock
@@ -418,7 +432,9 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
         // 'penalty' is the engine's shootout SUMMARY (carries the final pen score) — it
         // must NEVER hit the live feed here, or it spoils the result before the shootout
         // overlay even opens. It's added to the feed only after the overlay finishes.
-        const otherEvs = evs.filter(e => e.type !== 'goal' && e.type !== 'save' && e.type !== 'miss' && e.type !== 'penalty');
+        // A red card in a minute with no shot is a scene of its own: it reaches the feed at its reveal.
+        const redEv = shotEvs.length === 0 ? evs.find(e => e.type === 'red') : undefined;
+        const otherEvs = evs.filter(e => e.type !== 'goal' && e.type !== 'save' && e.type !== 'miss' && e.type !== 'penalty' && e !== redEv);
 
         let delta = 0;
         if (otherEvs.length > 0) {
@@ -548,6 +564,24 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             sound: outcomeSound(isGoalOutcome ? 'goal' : isSaveOutcome ? 'save' : 'miss', narration.finish),
             id: featuredIndex,
           });
+        } else if (redEv) {
+          const redIndex = replayResult.events.indexOf(redEv);
+          const foul = evs.find(e => e.type === 'foul' && e.teamId === redEv.teamId && e.playerId === redEv.playerId);
+          const narration = narrateRedCard({ event: redEv, eventIndex: redIndex, homeTeam, awayTeam, victimId: foul?.opponentId, recent: recentNarrationRef.current.lines });
+          recentNarrationRef.current = { ...recentNarrationRef.current, lines: [...recentNarrationRef.current.lines, narration.buildUp, narration.attempt].slice(-12) };
+          const offenderIsHome = redEv.teamId === homeTeam.id;
+          pendingReplayGoals.current = {
+            goalEvents: [redEv],
+            homeGoalDelta: 0,
+            awayGoalDelta: 0,
+            goalAlert: null,
+            momentumShift: offenderIsHome ? -10 : 10,
+            messageStage3: narration.reveal,
+          };
+          setIsPlaying(false);
+          pitchDirector.startRedCard(redEv, redIndex, { kind: narration.kind, variant: narration.variant, victimId: narration.victimId });
+          setLastReveal({ minute: nextMin, text: narration.reveal });
+          setDangerState({ stage: 1, teamId: redEv.teamId, type: 'discipline', message: narration.buildUp, cues: [], attempt: narration.attempt, goalSide: null, sound: 'miss', id: redIndex, red: true });
         } else if (otherEvs.length === 0) {
           setMomentumHistory(h => [...h, momentum]);
         }
@@ -1063,7 +1097,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             {/* Home team metadata */}
             <div className="flex-1 text-right pr-2 sm:pr-6 min-w-0">
               <div className="flex items-center justify-end gap-2 min-w-0">
-                <h2 className="font-black text-white truncate" style={{ fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
+                <h2 className="min-w-0 whitespace-normal break-words text-right font-black leading-tight text-white" style={{ fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
                   {homeTeam.name.toUpperCase()}
                 </h2>
                 <Crest crestId={homeTeam.crestId} name={homeTeam.name} size={30} />
@@ -1093,7 +1127,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             <div className="flex-1 text-left pl-2 sm:pl-6 min-w-0">
               <div className="flex items-center justify-start gap-2 min-w-0">
                 <Crest crestId={awayTeam.crestId} name={awayTeam.name} size={30} />
-                <h2 className="font-black text-white truncate" style={{ fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
+                <h2 className="min-w-0 whitespace-normal break-words font-black leading-tight text-white" style={{ fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em', fontSize: 'clamp(1rem, 4vw, 1.875rem)' }}>
                   {awayTeam.name.toUpperCase()}
                 </h2>
               </div>
@@ -1231,7 +1265,9 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               minute={minute}
               isFinished={isFinished}
               userPaused={userPaused}
-              danger={dangerState ? { forMe: dangerState.teamId === myTeam.id, stage: dangerState.stage, message: dangerState.message } : null}
+              danger={dangerState ? (dangerState.red
+                ? { forMe: dangerState.teamId !== myTeam.id, stage: dangerState.stage, message: dangerState.message, label: 'CARTÃO VERMELHO' }
+                : { forMe: dangerState.teamId === myTeam.id, stage: dangerState.stage, message: dangerState.message }) : null}
               text={radioLine}
               finishedContent={(
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
@@ -1291,7 +1327,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               }}
             >
               <span className="inline-flex items-center justify-center gap-1.5"><Shirt size={15} /> MEU TIME</span>
-              <span className="block text-[12px] sm:text-[12px] font-bold mt-1 truncate" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#8A8A9A' }}>
+              <span className="mt-1 block whitespace-normal break-words text-[12px] font-bold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#8A8A9A' }}>
                 {myTeam.name}
               </span>
             </button>
@@ -1306,7 +1342,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               }}
             >
               <span className="inline-flex items-center justify-center gap-1.5"><Eye size={15} /> ADVERSÁRIO</span>
-              <span className="block text-[12px] sm:text-[12px] font-bold mt-1 truncate" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#8A8A9A' }}>
+              <span className="mt-1 block whitespace-normal break-words text-[12px] font-bold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#8A8A9A' }}>
                 {oppTeam.name}
               </span>
             </button>

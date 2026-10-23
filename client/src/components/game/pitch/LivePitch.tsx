@@ -45,6 +45,8 @@ const CARD_COLOR: Record<string, string> = { yellow: '#facc15', red: '#ef4444' }
  * stops smoothly, never with a jolt, and settles in ~0.9 s (~0.6 s on the strike).
  */
 const CAMERA_SPRING = 4.4;
+/** A scripted camera (a red card scene) follows its path closely: it already moves smoothly. */
+const SCRIPTED_SPRING = 7.5;
 /** The players' motion filter: weights at -90, -45, +45, +90 ms around now (and the centre). */
 const SMOOTH_TAPS: readonly (readonly [number, number])[] = [[-90, 1 / 9], [-45, 2 / 9], [45, 2 / 9], [90, 1 / 9]];
 const SMOOTH_CENTRE = 3 / 9;
@@ -197,7 +199,7 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
 
 
   // Beats: cut (fade), strike contact, net ripple, save and post flashes.
-  const [effects, setEffects] = useState({ cutId: 0, strike: false, tackle: null as PitchBeat | null, lunge: null as PitchBeat | null, pose: null as PitchBeat | null });
+  const [effects, setEffects] = useState({ cutId: 0, strike: false, tackle: null as PitchBeat | null, lunge: null as PitchBeat | null, pose: null as PitchBeat | null, card: null as PitchBeat | null, whistle: null as PitchBeat | null, contact: null as PitchBeat | null, tug: null as PitchBeat | null });
   // A sliding tackle: who is on the ground, until he gets up. A lunge: who darts in, briefly.
   const [downSlot, setDownSlot] = useState(-1);
   const [lungeSlot, setLungeSlot] = useState(-1);
@@ -206,12 +208,12 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
   const lungeRef = useRef(-1);
   lungeRef.current = lungeSlot;
   // A bicycle kick (upside down in the air) or a diving header (flat, head first).
-  const [pose, setPose] = useState<{ slot: number; kind: 'flip' | 'dive' } | null>(null);
+  const [pose, setPose] = useState<{ slot: number; kind: 'flip' | 'dive' | 'fall' } | null>(null);
   const poseRef = useRef(pose);
   poseRef.current = pose;
   useEffect(() => {
     const b = effects.pose;
-    if (!b || b.slot === undefined || (b.kind !== 'flip' && b.kind !== 'dive')) return;
+    if (!b || b.slot === undefined || (b.kind !== 'flip' && b.kind !== 'dive' && b.kind !== 'fall')) return;
     setPose({ slot: b.slot, kind: b.kind });
     const timer = setTimeout(() => setPose(null), b.ms ?? 600);
     return () => clearTimeout(timer);
@@ -230,6 +232,51 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
     const timer = setTimeout(() => setLungeSlot(-1), b.ms ?? 400);
     return () => clearTimeout(timer);
   }, [effects.lunge]);
+  // The referee: his whistle (a ring round him) and the card he holds up.
+  const refElRef = useRef<HTMLDivElement>(null);
+  const [refCard, setRefCard] = useState<{ id: number; card: 'yellow' | 'red'; slot: number; label?: string } | null>(null);
+  // The picture flushes in the colour of the card when it is shown.
+  const [cardFlash, setCardFlash] = useState<{ id: number; card: 'yellow' | 'red' } | null>(null);
+  useEffect(() => {
+    const b = effects.card;
+    if (!b || !b.card) return;
+    setRefCard({ id: b.id, card: b.card, slot: b.slot ?? -1, label: b.label });
+    setCardFlash({ id: b.id, card: b.card });
+    const timer = setTimeout(() => setRefCard(null), b.ms ?? 1500);
+    return () => clearTimeout(timer);
+  }, [effects.card]);
+  // A hand on the shirt: a line between the two players while it lasts.
+  const [tug, setTug] = useState<{ a: number; b: number } | null>(null);
+  const tugRef = useRef(tug);
+  tugRef.current = tug;
+  const tugElRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const b = effects.tug;
+    if (!b || b.slot === undefined || b.slot2 === undefined) return;
+    setTug({ a: b.slot, b: b.slot2 });
+    const timer = setTimeout(() => setTug(null), b.ms ?? 700);
+    return () => clearTimeout(timer);
+  }, [effects.tug]);
+  // A foul says what it is where it happens: an icon and a caption.
+  const [contactPop, setContactPop] = useState<{ id: number; icon: string; text: string } | null>(null);
+  const contactAnchor = useRef<{ x: number; y: number } | null>(null);
+  const contactElRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const b = effects.contact;
+    if (!b) return;
+    contactAnchor.current = { x: b.x, y: b.y };
+    setContactPop({ id: b.id, icon: b.icon ?? '', text: b.label ?? '' });
+    const timer = setTimeout(() => setContactPop(null), b.ms ?? 2000);
+    return () => clearTimeout(timer);
+  }, [effects.contact]);
+  useEffect(() => {
+    if (snap.referee) return;
+    setContactPop(null);
+    setRefCard(null);
+  }, [snap.referee]);
+  // Counts the plays started, so the frame loop can set everybody's heading when a new one begins.
+  const sceneRef = useRef(0);
+  useEffect(() => { sceneRef.current++; }, [snap.cast]);
   const lastBeat = useRef(0);
   // The save pulse and the net are started straight from the frame loop, on the very frame
   // the beat is reached (no React round trip, which would show them a few frames late).
@@ -253,7 +300,11 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
         else if (b.kind === 'normal' || b.kind === 'save') next.strike = false;
         else if (b.kind === 'tackle') next.tackle = b;
         else if (b.kind === 'lunge') next.lunge = b;
-        else if (b.kind === 'flip' || b.kind === 'dive') next.pose = b;
+        else if (b.kind === 'flip' || b.kind === 'dive' || b.kind === 'fall') next.pose = b;
+        else if (b.kind === 'tug') next.tug = b;
+        else if (b.kind === 'card') next.card = b;
+        else if (b.kind === 'whistle') next.whistle = b;
+        else if (b.kind === 'contact') next.contact = b;
       }
       return next;
     });
@@ -304,6 +355,8 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
     let spin = 0;
     let lastBall = { x: 0, y: 0 };
     const trailHistory: { x: number; y: number }[] = [];
+    const refBuf = new Float32Array(3);
+    const camBuf = new Float32Array(3);
     const drawn = new Float32Array((BALL_SLOT + 1) * 3);
     const tap = new Float32Array((BALL_SLOT + 1) * 3);
     // Where the ball is drawn relative to its true spot: at the feet of whoever's portrait has it.
@@ -314,6 +367,10 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
     // Which way from the holder the ball sits (screen, unit): set where it arrives, then
     // turning towards his run.
     const anchor = { slot: -1, x: 1, y: 0 };
+    // A new play: everybody faces the way he is about to move (see the start of the frame).
+    let seenScene = sceneRef.current;
+    let sceneAt = -1e9;
+    const faceBuf = new Float32Array((BALL_SLOT + 1) * 3);
     const prevTrue = { x: 0, y: 0 };
     const prevHeld = { x: 0, y: 0 };
     // The strike burst and the save pulse, anchored where the ball was drawn when they fired.
@@ -340,6 +397,7 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
     const lungeW = new Float32Array(BALL_SLOT);
     const flipW = new Float32Array(BALL_SLOT);
     const diveW = new Float32Array(BALL_SLOT);
+    const fallW = new Float32Array(BALL_SLOT);
     const faceScaleX = new Float32Array(BALL_SLOT);
     const faceScaleY = new Float32Array(BALL_SLOT);
     const faceAngle = new Float32Array(BALL_SLOT);
@@ -379,10 +437,33 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
           for (let i = 0; i < BALL_SLOT * 3; i++) pos[i] += tap[i] * weight;
         }
       }
+      // A new play begins: everybody faces the way he is about to move, with no speed carried over
+      // from where he was before. Otherwise a runner's ball starts behind him (the side the jump to
+      // his place came from) and swings round to the front.
+      if (seenScene !== sceneRef.current) {
+        seenScene = sceneRef.current;
+        const now = director.getSnapshot();
+        if (now.mode !== 'flow' && now.cast.length > 0) {
+          director.sampleAt(650, faceBuf);
+          for (let s = 0; s < BALL_SLOT; s++) {
+            const dx = faceBuf[s * 3] - truePos[s * 3];
+            const dy = faceBuf[s * 3 + 1] - truePos[s * 3 + 1];
+            const d = Math.hypot(dx, dy);
+            if (d > 0.8) { facing[s * 2] = dx / d; facing[s * 2 + 1] = dy / d; }
+            velX[s] = 0;
+            velY[s] = 0;
+          }
+          sceneAt = time;
+          anchor.slot = -1;
+          primed = false;
+        }
+      }
       // Beats reached on this frame: pulse and net now, in the same frame as the ball.
+      let camKick = false;
       for (const b of director.getSnapshot().beats) {
         if (b.id <= instantBeat.current) continue;
         instantBeat.current = b.id;
+        if (b.kind === 'contact') camKick = true;
         // The strike burst and the save pulse fire below, where the ball is drawn on this frame.
         if (b.kind === 'strike') {
           pendingKick = true;
@@ -423,6 +504,9 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
       // Build-up framing, then the close-up on the strike and the goal.
       const focus = reduced ? null : strikeRef.current ?? focusRef.current;
       let target = focus ?? { x: 52.5, y: 34, zoom: 1 };
+      // A red card scene has its own camera: with the move, tight on the foul, with the offender.
+      const onScript = !reduced && director.sampleCamera(camBuf);
+      if (onScript) target = { x: camBuf[0], y: camBuf[1], zoom: camBuf[2] };
       const goalSide = attackedGoalRef.current;
       // How far into the close-up on the strike: it starts as the shooter shapes up and is
       // there just after the strike, one smooth push-in (no jolt at the strike, and no
@@ -453,8 +537,10 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
       }
       const cam = camera.current;
       // The push-in target already moves smoothly: the camera keeps close to it.
-      const spring = pushIn > 0 ? PUSH_IN_SPRING : strikeRef.current ? STRIKE_SPRING : CAMERA_SPRING;
+      const spring = pushIn > 0 ? PUSH_IN_SPRING : strikeRef.current ? STRIKE_SPRING : onScript ? SCRIPTED_SPRING : CAMERA_SPRING;
       const step = Math.min(dt, 0.05);
+      // A foul shakes the picture for a moment (the spring brings it back).
+      if (camKick && !reduced) { cam.vx += 9; cam.vy += 6; }
       const ty = target.y;
       cam.vx += (spring * spring * (target.x - cam.x) - 2 * spring * cam.vx) * step;
       cam.vy += (spring * spring * (ty - cam.y) - 2 * spring * cam.vy) * step;
@@ -579,6 +665,9 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
         const poseNow = poseRef.current;
         flipW[s] += ((poseNow?.slot === s && poseNow.kind === 'flip' ? 1 : 0) - flipW[s]) * Math.min(1, dt / 0.12);
         diveW[s] += ((poseNow?.slot === s && poseNow.kind === 'dive' ? 1 : 0) - diveW[s]) * Math.min(1, dt / 0.1);
+        // A body going over: tips to the side and shrinks a little, quick on the way down.
+        fallW[s] += ((poseNow?.slot === s && poseNow.kind === 'fall' ? 1 : 0) - fallW[s]) * Math.min(1, dt / 0.08);
+        if (fallW[s] > 0.01) pose += ` rotate(${(fallW[s] * (s < 11 ? 78 : -78)).toFixed(1)}deg) scale(${(1 - 0.1 * fallW[s]).toFixed(3)})`;
         if (flipW[s] > 0.01) pose += ` rotate(${(flipW[s] * 180).toFixed(1)}deg)`;
         if (diveW[s] > 0.01) {
           shapeX *= 1 + 0.25 * diveW[s];
@@ -623,6 +712,27 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
           face.style.setProperty('--air', height > 0.05 ? height.toFixed(2) : '0');
         }
       }
+      // The referee, in a red card scene.
+      const refEl = refElRef.current;
+      if (refEl) {
+        if (director.sampleReferee(refBuf)) {
+          refEl.style.opacity = '1';
+          // The scale goes in the same transform: a separate scale property would scale the place too.
+          refEl.style.transform = `translate3d(${X(refBuf[0])}px,${Y(refBuf[1])}px,0) scale(var(--ref-scale, 1))`;
+        } else if (refEl.style.opacity !== '0') refEl.style.opacity = '0';
+      }
+      const tugEl = tugElRef.current;
+      if (tugEl) {
+        const t = tugRef.current;
+        if (t) {
+          const ax = X(pos[t.a * 3]), ay = Y(pos[t.a * 3 + 1]), bx = X(pos[t.b * 3]), by = Y(pos[t.b * 3 + 1]);
+          tugEl.style.width = `${Math.hypot(bx - ax, by - ay).toFixed(1)}px`;
+          tugEl.style.transform = `translate3d(${ax}px,${ay}px,0) rotate(${Math.atan2(by - ay, bx - ax)}rad)`;
+          tugEl.style.opacity = '1';
+        } else if (tugEl.style.opacity !== '0') tugEl.style.opacity = '0';
+      }
+      const contactEl = contactElRef.current;
+      if (contactEl && contactAnchor.current) contactEl.style.transform = `translate3d(${X(contactAnchor.current.x)}px,${Y(contactAnchor.current.y)}px,0)`;
       primed = true;
 
       const ballFollow = 1 - Math.pow(1 - 0.3, dt * 60);
@@ -674,7 +784,9 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
         if (holder !== anchor.slot) {
           const bx0 = X(pos[BALL_SLOT * 3]) + ballAdj.x - hx, by0 = Y(pos[BALL_SLOT * 3 + 1]) + ballAdj.y - hy;
           const blen = Math.hypot(bx0, by0);
-          Object.assign(anchor, blen > 1 ? { slot: holder, x: bx0 / blen, y: by0 / blen } : { slot: holder, x: fx, y: fy });
+          // In the first moments of a play the ball starts the way he faces (he is carrying it).
+          const early = time - sceneAt < 1800;
+          Object.assign(anchor, blen > 1 && !early ? { slot: holder, x: bx0 / blen, y: by0 / blen } : { slot: holder, x: fx, y: fy });
         } else {
           const turn = Math.min(1, dt * 3.5 * Math.min(1, speed / 2));
           anchor.x += (fx - anchor.x) * turn;
@@ -1034,13 +1146,13 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
             </div>
           );
         })}
-        {snap.cast.map(({ slot }) => {
+        {snap.cast.map(({ slot, role }) => {
           const player = playerAtSlot(slot);
           return (
             <div
               key={`face-${slot}`}
               ref={el => { if (el) faceRefs.current.set(slot, el); else faceRefs.current.delete(slot); }}
-              className={`live-pitch__face${sideOfSlot(slot) === 'right' ? ' live-pitch__face--label-top' : ''}${downSlot === slot ? ' live-pitch__face--down' : ''}${lungeSlot === slot ? ' live-pitch__face--lunge' : ''}`}
+              className={`live-pitch__face${snap.referee && role === 'defender' ? ' live-pitch__face--culprit' : ''}${snap.referee && role === 'finisher' ? ' live-pitch__face--victim' : ''}${sideOfSlot(slot) === 'right' ? ' live-pitch__face--label-top' : ''}${downSlot === slot ? ' live-pitch__face--down' : ''}${lungeSlot === slot ? ' live-pitch__face--lunge' : ''}`}
               style={{ ['--ring' as string]: colors[sideOfSlot(slot)] }}
             >
               <div className="live-pitch__face-img">
@@ -1054,6 +1166,18 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
             </div>
           );
         })}
+        <div ref={tugElRef} className="live-pitch__tug" style={{ opacity: 0 }} aria-hidden="true" />
+        <div ref={refElRef} className="live-pitch__ref" style={{ opacity: 0, ['--ref-scale' as string]: refCard ? 1.25 : 1 }} aria-hidden="true">
+          {effects.whistle && <span key={effects.whistle.id} className="live-pitch__ref-ring" />}
+          {refCard && <span key={refCard.id} className={`live-pitch__ref-card live-pitch__ref-card--${refCard.card}`} />}
+        </div>
+        {contactPop && (
+          <div ref={contactElRef} key={contactPop.id} className="live-pitch__contact" aria-hidden="true">
+            <span className="live-pitch__contact-ring" />
+            <span className="live-pitch__contact-icon">{contactPop.icon}</span>
+            <span className="live-pitch__contact-text">{contactPop.text}</span>
+          </div>
+        )}
         {/* The strike burst and the save pulse (sized in metres via --burst, placed each frame). */}
         <div ref={kickRef} className="live-pitch__burst live-pitch__kick" aria-hidden="true">
           <svg viewBox="-2.7 -2.7 5.4 5.4">
@@ -1068,6 +1192,21 @@ export default function LivePitch({ director, players, colors, teamNames, finalC
         <div ref={ballRef} className="live-pitch__ball"><span ref={ballSkinRef} className="live-pitch__ball-skin" /></div>
       </div>
 
+      {refCard && (() => {
+        const carded = playerAtSlot(refCard.slot);
+        return (
+          <div key={`stamp-${refCard.id}`} className={`live-pitch__stamp live-pitch__stamp--${refCard.card}`} role="status">
+            <span className={`live-pitch__stamp-card${refCard.card === 'red' && refCard.label ? ' live-pitch__stamp-card--double' : ''}`} />
+            {carded && <span className="live-pitch__stamp-face"><PlayerPortrait playerId={carded.id} photoUrl={carded.photoUrl} lowRes={false} alt="" /></span>}
+            <span className="live-pitch__stamp-text">
+              <b>{refCard.card === 'red' ? 'EXPULSO' : (refCard.label ?? 'ADVERTIDO')}</b>
+              {carded && <i>{carded.shortName}</i>}
+              {refCard.card === 'red' && refCard.label && <em>{refCard.label}</em>}
+            </span>
+          </div>
+        );
+      })()}
+      {cardFlash && <div key={cardFlash.id} className={`live-pitch__card-flash live-pitch__card-flash--${cardFlash.card}`} aria-hidden="true" />}
       {effects.cutId > 0 && <div key={effects.cutId} className="live-pitch__cut" aria-hidden="true" />}
       {(() => {
         // One quiet notice at the top of the pitch for the quick events of the game.

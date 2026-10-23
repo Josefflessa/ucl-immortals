@@ -125,11 +125,11 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
           )}
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7A7A8A', fontFamily: 'var(--font-game), sans-serif' }}>Técnico</div>
-            <div className="text-sm font-black leading-tight truncate" style={{ color: '#FFF', fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em' }}>
+            <div className="whitespace-normal break-words text-sm font-black leading-tight" style={{ color: '#FFF', fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em' }}>
               {coach?.name ?? '—'}
             </div>
             {coach?.philosophy && (
-              <div className="text-[12px] font-bold truncate" style={{ color: accent, fontFamily: 'var(--font-game), sans-serif' }}>{coach.philosophy}</div>
+              <div className="whitespace-normal break-words text-[12px] font-bold leading-tight" style={{ color: accent, fontFamily: 'var(--font-game), sans-serif' }}>{coach.philosophy}</div>
             )}
           </div>
           {teamOverall !== null && (

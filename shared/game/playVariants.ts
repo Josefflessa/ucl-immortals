@@ -246,10 +246,20 @@ export function finishesFor(kind: PlayKind, variant: PlayVariant, outcome: Outco
   return ['wide', 'over', 'blocked', 'post', 'bar', 'cleared', 'scuffed'];
 }
 
+/** How often a rebound comes up next to the other finishes of the same play (1 = as often as any). */
+const REBOUND_WEIGHT = 0.3;
+
 /** A finish for the outcome, from a [0, 1) draw. */
 export function finishFor(kind: PlayKind, variant: PlayVariant, outcome: Outcome, draw: number): FinishStyle {
   const list = finishesFor(kind, variant, outcome);
-  return list[Math.min(list.length - 1, Math.floor(draw * list.length))];
+  // The rebound is a scramble, not the everyday finish: it was a third of the goals, so it weighs less.
+  const weights = list.map(style => (style === 'rebound' ? REBOUND_WEIGHT : 1));
+  let pick = draw * weights.reduce((sum, w) => sum + w, 0);
+  for (let i = 0; i < list.length; i++) {
+    pick -= weights[i];
+    if (pick < 0) return list[i];
+  }
+  return list[list.length - 1];
 }
 
 /** Plays that cannot end in a duel: the set pieces and the freak goals have no move to stop. */

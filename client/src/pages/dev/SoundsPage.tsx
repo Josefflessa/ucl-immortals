@@ -28,6 +28,7 @@ const SOUNDS: { name: string; file: string; label: string; options: string[] }[]
 const ENGINE: { sound: MatchSound; label: string }[] = [
   { sound: 'whistleStart', label: 'Apito inicial (sintetizado)' },
   { sound: 'whistleEnd', label: 'Apito final (sintetizado)' },
+  { sound: 'whistleFoul', label: 'Apito de falta (sintetizado)' },
   { sound: 'goal', label: 'Gol (como na partida)' },
   { sound: 'save', label: 'Defesa (como na partida)' },
   { sound: 'miss', label: 'Para fora (como na partida)' },

@@ -232,7 +232,7 @@ export default function RolesSelector({
                         fallback={<span className="flex h-full w-full items-center justify-center text-[12px]">⚽</span>}
                       />
                     </span>
-                    <span className="truncate text-[12px] font-bold text-white">{card.player.shortName}</span>
+                    <span className="min-w-0 whitespace-normal break-words text-[12px] font-bold leading-tight text-white">{card.player.shortName}</span>
                   </span>
                 ) : (
                   <span

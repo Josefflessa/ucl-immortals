@@ -32,6 +32,16 @@ if (import.meta.env.DEV && location.hash === "#lances") {
   createRoot(document.getElementById("root")!).render(<App />);
 }
 
+// Dev-only: the pages above are picked when the page loads, so typing #lances (or leaving it)
+// in a tab that is already open has to reload it, or the old page just stays there.
+if (import.meta.env.DEV) {
+  const isDevPage = (hash: string) => ["#lances", "#gacha", "#sons"].includes(hash) || hash.startsWith("#partida");
+  const openedOn = location.hash;
+  window.addEventListener("hashchange", () => {
+    if (isDevPage(location.hash) || isDevPage(openedOn)) location.reload();
+  });
+}
+
 // PWA: register the service worker (enables "install to home screen"). Best-effort; never blocks the app.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

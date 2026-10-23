@@ -155,7 +155,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
             <div className="min-w-0">
               <div className="text-[12px] font-black tracking-[0.16em] text-[#8A8A9A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>EVOLUÇÃO DO TÉCNICO</div>
               <div className="mt-0.5 text-2xl leading-none tracking-wide text-brand-strong" style={{ fontFamily: 'var(--font-display), sans-serif' }}>EVOLUÇÃO PRIME</div>
-              <div className="mt-1 truncate text-xs font-bold text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{coach.name} · {primeDefinition?.name ?? 'Assinatura Prime'}</div>
+              <div className="mt-1 whitespace-normal break-words text-xs font-bold leading-tight text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{coach.name} · {primeDefinition?.name ?? 'Assinatura Prime'}</div>
             </div>
           </div>
         )}

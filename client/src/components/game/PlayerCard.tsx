@@ -1259,7 +1259,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
               {getFlagUrl(player.nation) && <img src={getFlagUrl(player.nation)!} alt={player.nation} decoding="async" style={{ width: 14, height: 9, objectFit: 'cover', borderRadius: 1.5, boxShadow: '0 1px 2px rgba(0,0,0,.75)' }} />}
               <Crest crestId={clubCrestId} name={canonicalClubName(player.club)} size={12} className="drop-shadow-[0_1px_1px_rgba(0,0,0,.7)]" />
             </div>
-            <div className="w-full text-center truncate" style={{ fontFamily: 'var(--font-game), sans-serif', fontSize: 9.5, fontWeight: 800, color: uniq ? uniq.font : '#fff', textShadow: '0 1px 2px #000,0 0 2px #000', letterSpacing: '0.04em' }}>
+            <div className="w-full whitespace-normal break-words text-center leading-[1.05]" style={{ fontFamily: 'var(--font-game), sans-serif', fontSize: 9.5, fontWeight: 800, color: uniq ? uniq.font : '#fff', textShadow: '0 1px 2px #000,0 0 2px #000', letterSpacing: '0.04em' }}>
               {player.shortName.toUpperCase()}
             </div>
             {showChemistry && (
@@ -1350,7 +1350,7 @@ function PlayerCard({ player, selected = false, onClick, compact = false, lite =
         <div className="absolute" style={{ top: '52%', left: '50%', transform: 'translateX(-50%)', padding: '2px 11px', borderRadius: 999, fontSize: 8, fontWeight: 900, letterSpacing: '.16em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: theme.isPremium ? '#1f1500' : '#0a0a0a', background: theme.ribbon, border: '1px solid rgba(0,0,0,.35)', boxShadow: '0 2px 8px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.25)', fontFamily: 'var(--font-game), sans-serif' }}>{theme.label}</div>
         {/* nome — sem painel; linha fina embaixo + sombra forte pra legibilidade */}
         <div className="absolute text-center" style={{ top: '57.5%', left: '12%', right: '12%', paddingBottom: 4, borderBottom: '2px solid rgba(255,255,255,.22)' }}>
-          <span style={{ fontFamily: 'var(--font-display), sans-serif', fontWeight: 900, letterSpacing: '.03em', fontSize: 21, color: uniq ? uniq.font : '#fff', textShadow: '0 2px 5px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.8)' }}>{player.shortName.toUpperCase()}</span>
+          <span className="block whitespace-normal break-words leading-[0.95]" style={{ fontFamily: 'var(--font-display), sans-serif', fontWeight: 900, letterSpacing: '.03em', fontSize: player.shortName.length > 14 ? 16 : player.shortName.length > 10 ? 18 : 21, color: uniq ? uniq.font : '#fff', textShadow: '0 2px 5px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.8)' }}>{player.shortName.toUpperCase()}</span>
         </div>
         {/* 6 stats — sem painel; sombra forte */}
         <div className="absolute" style={{ top: '69%', left: '10%', right: '10%' }}>
