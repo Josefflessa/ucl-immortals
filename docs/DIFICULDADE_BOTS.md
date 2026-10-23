@@ -16,11 +16,11 @@ O time do jogador cresce durante a campanha (reforços a cada rodada, caracterí
 
 | Nível | Começo | Final |
 |---|---|---|
-| Bronze | 0,844 | 1,099 |
-| Prata | 0,919 | 1,154 |
-| Ouro | 0,974 | 1,159 |
-| Lendário | 0,989 | 1,179 |
-| Imortal | 1,014 | 1,229 |
+| Bronze | 0,928 | 1,196 |
+| Prata | 1,007 | 1,254 |
+| Ouro | 1,059 | 1,259 |
+| Lendário | 1,070 | 1,275 |
+| Imortal | 1,086 | 1,317 |
 
 - O progresso é posto no bot antes de cada partida (`withCampaignProgress`), no solo (`reducer.ts`) e no online (`server/handlers.ts`). Sem progresso informado, o bot joga com a força do começo.
 
@@ -37,6 +37,8 @@ Um jogador que escolhe sempre a melhor carta oferecida no draft (XI de overall ~
 | Imortal | ~11% | ~5% | 8% a 13% |
 
 Em 2026-10-21 (segundo ajuste) todas as tabelas subiram +0,012 duas vezes (+0,024 no total; sem recalibrar por simulação; o efeito esperado é cerca de 1 a 3 pontos a menos de vitórias).
+
+Em 2026-10-23 houve um terceiro aumento, mais forte (Bronze e Prata +0,04, Ouro +0,04, Lendário +0,035, Imortal +0,025 no final (e +0,035, +0,03, +0,02 no começo); sem recalibrar por simulação). Em seguida, a pedido ("um aumento de 5%"), todas as tabelas foram multiplicadas por 1,05 (também sem recalibrar). A tabela acima é a atual.
 
 Alvo de projeto: Ouro ~50% no começo caindo para ~38% no fim, Bronze mais acessível e Imortal quase impossível. Margem de erro das simulações: cerca de 3 a 4 pontos percentuais.
 

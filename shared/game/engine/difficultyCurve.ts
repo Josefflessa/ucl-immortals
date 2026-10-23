@@ -18,8 +18,8 @@ const KNOCKOUT_ROUND_WEIGHT = 1.6;
 const LEVEL_STRENGTHS = [0.45, 0.62, 0.75, 0.88, 0.97] as const;
 
 /** Bot strength multiplier at the first round and at the final, per level. */
-const MULTIPLIER_START = [0.844, 0.919, 0.974, 0.989, 1.014] as const;
-const MULTIPLIER_END = [1.099, 1.154, 1.159, 1.179, 1.229] as const;
+const MULTIPLIER_START = [0.928, 1.007, 1.059, 1.07, 1.086] as const;
+const MULTIPLIER_END = [1.196, 1.254, 1.259, 1.275, 1.317] as const;
 
 function atLevel(table: readonly number[], strength: number): number {
   if (strength <= LEVEL_STRENGTHS[0]) return table[0];

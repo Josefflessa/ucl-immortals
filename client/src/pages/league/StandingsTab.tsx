@@ -54,8 +54,8 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                           </span>
                         </div>
                         <div className="competition-report-standing-grid grid gap-0 border-b px-3 py-2 sm:px-4" style={{ borderColor: 'var(--ui-surface-3)' }}>
-                          {['#', 'Time', 'J', 'V', 'E', 'D', 'GP', 'GC', 'PTS'].map((h, hi) => (
-                            <div key={`${group.groupId}-${h}`} className={`text-center text-[12px] font-bold ${hi >= 3 && hi <= 7 ? 'hidden sm:block' : ''}`} style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                          {['#', 'Time', 'J', 'V', 'E', 'D', 'GP', 'GC', 'PTS'].map(h => (
+                            <div key={`${group.groupId}-${h}`} className="text-center text-[12px] font-bold" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                               {h}
                             </div>
                           ))}
@@ -87,7 +87,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                                 </span>
                               </div>
                               {[entry.played, entry.won, entry.drawn, entry.lost, entry.goalsFor, entry.goalsAgainst].map((val, vi) => (
-                                <div key={vi} className={`text-center text-[12px] sm:text-xs ${vi > 0 ? 'hidden sm:block' : ''}`} style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
+                                <div key={vi} className="text-center text-[12px] sm:text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                                   {val}
                                 </div>
                               ))}
@@ -110,8 +110,8 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                 background: 'var(--ui-surface-1)',
                 borderBottom: '1px solid var(--ui-surface-3)',
               }}>
-              {['#', 'Time', 'J', 'V', 'E', 'D', 'GP', 'GC', 'PTS'].map((h, hi) => (
-                <div key={h} className={`text-[12px] sm:text-xs font-bold text-center ${hi >= 3 && hi <= 7 ? 'hidden sm:block' : ''}`}
+              {['#', 'Time', 'J', 'V', 'E', 'D', 'GP', 'GC', 'PTS'].map(h => (
+                <div key={h} className="text-[12px] sm:text-xs font-bold text-center"
                   style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                   {h}
                 </div>
@@ -163,7 +163,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                     </span>
                   </div>
                   {[entry.played, entry.won, entry.drawn, entry.lost, entry.goalsFor, entry.goalsAgainst].map((val, vi) => (
-                    <div key={vi} className={`text-center text-[12px] sm:text-xs ${vi > 0 ? 'hidden sm:block' : ''}`}
+                    <div key={vi} className="text-center text-[12px] sm:text-xs"
                       style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                       {val}
                     </div>

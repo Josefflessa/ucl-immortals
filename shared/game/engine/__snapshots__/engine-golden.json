@@ -7029,11 +7029,11 @@
    [
     20,
     "foul",
-    "A",
+    "H",
+    "H1",
     "A2",
-    "H2",
     null,
-    "⚠️ Fazio para Höwedes na infração. Bola parada na entrada da área."
+    "⚠️ Schlotterbeck para Fazio na infração. Bola parada na entrada da área."
    ],
    [
     22,
@@ -7191,11 +7191,11 @@
    [
     36,
     "foul",
-    "A",
-    "A6",
-    "H3",
+    "H",
+    "H6",
+    "A3",
     null,
-    "🤙 Camutanga sofre a falta de Laimer em ótima posição para a cobrança."
+    "🤙 Fernando Hierro sofre a falta de Deco em ótima posição para a cobrança."
    ],
    [
     37,
@@ -9739,11 +9739,11 @@
    [
     80,
     "foul",
-    "H",
-    "H10",
-    "A6",
+    "A",
+    "A10",
+    "H6",
     null,
-    "🦶 Falta de Kane em Lucas Evangelista. O árbitro marca."
+    "🦶 Falta de Igor Paixão em Ramires. O árbitro marca."
    ],
    [
     80,
@@ -9830,7 +9830,7 @@
  },
  {
   "score": [
-   4,
+   5,
    1
   ],
   "winner": "H",
@@ -9879,25 +9879,25 @@
    [
     5,
     "foul",
-    "H",
-    "H3",
-    "A6",
+    "A",
+    "A2",
+    "H6",
     null,
-    "🤙 Ayyoub Bouaddi sofre a falta de Danilo Avelar em ótima posição para a cobrança."
+    "🤙 Alex Teixeira sofre a falta de Luiz Felipe em ótima posição para a cobrança."
    ],
    [
     5,
-    "save",
+    "goal",
     "H",
-    "H0",
-    "A4",
+    "H6",
+    "A0",
     null,
-    "🧤 DEFENDAÇA! James bate firme na falta, mas Rulli voa e espalma!"
+    "⚽ GOLAÇO DE FALTA! Alex Teixeira cobra por cima da barreira no ângulo, sem chance para Valdés!"
    ],
    [
     5,
     "stat",
-    "A",
+    "H",
     null,
     null,
     null,
@@ -9910,7 +9910,7 @@
     "A5",
     null,
     null,
-    "⚽ Pjanić domina no meio-campo e distribui o jogo."
+    "🔄 Recomeço após o gol. Fora 1011 tenta reorganizar o ataque rapidamente."
    ],
    [
     7,
@@ -9937,7 +9937,7 @@
     "H10",
     "A2",
     "H6",
-    "⚽ GOL DE FORA! Alex Teixeira recua e Pedro Raul bate de primeira — foguete! 1-0"
+    "⚽ GOL DE FORA! Alex Teixeira recua e Pedro Raul bate de primeira — foguete! 2-0"
    ],
    [
     8,
@@ -10261,7 +10261,7 @@
     "H10",
     "A2",
     "H6",
-    "⚽ GOL! Alex Teixeira enxerga Pedro Raul nas costas de Luiz Felipe — finalização precisa! 2-0"
+    "⚽ GOL! Alex Teixeira enxerga Pedro Raul nas costas de Luiz Felipe — finalização precisa! 3-0"
    ],
    [
     41,
@@ -10486,7 +10486,7 @@
     "H9",
     "A1",
     "H7",
-    "⚽ GOL! Tardelli recebe de Darlan Mendes nas costas da zaga, domina e empurra! 3-0"
+    "⚽ GOL! Tardelli recebe de Darlan Mendes nas costas da zaga, domina e empurra! 4-0"
    ],
    [
     60,
@@ -10531,7 +10531,7 @@
     "H10",
     "A2",
     "H8",
-    "⚽ GOL! Contra-ataque fulminante de Pedro Raul com assistência de Milinković-Savić! 4-0"
+    "⚽ GOL! Contra-ataque fulminante de Pedro Raul com assistência de Milinković-Savić! 5-0"
    ],
    [
     67,
@@ -10585,7 +10585,7 @@
     "H6",
     null,
     null,
-    "🎯 Casa 1011 com a bola, tentando administrar a vantagem de 4-0."
+    "🎯 Casa 1011 com a bola, tentando administrar a vantagem de 5-0."
    ],
    [
     71,
@@ -11423,7 +11423,7 @@
    [
     69,
     "stat",
-    "A",
+    "H",
     null,
     null,
     null,
@@ -11562,7 +11562,7 @@
     "H1",
     null,
     null,
-    "🟥 Agressão flagrante! Orinho é expulso e ainda pode pegar gancho!"
+    "🟥 Orinho decepa o rival numa arrancada e recebe o vermelho direto!"
    ],
    [
     78,
@@ -13828,7 +13828,7 @@
  },
  {
   "score": [
-   2,
+   4,
    0
   ],
   "winner": "H",
@@ -13859,11 +13859,11 @@
    [
     4,
     "foul",
-    "H",
-    "H7",
-    "A10",
+    "A",
+    "A7",
+    "H10",
     null,
-    "🦶 Falta de Renan Lodi em Højlund. O árbitro marca."
+    "🦶 Falta de Carlos Augusto em Luiz Adriano. O árbitro marca."
    ],
    [
     4,
@@ -14093,7 +14093,7 @@
    [
     21,
     "stat",
-    "A",
+    "H",
     null,
     null,
     null,
@@ -14273,293 +14273,158 @@
    [
     41,
     "foul",
-    "H",
-    "H9",
-    "A4",
+    "A",
+    "A9",
+    "H4",
     null,
-    "🦶 Falta de Giuliano em Yago Pikachu. O árbitro marca."
+    "🦶 Falta de Ramires em Maicon. O árbitro marca."
    ],
    [
-    42,
-    "corner",
-    "H",
+    41,
+    "yellow",
+    "A",
+    "A9",
     null,
     null,
-    null,
-    "🚩 Escanteio para Casa 1015."
+    "🟨 Falta para impedir o contragolpe: Ramires amarelado!"
    ],
    [
-    42,
+    41,
     "stat",
     "H",
     null,
     null,
     null,
-    "📊 Finalização adicional desviada."
+    "📊 Finalização adicional defendida."
    ],
    [
-    42,
-    "momentum",
-    "A",
-    "A9",
-    null,
-    null,
-    "🔄 Bola sai pelo fundo — reposição longa do goleiro abre o jogo."
-   ],
-   [
-    43,
-    "momentum",
-    "H",
-    "H5",
-    null,
-    null,
-    "⚽ Tiro de meta! O goleiro distribui pelo lado para sair jogando."
-   ],
-   [
-    44,
+    45,
     "foul",
-    "A",
-    "A9",
-    "H1",
-    null,
-    "⚠️ Ramires para Evra na infração. Bola parada na entrada da área."
-   ],
-   [
-    46,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    46,
-    "momentum",
-    "H",
-    null,
-    null,
-    null,
-    "💣 Luiz Adriano recebe na intermediária, ajeita o corpo e prepara o chute..."
-   ],
-   [
-    46,
-    "miss",
     "H",
     "H10",
-    null,
-    null,
-    "💥 NA TRAVE! Luiz Adriano arrisca de longe e a bola explode no poste!"
-   ],
-   [
-    48,
-    "foul",
-    "A",
-    "A6",
-    "H6",
-    null,
-    "🦶 Falta de Tchê Tchê em Edenílson. O árbitro marca."
-   ],
-   [
-    49,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    51,
-    "momentum",
-    "H",
-    "H5",
-    null,
-    null,
-    "🛡️ Fora 1015 respira após o perigo. Posse recuperada no meio."
-   ],
-   [
-    52,
-    "foul",
-    "A",
     "A10",
-    "H9",
     null,
-    "✋ Højlund chega atrasado e derruba Giuliano — falta perigosa!"
+    "✋ Luiz Adriano chega atrasado e derruba Højlund — falta perigosa!"
    ],
    [
-    52,
+    46,
     "momentum",
     "H",
     null,
     null,
     null,
-    "🎯 Lance de ruptura — Luiz Adriano recebe cara a cara com o goleiro..."
+    "🏃 Transição rápida! Luiz Adriano lidera o contra com Renan Lodi na ponta!"
    ],
    [
-    52,
-    "miss",
-    "H",
-    "H10",
-    null,
-    null,
-    "❌ Yago Pikachu retorna em velocidade e tira de Luiz Adriano no último instante!"
-   ],
-   [
-    53,
-    "foul",
-    "A",
-    "A8",
-    "H6",
-    null,
-    "⚠️ Moisés para Edenílson na infração. Bola parada na entrada da área."
-   ],
-   [
-    53,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    53,
-    "momentum",
-    "A",
-    "A7",
-    null,
-    null,
-    "🛡️ Casa 1015 respira após o perigo. Posse recuperada no meio."
-   ],
-   [
-    56,
-    "foul",
-    "A",
-    "A5",
-    "H7",
-    null,
-    "🤙 Renan Lodi sofre a falta de Rúben Neves em ótima posição para a cobrança."
-   ],
-   [
-    57,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    57,
-    "momentum",
-    "H",
-    null,
-    null,
-    null,
-    "⚡ CONTRA-ATAQUE! Casa 1015 rouba a bola no meio e sai em velocidade!"
-   ],
-   [
-    57,
+    46,
     "goal",
     "H",
     "H10",
-    "A2",
+    "A5",
     null,
     "⚽ GOL! Luiz Adriano lidera o contra, chega na área e bate sem deixar Sirigu reagir! 1-0"
    ],
    [
-    62,
-    "momentum",
+    48,
+    "stat",
     "H",
-    "H5",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    49,
+    "foul",
+    "A",
+    "A1",
+    "H2",
+    null,
+    "🤙 Ligger sofre a falta de Digne em ótima posição para a cobrança."
+   ],
+   [
+    49,
+    "momentum",
+    "A",
+    "A6",
     null,
     null,
     "⚽ Fora 1015 reinicia no centro buscando resposta imediata."
    ],
    [
-    63,
-    "foul",
+    50,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
+   ],
+   [
+    50,
+    "momentum",
+    "A",
+    "A7",
+    null,
+    null,
+    "⚽ Fora 1015 reinicia no centro buscando resposta imediata."
+   ],
+   [
+    51,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
+   ],
+   [
+    51,
+    "momentum",
     "A",
     "A9",
-    "H10",
     null,
-    "🤙 Luiz Adriano sofre a falta de Ramires em ótima posição para a cobrança."
+    null,
+    "⚽ Fora 1015 reinicia no centro buscando resposta imediata."
    ],
    [
-    64,
-    "foul",
-    "A",
-    "A2",
-    "H8",
-    null,
-    "✋ Lescott chega atrasado e derruba Nikão — falta perigosa!"
-   ],
-   [
-    64,
-    "yellow",
-    "A",
-    "A2",
-    null,
-    null,
-    "🟨 Lescott chega atrasado na dividida e o árbitro não perdoa: amarelo!"
-   ],
-   [
-    64,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    65,
+    52,
     "momentum",
     "A",
     null,
     null,
     null,
-    "⚡ Bola recuperada! Fora 1015 dispara no contra-ataque com Højlund..."
+    "🏃 Højlund pede a bola no corredor central e escapa em velocidade de Edenílson..."
    ],
    [
-    65,
+    52,
     "duel",
     "H",
-    "H4",
+    "H6",
     "A10",
     null,
-    "🛡️ Contra-ataque anulado! Maicon retorna em velocidade e recupera de Højlund!"
+    "🛡️ Bloqueio preciso de Edenílson! Antecipou o movimento de Højlund!"
    ],
    [
-    67,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    69,
+    57,
     "momentum",
     "H",
     null,
     null,
     null,
-    "⚡ CONTRA-ATAQUE! Casa 1015 rouba a bola no meio e sai em velocidade!"
+    "🔑 Luiz Adriano tabela com Renan Lodi e parte nas costas de Tchê Tchê..."
    ],
    [
-    69,
+    57,
     "goal",
     "H",
     "H10",
     "A6",
-    "H8",
-    "⚽ GOL EM TRANSIÇÃO! Nikão lança Luiz Adriano em velocidade — finalização perfeita! 2-0"
+    "H5",
+    "⚽ GOL! Passe primoroso de Danilo e Luiz Adriano sai cara a cara com Sirigu, desloca e marca! 2-0"
    ],
    [
-    71,
+    63,
     "corner",
     "H",
     null,
@@ -14568,7 +14433,7 @@
     "🚩 Escanteio para Casa 1015."
    ],
    [
-    71,
+    63,
     "stat",
     "H",
     null,
@@ -14577,25 +14442,106 @@
     "📊 Finalização adicional desviada."
    ],
    [
-    71,
-    "miss",
-    "H",
-    "H3",
+    65,
+    "momentum",
+    "A",
     null,
     null,
-    "❌ NA ÁREA... Patrick de Lucca testa de cabeça, mas sem direção. Tiro de meta."
+    null,
+    "🔥 Fora 1015 quebra a pressão e sai em dois contra um!"
    ],
    [
-    72,
+    65,
+    "duel",
+    "H",
+    "H6",
+    "A8",
+    null,
+    "🛡️ Contra-ataque anulado! Edenílson retorna em velocidade e recupera de Moisés!"
+   ],
+   [
+    66,
+    "foul",
+    "A",
+    "A10",
+    "H4",
+    null,
+    "🤙 Maicon sofre a falta de Højlund em ótima posição para a cobrança."
+   ],
+   [
+    66,
+    "momentum",
+    "A",
+    "A9",
+    null,
+    null,
+    "🏃 Fora 1015 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    67,
+    "momentum",
+    "A",
+    "A7",
+    null,
+    null,
+    "🏃 Fora 1015 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    68,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "🏃 Fora 1015 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    69,
+    "momentum",
+    "H",
+    null,
+    null,
+    null,
+    "💨 Luiz Adriano recebe de frente para Lescott e decide partir para o drible!"
+   ],
+   [
+    69,
+    "duel",
+    "A",
+    "A2",
+    "H10",
+    null,
+    "🛡️ Entrada limpa de Lescott — rouba a bola de Luiz Adriano com precisão!"
+   ],
+   [
+    70,
+    "foul",
+    "A",
+    "A4",
+    "H1",
+    null,
+    "🦶 Falta de Yago Pikachu em Evra. O árbitro marca."
+   ],
+   [
+    71,
+    "momentum",
+    "H",
+    "H5",
+    null,
+    null,
+    "⚡ Posse recuperada! Casa 1015 tenta sair rápido em transição."
+   ],
+   [
+    73,
     "momentum",
     "H",
     "H8",
     null,
     null,
-    "🔄 Recomeço após o gol. Fora 1015 tenta reorganizar o ataque rapidamente."
+    "⚡ Posse recuperada! Casa 1015 tenta sair rápido em transição."
    ],
    [
-    73,
+    74,
     "foul",
     "A",
     "A8",
@@ -14604,16 +14550,97 @@
     "🤙 Maicon sofre a falta de Moisés em ótima posição para a cobrança."
    ],
    [
-    76,
+    77,
     "foul",
     "A",
-    "A2",
+    "A6",
     "H7",
     null,
-    "🤙 Renan Lodi sofre a falta de Lescott em ótima posição para a cobrança."
+    "🦶 Falta de Tchê Tchê em Renan Lodi. O árbitro marca."
    ],
    [
-    76,
+    77,
+    "momentum",
+    "H",
+    "H5",
+    null,
+    null,
+    "⚡ Posse recuperada! Casa 1015 tenta sair rápido em transição."
+   ],
+   [
+    78,
+    "corner",
+    "H",
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Casa 1015."
+   ],
+   [
+    78,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional desviada."
+   ],
+   [
+    78,
+    "momentum",
+    "H",
+    null,
+    null,
+    null,
+    "🏃 Transição rápida! Luiz Adriano lidera o contra com Renan Lodi na ponta!"
+   ],
+   [
+    78,
+    "goal",
+    "H",
+    "H10",
+    "A5",
+    null,
+    "⚽ GOL! Contra-ataque avassalador! Luiz Adriano corre livre e não perdoa! 3-0"
+   ],
+   [
+    79,
+    "foul",
+    "A",
+    "A10",
+    "H5",
+    null,
+    "⚠️ Højlund para Danilo na infração. Bola parada na entrada da área."
+   ],
+   [
+    80,
+    "momentum",
+    "A",
+    "A9",
+    null,
+    null,
+    "⚽ Fora 1015 reinicia no centro buscando resposta imediata."
+   ],
+   [
+    81,
+    "foul",
+    "A",
+    "A1",
+    "H9",
+    null,
+    "🤙 Giuliano sofre a falta de Digne em ótima posição para a cobrança."
+   ],
+   [
+    81,
+    "save",
+    "A",
+    "A0",
+    "H10",
+    null,
+    "🧤 Sirigu estava atento! Pega a cobrança de falta de Luiz Adriano no canto!"
+   ],
+   [
+    81,
     "stat",
     "H",
     null,
@@ -14622,121 +14649,40 @@
     "📊 Finalização adicional defendida."
    ],
    [
-    76,
+    81,
     "momentum",
-    "H",
-    "H5",
+    "A",
+    "A6",
     null,
     null,
     "🔄 Recomeço após o gol. Fora 1015 tenta reorganizar o ataque rapidamente."
    ],
    [
-    78,
-    "foul",
-    "A",
-    "A1",
-    "H1",
-    null,
-    "🦶 Falta de Digne em Evra. O árbitro marca."
-   ],
-   [
-    78,
-    "corner",
-    "H",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Casa 1015."
-   ],
-   [
-    78,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional desviada."
-   ],
-   [
-    78,
-    "momentum",
-    "H",
-    null,
-    null,
-    null,
-    "↗️ Renan Lodi avança pela ponta e levanta a bola na área para Nikão..."
-   ],
-   [
-    78,
-    "miss",
-    "H",
-    "H8",
-    null,
-    null,
-    "❌ Cruzamento perigoso, mas Luan Peres afasta de cabeça antes de Nikão!"
-   ],
-   [
-    79,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    80,
-    "momentum",
-    "H",
-    "H9",
-    null,
-    null,
-    "🛡️ Fora 1015 respira após o perigo. Posse recuperada no meio."
-   ],
-   [
-    81,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    84,
-    "corner",
-    "H",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Casa 1015."
-   ],
-   [
-    84,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional desviada."
-   ],
-   [
-    84,
-    "momentum",
-    "A",
-    "A9",
-    null,
-    null,
-    "⚽ Tiro de meta! O goleiro distribui pelo lado para sair jogando."
-   ],
-   [
-    85,
+    82,
     "foul",
     "A",
     "A3",
-    "H9",
+    "H7",
     null,
-    "🤙 Giuliano sofre a falta de Luan Peres em ótima posição para a cobrança."
+    "✋ Luan Peres chega atrasado e derruba Renan Lodi — falta perigosa!"
+   ],
+   [
+    82,
+    "yellow",
+    "A",
+    "A3",
+    null,
+    null,
+    "🟨 Luan Peres chega atrasado na dividida e o árbitro não perdoa: amarelo!"
+   ],
+   [
+    85,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
    ],
    [
     85,
@@ -14749,57 +14695,21 @@
    ],
    [
     85,
-    "duel",
-    "A",
-    "A4",
+    "goal",
+    "H",
     "H10",
-    null,
-    "🛡️ Yago Pikachu cobre perfeitamente e rouba a bola de Luiz Adriano na entrada da área!"
-   ],
-   [
-    86,
-    "foul",
-    "H",
-    "H6",
-    "A10",
-    null,
-    "🦶 Falta de Edenílson em Højlund. O árbitro marca."
-   ],
-   [
-    86,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    90,
-    "foul",
-    "H",
-    "H4",
     "A6",
     null,
-    "⚠️ Maicon para Tchê Tchê na infração. Bola parada na entrada da área."
+    "⚽ GOL! Contra-ataque avassalador! Luiz Adriano corre livre e não perdoa! 4-0"
    ],
    [
     90,
-    "stat",
+    "foul",
     "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    90,
-    "momentum",
-    "H",
+    "A3",
     "H7",
     null,
-    null,
-    "🏃 Casa 1015 constrói pelo lado após ganhar a bola no meio."
+    "🤙 Renan Lodi sofre a falta de Luan Peres em ótima posição para a cobrança."
    ]
   ]
  },
@@ -27970,12 +27880,21 @@
    ],
    [
     6,
-    "miss",
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "↗️ Francisco Moura avança pela ponta e levanta a bola na área para Openda..."
+   ],
+   [
+    6,
+    "duel",
     "H",
-    "H9",
+    "H4",
+    "A9",
     null,
-    null,
-    "💥 NO TRAVESSÃO! Leandro Pereira limpa Laporte e arrisca — a bola bate na madeira!"
+    "🛡️ Cruzamento interceptado! Puyol lê a jogada antes de Openda!"
    ],
    [
     9,
@@ -27993,7 +27912,7 @@
     "H6",
     null,
     null,
-    "🛡️ Fora 1031 respira após o perigo. Posse recuperada no meio."
+    "🏃 Casa 1031 constrói pelo lado após ganhar a bola no meio."
    ],
    [
     11,
@@ -28011,7 +27930,7 @@
     "A7",
     null,
     null,
-    "🛡️ Casa 1031 respira após o perigo. Posse recuperada no meio."
+    "🏃 Fora 1031 constrói pelo lado após ganhar a bola no meio."
    ],
    [
     12,
@@ -29056,20 +28975,20 @@
    [
     28,
     "momentum",
-    "H",
+    "A",
     null,
     null,
     null,
-    "🏃 McGinn para no fundo, levanta na cabeça de Lucas Paquetá na área..."
+    "🏃 Cristiano pede a bola no corredor central e escapa em velocidade de Philipe Sampaio..."
    ],
    [
     28,
     "duel",
-    "A",
-    "A2",
-    "H8",
+    "H",
+    "H2",
+    "A9",
     null,
-    "🛡️ Otamendi aparece bem e bloqueia o cruzamento na entrada da área!"
+    "🛡️ Philipe Sampaio lê a jogada cedo e se interpõe antes de Cristiano receber!"
    ],
    [
     29,
@@ -29299,7 +29218,7 @@
    [
     53,
     "stat",
-    "H",
+    "A",
     null,
     null,
     null,
@@ -33055,10 +32974,10 @@
  },
  {
   "score": [
-   3,
-   0
+   1,
+   2
   ],
-  "winner": "H",
+  "winner": "A",
   "penalties": [
    null,
    null
@@ -33158,20 +33077,20 @@
    [
     5,
     "foul",
-    "A",
-    "A4",
-    "H1",
+    "H",
+    "H4",
+    "A1",
     null,
-    "🤙 Mosquera sofre a falta de Pablo Dyego em ótima posição para a cobrança."
+    "🤙 Udogie sofre a falta de Gayà em ótima posição para a cobrança."
    ],
    [
     5,
     "goal",
-    "H",
-    "H9",
-    "A0",
+    "A",
+    "A8",
+    "H0",
     null,
-    "⚽ FRANGO! Pléa chuta fraco rasteiro de longe e a bola passa por baixo das mãos de Fährmann!"
+    "⚽ FRANGO! Downing chuta fraco rasteiro de longe e a bola passa por baixo das mãos de Begović!"
    ],
    [
     6,
@@ -33185,20 +33104,20 @@
    [
     7,
     "foul",
-    "A",
-    "A5",
-    "H9",
+    "H",
+    "H5",
+    "A9",
     null,
-    "⚠️ Camavinga para Pléa na infração. Bola parada na entrada da área."
+    "⚠️ Zieliński para Barcola na infração. Bola parada na entrada da área."
    ],
    [
     7,
     "miss",
-    "H",
-    "H10",
+    "A",
+    "A7",
     null,
     null,
-    "❌ POR CIMA! Del Piero caprichou na cobrança, mas mandou para a arquibancada."
+    "❌ POR CIMA! Valverde caprichou na cobrança, mas mandou para a arquibancada."
    ],
    [
     9,
@@ -33207,21 +33126,21 @@
     "A7",
     null,
     null,
-    "⚡ Fora 1037 pressiona após o gol sofrido — o duelo fica mais aberto!"
+    "⚡ Casa 1037 pressiona após o gol sofrido — o duelo fica mais aberto!"
    ],
    [
     10,
     "foul",
-    "A",
-    "A1",
-    "H2",
+    "H",
+    "H1",
+    "A2",
     null,
-    "✋ Udogie chega atrasado e derruba Tobias Figueiredo — falta perigosa!"
+    "✋ Mosquera chega atrasado e derruba Hummels — falta perigosa!"
    ],
    [
     10,
     "stat",
-    "H",
+    "A",
     null,
     null,
     null,
@@ -33234,7 +33153,7 @@
     "H4",
     null,
     null,
-    "⚽ Fora 1037 reinicia no centro buscando resposta imediata."
+    "⚽ Casa 1037 reinicia no centro buscando resposta imediata."
    ],
    [
     11,
@@ -33243,7 +33162,7 @@
     "A6",
     null,
     null,
-    "⚽ Fora 1037 reinicia no centro buscando resposta imediata."
+    "⚽ Casa 1037 reinicia no centro buscando resposta imediata."
    ],
    [
     12,
@@ -33261,16 +33180,16 @@
     "A7",
     null,
     null,
-    "⚽ Fora 1037 reinicia no centro buscando resposta imediata."
+    "⚽ Casa 1037 reinicia no centro buscando resposta imediata."
    ],
    [
     13,
     "momentum",
-    "H",
-    "H6",
+    "A",
+    "A6",
     null,
     null,
-    "🔄 Recomeço após o gol. Fora 1037 tenta reorganizar o ataque rapidamente."
+    "🔄 Recomeço após o gol. Casa 1037 tenta reorganizar o ataque rapidamente."
    ],
    [
     14,
@@ -33365,137 +33284,110 @@
    [
     18,
     "foul",
-    "A",
-    "A1",
+    "H",
     "H1",
+    "A1",
     null,
-    "⚠️ Udogie para Mosquera na infração. Bola parada na entrada da área."
+    "⚠️ Mosquera para Udogie na infração. Bola parada na entrada da área."
    ],
    [
     18,
     "yellow",
-    "A",
-    "A1",
+    "H",
+    "H1",
     null,
     null,
-    "🟨 Udogie atinge o tornozelo do adversário e recebe o amarelo!"
+    "🟨 Mosquera atinge o tornozelo do adversário e recebe o amarelo!"
    ],
    [
     18,
     "momentum",
-    "H",
-    null,
-    null,
-    null,
-    "💨 Del Piero recebe de frente para Archie Gray e decide partir para o drible!"
-   ],
-   [
-    18,
-    "goal",
-    "H",
-    "H10",
-    "A6",
-    "H4",
-    "⚽ GOL! Combinação linda! Gayà passa, Del Piero dribla Archie Gray e finaliza! 2-0"
-   ],
-   [
-    19,
-    "corner",
     "A",
     null,
     null,
     null,
-    "🚩 Escanteio para Fora 1037."
+    "💨 Chiesa recebe de frente para Pablo Maia e decide partir para o drible!"
+   ],
+   [
+    18,
+    "save",
+    "H",
+    "H0",
+    "A10",
+    null,
+    "🧤 Drible bem-sucedido de Chiesa, porém o chute bate em cheio em Begović!"
    ],
    [
     19,
+    "foul",
+    "H",
+    "H3",
+    "A6",
+    null,
+    "✋ Diouf chega atrasado e derruba Archie Gray — falta perigosa!"
+   ],
+   [
+    20,
+    "momentum",
+    "A",
+    "A7",
+    null,
+    null,
+    "🚩 Fora 1037 cobra o escanteio — a zaga se prepara para afastar..."
+   ],
+   [
+    21,
+    "foul",
+    "H",
+    "H1",
+    "A3",
+    null,
+    "🤙 Thuram sofre a falta de Mosquera em ótima posição para a cobrança."
+   ],
+   [
+    22,
+    "momentum",
+    "H",
+    "H5",
+    null,
+    null,
+    "🚩 Casa 1037 cobra o escanteio — a zaga se prepara para afastar..."
+   ],
+   [
+    24,
     "stat",
     "A",
     null,
     null,
     null,
-    "📊 Finalização adicional desviada."
+    "📊 Finalização adicional defendida."
    ],
    [
-    20,
-    "foul",
+    24,
+    "momentum",
     "A",
     "A7",
-    "H3",
-    null,
-    "🦶 Falta de Valverde em Diouf. O árbitro marca."
-   ],
-   [
-    23,
-    "foul",
-    "H",
-    "H4",
-    "A2",
-    null,
-    "🤙 Hummels sofre a falta de Gayà em ótima posição para a cobrança."
-   ],
-   [
-    24,
-    "foul",
-    "A",
-    "A3",
-    "H7",
-    null,
-    "🦶 Falta de Thuram em De Rossi. O árbitro marca."
-   ],
-   [
-    24,
-    "momentum",
-    "H",
-    "H4",
     null,
     null,
-    "🎯 Casa 1037 com a bola, tentando administrar a vantagem de 2-0."
-   ],
-   [
-    25,
-    "foul",
-    "A",
-    "A4",
-    "H5",
-    null,
-    "✋ Pablo Dyego chega atrasado e derruba Zieliński — falta perigosa!"
+    "⚽ Begović distribui rápido após a defesa, e o jogo se abre pelo lado."
    ],
    [
     25,
     "momentum",
-    "H",
+    "A",
     null,
     null,
     null,
-    "🔭 Pléa com espaço a 25 metros — vai arriscar?"
+    "🎯 Lance de ruptura — Downing recebe cara a cara com o goleiro..."
    ],
    [
     25,
     "duel",
-    "A",
-    "A6",
-    "H9",
-    null,
-    "🛡️ Pressão de Archie Gray! Fechou o espaço e Pléa não conseguiu bater!"
-   ],
-   [
-    26,
-    "foul",
     "H",
-    "H6",
+    "H1",
     "A8",
     null,
-    "🦶 Falta de Pablo Maia em Downing. O árbitro marca."
-   ],
-   [
-    26,
-    "yellow",
-    "H",
-    "H6",
-    null,
-    null,
-    "🟨 Pablo Maia corta o lançamento com falta e o árbitro anota: amarelo!"
+    "🛡️ Mosquera lê a jogada cedo e se interpõe antes de Downing receber!"
    ],
    [
     26,
@@ -33507,67 +33399,40 @@
     "📊 Finalização adicional para fora."
    ],
    [
-    27,
+    28,
+    "momentum",
+    "H",
+    "H8",
+    null,
+    null,
+    "🔄 Hofmann tenta impor ritmo após o desarme no meio do campo."
+   ],
+   [
+    31,
     "momentum",
     "A",
-    "A6",
-    null,
-    null,
-    "⚡ Posse recuperada! Fora 1037 tenta sair rápido em transição."
-   ],
-   [
-    28,
-    "foul",
-    "H",
-    "H1",
-    "A10",
-    null,
-    "🦶 Falta de Mosquera em Chiesa. O árbitro marca."
-   ],
-   [
-    28,
-    "yellow",
-    "H",
-    "H1",
-    null,
-    null,
-    "🟨 Encara o bandeirinha e discute a marcação: amarelo para Mosquera!"
-   ],
-   [
-    30,
-    "momentum",
-    "A",
-    "A6",
+    "A7",
     null,
     null,
     "🏃 Fora 1037 constrói pelo lado após ganhar a bola no meio."
    ],
    [
-    31,
-    "foul",
-    "H",
-    "H6",
-    "A6",
-    null,
-    "⚠️ Pablo Maia para Archie Gray na infração. Bola parada na entrada da área."
-   ],
-   [
-    32,
-    "momentum",
-    "H",
-    "H6",
+    33,
+    "corner",
+    "A",
     null,
     null,
-    "🏃 Casa 1037 constrói pelo lado após ganhar a bola no meio."
+    null,
+    "🚩 Escanteio para Fora 1037."
    ],
    [
     33,
-    "momentum",
-    "H",
-    "H7",
+    "stat",
+    "A",
     null,
     null,
-    "🔄 De Rossi tenta impor ritmo após o desarme no meio do campo."
+    null,
+    "📊 Finalização adicional desviada."
    ],
    [
     34,
@@ -33576,28 +33441,361 @@
     null,
     null,
     null,
-    "🎯 Lançamento por cima da defesa — Chiesa domina dentro da área..."
+    "💨 Barcola encara Pablo Maia de frente e parte para cima com a bola dominada..."
    ],
    [
     34,
-    "duel",
+    "save",
     "H",
-    "H1",
-    "A10",
+    "H0",
+    "A9",
     null,
-    "🛡️ Bloqueio preciso de Mosquera! Antecipou o movimento de Chiesa!"
+    "🧤 Drible bem-sucedido de Barcola, porém o chute bate em cheio em Begović!"
    ],
    [
-    36,
-    "foul",
+    35,
+    "momentum",
     "H",
     "H7",
-    "A4",
     null,
-    "🤙 Pablo Dyego sofre a falta de De Rossi em ótima posição para a cobrança."
+    null,
+    "🔄 Reposicionamento após o susto. Fora 1037 se fecha bem no contra-ataque."
    ],
    [
     37,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    38,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "💨 Downing recebe de frente para Mosquera e decide partir para o drible!"
+   ],
+   [
+    38,
+    "duel",
+    "H",
+    "H1",
+    "A8",
+    null,
+    "🛡️ Parada firme! Mosquera antecipa o drible de Downing com categoria!"
+   ],
+   [
+    39,
+    "foul",
+    "H",
+    "H5",
+    "A3",
+    null,
+    "⚠️ Zieliński para Thuram na infração. Bola parada na entrada da área."
+   ],
+   [
+    40,
+    "momentum",
+    "H",
+    "H8",
+    null,
+    null,
+    "⚡ Posse recuperada! Casa 1037 tenta sair rápido em transição."
+   ],
+   [
+    41,
+    "foul",
+    "H",
+    "H9",
+    "A1",
+    null,
+    "⚠️ Pléa para Udogie na infração. Bola parada na entrada da área."
+   ],
+   [
+    41,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    44,
+    "foul",
+    "H",
+    "H8",
+    "A9",
+    null,
+    "⚠️ Hofmann para Barcola na infração. Bola parada na entrada da área."
+   ],
+   [
+    45,
+    "momentum",
+    "H",
+    null,
+    null,
+    null,
+    "💨 Pléa encara Pablo Dyego de frente e parte para cima com a bola dominada..."
+   ],
+   [
+    45,
+    "miss",
+    "H",
+    "H9",
+    null,
+    null,
+    "❌ Pléa passou por Pablo Dyego mas bateu torto na hora da finalização!"
+   ],
+   [
+    46,
+    "foul",
+    "H",
+    "H3",
+    "A6",
+    null,
+    "✋ Diouf chega atrasado e derruba Archie Gray — falta perigosa!"
+   ],
+   [
+    47,
+    "corner",
+    "A",
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Fora 1037."
+   ],
+   [
+    47,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional desviada."
+   ],
+   [
+    47,
+    "goal",
+    "A",
+    "A4",
+    "H0",
+    null,
+    "⚽ DE CABEÇA! Pablo Dyego sobe mais que todos no escanteio e testa firme, sem chance para Begović!"
+   ],
+   [
+    48,
+    "foul",
+    "H",
+    "H6",
+    "A5",
+    null,
+    "✋ Pablo Maia chega atrasado e derruba Camavinga — falta perigosa!"
+   ],
+   [
+    50,
+    "foul",
+    "H",
+    "H7",
+    "A5",
+    null,
+    "✋ De Rossi chega atrasado e derruba Camavinga — falta perigosa!"
+   ],
+   [
+    50,
+    "momentum",
+    "A",
+    "A7",
+    null,
+    null,
+    "🔄 Recomeço após o gol. Casa 1037 tenta reorganizar o ataque rapidamente."
+   ],
+   [
+    51,
+    "foul",
+    "H",
+    "H4",
+    "A3",
+    null,
+    "🤙 Thuram sofre a falta de Gayà em ótima posição para a cobrança."
+   ],
+   [
+    51,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
+   ],
+   [
+    52,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
+   ],
+   [
+    53,
+    "foul",
+    "H",
+    "H8",
+    "A10",
+    null,
+    "⚠️ Hofmann para Chiesa na infração. Bola parada na entrada da área."
+   ],
+   [
+    53,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "🏃 Downing para no fundo, levanta na cabeça de Barcola na área..."
+   ],
+   [
+    53,
+    "duel",
+    "H",
+    "H2",
+    "A9",
+    null,
+    "🛡️ Tobias Figueiredo aparece bem e bloqueia o cruzamento na entrada da área!"
+   ],
+   [
+    54,
+    "momentum",
+    "A",
+    "A7",
+    null,
+    null,
+    "🏃 Fora 1037 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    56,
+    "foul",
+    "A",
+    "A1",
+    "H2",
+    null,
+    "🤙 Tobias Figueiredo sofre a falta de Udogie em ótima posição para a cobrança."
+   ],
+   [
+    56,
+    "stat",
+    "H",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
+   ],
+   [
+    58,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional para fora."
+   ],
+   [
+    59,
+    "momentum",
+    "A",
+    null,
+    null,
+    null,
+    "💣 Downing domina fora da área e avalia o chute de longe..."
+   ],
+   [
+    59,
+    "duel",
+    "H",
+    "H2",
+    "A8",
+    null,
+    "🛡️ Tobias Figueiredo adianta o corpo e bloqueia o chute de Downing antes de sair!"
+   ],
+   [
+    61,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "🏃 Fora 1037 constrói pelo lado após ganhar a bola no meio."
+   ],
+   [
+    62,
+    "corner",
+    "A",
+    null,
+    null,
+    null,
+    "🚩 Escanteio para Fora 1037."
+   ],
+   [
+    62,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional desviada."
+   ],
+   [
+    63,
+    "momentum",
+    "H",
+    null,
+    null,
+    null,
+    "🔑 Del Piero tabela com Gayà e parte nas costas de Hummels..."
+   ],
+   [
+    63,
+    "goal",
+    "H",
+    "H10",
+    "A2",
+    "H7",
+    "⚽ GOL! De Rossi enxerga Del Piero nas costas de Hummels — finalização precisa! 1-2"
+   ],
+   [
+    64,
+    "foul",
+    "H",
+    "H7",
+    "A6",
+    null,
+    "🦶 Falta de De Rossi em Archie Gray. O árbitro marca."
+   ],
+   [
+    64,
+    "momentum",
+    "A",
+    "A5",
+    null,
+    null,
+    "🎯 Fora 1037 com a bola, tentando administrar a vantagem de 1-2."
+   ],
+   [
+    68,
+    "foul",
+    "A",
+    "A7",
+    "H10",
+    null,
+    "✋ Valverde chega atrasado e derruba Del Piero — falta perigosa!"
+   ],
+   [
+    68,
     "corner",
     "H",
     null,
@@ -33606,7 +33804,7 @@
     "🚩 Escanteio para Casa 1037."
    ],
    [
-    37,
+    68,
     "stat",
     "H",
     null,
@@ -33615,310 +33813,76 @@
     "📊 Finalização adicional desviada."
    ],
    [
-    38,
+    68,
     "momentum",
     "H",
+    "H4",
     null,
     null,
-    null,
-    "🎯 Lançamento por cima da defesa — Pléa domina dentro da área..."
+    "🔄 Recomeço após o gol. Fora 1037 tenta reorganizar o ataque rapidamente."
    ],
    [
-    38,
-    "goal",
-    "H",
-    "H9",
-    "A6",
-    "H7",
-    "⚽ GOL! De Rossi enxerga Pléa nas costas de Archie Gray — finalização precisa! 3-0"
-   ],
-   [
-    39,
-    "momentum",
-    "A",
-    "A7",
-    null,
-    null,
-    "🎯 Fora 1037 com a bola, tentando administrar a vantagem de 3-0."
-   ],
-   [
-    40,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    43,
+    69,
     "foul",
     "H",
-    "H7",
-    "A9",
+    "H2",
+    "A5",
     null,
-    "⚠️ De Rossi para Barcola na infração. Bola parada na entrada da área."
+    "🦶 Falta de Tobias Figueiredo em Camavinga. O árbitro marca."
    ],
    [
-    45,
+    69,
+    "yellow",
+    "H",
+    "H2",
+    null,
+    null,
+    "🟨 Tobias Figueiredo derruba o adversário em velocidade e leva o amarelo!"
+   ],
+   [
+    69,
     "stat",
     "A",
     null,
     null,
     null,
-    "📊 Finalização adicional para fora."
+    "📊 Finalização adicional defendida."
    ],
    [
-    45,
+    70,
+    "stat",
+    "A",
+    null,
+    null,
+    null,
+    "📊 Finalização adicional defendida."
+   ],
+   [
+    70,
     "momentum",
     "A",
     null,
     null,
     null,
-    "🎯 Lance de ruptura — Barcola recebe cara a cara com o goleiro..."
+    "🎯 Lance de ruptura — Downing recebe cara a cara com o goleiro..."
    ],
    [
-    45,
-    "corner",
-    "A",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Fora 1037."
-   ],
-   [
-    45,
-    "save",
+    70,
+    "duel",
     "H",
-    "H0",
-    "A9",
+    "H1",
+    "A8",
     null,
-    "🧤 Barcola domina e bate — Begović cai no ângulo e salva com a ponta dos dedos! Escanteio!"
+    "🛡️ Mosquera retorna em velocidade e corta o passe profundo antes de Downing!"
    ],
    [
-    47,
+    71,
     "foul",
     "H",
     "H5",
-    "A6",
+    "A10",
     null,
-    "⚠️ Zieliński para Archie Gray na infração. Bola parada na entrada da área."
-   ],
-   [
-    47,
-    "corner",
-    "A",
-    null,
-    null,
-    null,
-    "🚩 Escanteio para Fora 1037."
-   ],
-   [
-    47,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional desviada."
-   ],
-   [
-    49,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
-   ],
-   [
-    50,
-    "foul",
-    "H",
-    "H6",
-    "A2",
-    null,
-    "✋ Pablo Maia chega atrasado e derruba Hummels — falta perigosa!"
-   ],
-   [
-    50,
-    "momentum",
-    "H",
-    "H7",
-    null,
-    null,
-    "🚩 Casa 1037 cobra o escanteio — a zaga se prepara para afastar..."
-   ],
-   [
-    53,
-    "momentum",
-    "A",
-    null,
-    null,
-    null,
-    "🔭 A defesa recua e dá espaço para Downing armar de longe..."
-   ],
-   [
-    53,
-    "duel",
-    "H",
-    "H1",
-    "A8",
-    null,
-    "🛡️ Pressão de Mosquera! Fechou o espaço e Downing não conseguiu bater!"
-   ],
-   [
-    54,
-    "foul",
-    "H",
-    "H2",
-    "A4",
-    null,
-    "✋ Tobias Figueiredo chega atrasado e derruba Pablo Dyego — falta perigosa!"
-   ],
-   [
-    56,
-    "foul",
-    "A",
-    "A6",
-    "H1",
-    null,
-    "🦶 Falta de Archie Gray em Mosquera. O árbitro marca."
-   ],
-   [
-    56,
-    "momentum",
-    "A",
-    "A5",
-    null,
-    null,
-    "⚡ Posse recuperada! Fora 1037 tenta sair rápido em transição."
-   ],
-   [
-    57,
-    "foul",
-    "A",
-    "A6",
-    "H2",
-    null,
-    "🤙 Tobias Figueiredo sofre a falta de Archie Gray em ótima posição para a cobrança."
-   ],
-   [
-    58,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    59,
-    "stat",
-    "A",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional defendida."
-   ],
-   [
-    59,
-    "momentum",
-    "A",
-    null,
-    null,
-    null,
-    "💨 Barcola conduz no campo aberto com a defesa correndo atrás..."
-   ],
-   [
-    59,
-    "duel",
-    "H",
-    "H1",
-    "A9",
-    null,
-    "🛡️ Desarme providencial de Mosquera — encerrou o perigo do contra-ataque!"
-   ],
-   [
-    61,
-    "foul",
-    "H",
-    "H4",
-    "A5",
-    null,
-    "⚠️ Gayà para Camavinga na infração. Bola parada na entrada da área."
-   ],
-   [
-    62,
-    "momentum",
-    "H",
-    "H8",
-    null,
-    null,
-    "🏃 Casa 1037 constrói pelo lado após ganhar a bola no meio."
-   ],
-   [
-    63,
-    "foul",
-    "A",
-    "A3",
-    "H10",
-    null,
-    "⚠️ Thuram para Del Piero na infração. Bola parada na entrada da área."
-   ],
-   [
-    63,
-    "momentum",
-    "H",
-    null,
-    null,
-    null,
-    "🔭 Del Piero com espaço a 25 metros — vai arriscar?"
-   ],
-   [
-    63,
-    "miss",
-    "H",
-    "H10",
-    null,
-    null,
-    "❌ Chutão de Del Piero a 25 metros — bola passa à direita do gol!"
-   ],
-   [
-    64,
-    "foul",
-    "H",
-    "H4",
-    "A5",
-    null,
-    "🦶 Falta de Gayà em Camavinga. O árbitro marca."
-   ],
-   [
-    66,
-    "momentum",
-    "A",
-    "A5",
-    null,
-    null,
-    "🔄 Bola sai pelo fundo — reposição longa do goleiro abre o jogo."
-   ],
-   [
-    70,
-    "momentum",
-    "A",
-    null,
-    null,
-    null,
-    "↗️ Chiesa avança pela ponta e levanta a bola na área para Downing..."
-   ],
-   [
-    70,
-    "duel",
-    "H",
-    "H2",
-    "A8",
-    null,
-    "🛡️ Tobias Figueiredo vence o duelo aéreo com Downing e afasta de cabeça!"
+    "🤙 Chiesa sofre a falta de Zieliński em ótima posição para a cobrança."
    ],
    [
     71,
@@ -34157,16 +34121,16 @@
    [
     89,
     "corner",
-    "H",
+    "A",
     null,
     null,
     null,
-    "🚩 Escanteio para Casa 1037."
+    "🚩 Escanteio para Fora 1037."
    ],
    [
     89,
     "stat",
-    "H",
+    "A",
     null,
     null,
     null,
@@ -34549,65 +34513,65 @@
    [
     52,
     "momentum",
-    "H",
+    "A",
     null,
     null,
     null,
-    "💨 Sancho conduz no campo aberto com a defesa correndo atrás..."
+    "💨 Davies conduz no campo aberto com a defesa correndo atrás..."
    ],
    [
     52,
-    "miss",
+    "duel",
     "H",
-    "H8",
+    "H1",
+    "A8",
     null,
-    null,
-    "❌ Contra-ataque desperdiçado! Sancho tinha mais tempo mas bateu fora!"
+    "🛡️ Contra-ataque anulado! Guilherme Santos retorna em velocidade e recupera de Davies!"
    ],
    [
     53,
     "foul",
     "A",
-    "A1",
-    "H7",
+    "A4",
+    "H6",
     null,
-    "⚠️ Tobias Figueiredo para Sabitzer na infração. Bola parada na entrada da área."
-   ],
-   [
-    53,
-    "stat",
-    "H",
-    null,
-    null,
-    null,
-    "📊 Finalização adicional para fora."
+    "🦶 Falta de Nasri em Gabriel Pires. O árbitro marca."
    ],
    [
     54,
-    "stat",
+    "momentum",
     "H",
+    "H5",
     null,
     null,
-    null,
-    "📊 Finalização adicional defendida."
+    "⚡ Posse recuperada! Casa 1038 tenta sair rápido em transição."
    ],
    [
     55,
     "foul",
     "H",
-    "H3",
-    "A4",
+    "H5",
+    "A2",
     null,
-    "🦶 Falta de Ednei em Nasri. O árbitro marca."
+    "✋ Ganso chega atrasado e derruba Aké — falta perigosa!"
    ],
    [
     56,
     "foul",
     "A",
-    "A2",
-    "H6",
+    "A3",
+    "H2",
     null,
-    "🦶 Falta de Aké em Gabriel Pires. O árbitro marca."
+    "⚠️ Kimpembe para Léo na infração. Bola parada na entrada da área."
+   ],
+   [
+    56,
+    "yellow",
+    "A",
+    "A3",
+    null,
+    null,
+    "🟨 Trava alta de Kimpembe! O árbitro mostra o amarelo na hora!"
    ],
    [
     60,

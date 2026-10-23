@@ -1166,14 +1166,20 @@ body.home-menu-scroll-lock {
   .ui-tabs--side > .ui-tab[data-state="active"] { box-shadow: inset 3px 0 0 var(--ui-brand); }
 }
 
-/* Keep standings readable on narrow screens without horizontal scrolling. */
+/* Keep every standings column visible on narrow screens without horizontal scrolling. */
 .competition-report-standing-grid {
   grid-template-columns: 1.5rem minmax(0, 1fr) 1.8rem 1.8rem 1.8rem 1.8rem 2.4rem 1.8rem 2.4rem;
 }
 
 @media (max-width: 639px) {
   .competition-report-standing-grid {
-    grid-template-columns: 1.5rem minmax(0, 1fr) 1.8rem 2.4rem;
+    grid-template-columns: 1rem minmax(0, 1fr) repeat(4, 1.15rem) repeat(2, 1.6rem) 2rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .competition-report-standing-grid {
+    grid-template-columns: 0.9rem minmax(0, 1fr) repeat(4, 1.05rem) repeat(2, 1.45rem) 1.9rem;
   }
 }
 
