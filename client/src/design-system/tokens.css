@@ -1172,13 +1172,13 @@ body.home-menu-scroll-lock {
 }
 
 @media (max-width: 639px) {
-  .competition-report-standing-grid {
+  .competition-standings-table .competition-report-standing-grid {
     grid-template-columns: 1rem minmax(0, 1fr) repeat(4, 1.15rem) repeat(2, 1.6rem) 2rem;
   }
 }
 
 @media (max-width: 380px) {
-  .competition-report-standing-grid {
+  .competition-standings-table .competition-report-standing-grid {
     grid-template-columns: 0.9rem minmax(0, 1fr) repeat(4, 1.05rem) repeat(2, 1.45rem) 1.9rem;
   }
 }

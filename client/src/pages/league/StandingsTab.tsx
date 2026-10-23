@@ -12,7 +12,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
   } = hub;
   const visible = placement === 'aside' ? hasLeagueClassification && !isKnockout : showingLeagueClassification;
   return (
-    <div className={placement === 'tab' ? 'competition-live-reading' : undefined}>
+    <div className={placement === 'tab' ? 'competition-live-reading competition-standings-table' : undefined}>
         {/* League/group classification remains available as a historical view during knockout. */}
         {visible && !isKnockout && spoilerLock && (
           <SpoilerLock waiting={spoilerWaiting} label="CLASSIFICAÇÃO OCULTA" />
