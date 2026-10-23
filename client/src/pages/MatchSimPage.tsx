@@ -356,6 +356,9 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           setAwayScore(s => s + rg.awayGoalDelta);
           setEvents(prev => [...prev, ...rg.goalEvents]);
           if (rg.goalAlert) {
+            // The goal splash covers the pitch, so reset the live scene now. When
+            // the message leaves, the viewer should already be back at kickoff.
+            pitchDirector.endDanger(sideOfTeamId(rg.goalAlert.teamId));
             showGoalAlert(rg.goalAlert, broadcastMode
               ? GOAL_CELEBRATION_MS.online
               : goalFavoursViewer(rg.goalAlert.teamId) ? GOAL_CELEBRATION_MS.mine : GOAL_CELEBRATION_MS.against);
@@ -376,7 +379,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
         return;
       }
       if (dangerState.red) pitchDirector.endRedCard();
-      else pitchDirector.endDanger(dangerState.goalSide);
+      else if (pitchDirector.getSnapshot().mode === 'danger') pitchDirector.endDanger(dangerState.goalSide);
       setDangerState(null);
       pendingReplayGoals.current = null;
       setIsPlaying(true); // Resume the replay clock

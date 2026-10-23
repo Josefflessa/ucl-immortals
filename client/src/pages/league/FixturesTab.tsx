@@ -185,7 +185,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                   </div>
 
                   {/* Score / VS */}
-                  <div className="w-20 shrink-0 text-center flex flex-col items-center justify-center sm:w-28 lg:w-24">
+                  <div className="w-24 shrink-0 text-center flex flex-col items-center justify-center sm:w-28 lg:w-24">
                     {fixture.played && fixture.result && !hideRoundScore ? (
                       <>
                         <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
@@ -193,7 +193,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                         </span>
                         {fixture.result.playerStats && (
                           <button onClick={() => openMatchDetails({ ...fixture.result!, round: fixture.round }, { isKnockout: false, isFinal: false })}
-                            className="mt-1 h-7 min-h-0 px-2 py-0.5 rounded-md text-[12px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
+                            className="mt-1 inline-flex h-7 min-h-0 min-w-[92px] shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[12px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                             style={{ background: 'var(--ui-surface-2)', border: '1px solid var(--ui-line)', color: '#9AA8C8', fontFamily: 'var(--font-game), sans-serif' }}>
                             <Search {...INLINE_ICON} />Detalhes
                           </button>

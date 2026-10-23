@@ -209,11 +209,11 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                               RODADA {fixture.round}
                             </div>
                             <div className="flex items-center justify-between gap-2">
-                            <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
-                              <span className="min-w-0 whitespace-normal break-words text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: fixture.homeTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{homeName}</span>
+                            <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+                              <span className="min-w-0 flex-1 whitespace-normal break-words text-right text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: fixture.homeTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{homeName}</span>
                               <Crest crestId={allTeams.find(t => t.id === fixture.homeTeamId)?.crestId} name={homeName} size={22} />
                             </div>
-                              <div className="flex w-28 flex-col items-center justify-center text-center md:w-32">
+                              <div className="flex w-24 shrink-0 flex-col items-center justify-center text-center sm:w-28 md:w-32">
                               {fixture.played && fixture.result && !roundHidden ? (
                                 <>
                                   <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
@@ -233,9 +233,9 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                                 <span className="text-xs font-bold text-gray-600" style={{ fontFamily: 'var(--font-game), sans-serif' }}>—</span>
                               )}
                             </div>
-                            <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
+                            <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5">
                               <Crest crestId={allTeams.find(t => t.id === fixture.awayTeamId)?.crestId} name={awayName} size={22} />
-                              <span className="min-w-0 whitespace-normal break-words text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: fixture.awayTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{awayName}</span>
+                              <span className="min-w-0 flex-1 whitespace-normal break-words text-left text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: fixture.awayTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{awayName}</span>
                             </div>
                             </div>
                           </div>
@@ -275,16 +275,16 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                             </div>
                             {!singleLeg && tie.result && !koRoundHidden && (
                             <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2">
-                              <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
-                                <span className="min-w-0 whitespace-normal break-words text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: tie.homeTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{homeName}</span>
+                              <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+                                <span className="min-w-0 flex-1 whitespace-normal break-words text-right text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: tie.homeTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{homeName}</span>
                                 <Crest crestId={allTeams.find(t => t.id === tie.homeTeamId)?.crestId} name={homeName} size={22} />
                               </div>
                               <div className="text-center">
                                 <span className="text-xl font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{tie.result.homeGoals} - {tie.result.awayGoals}</span>
                               </div>
-                              <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
+                              <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5">
                                 <Crest crestId={allTeams.find(t => t.id === tie.awayTeamId)?.crestId} name={awayName} size={22} />
-                                <span className="min-w-0 whitespace-normal break-words text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: tie.awayTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{awayName}</span>
+                                <span className="min-w-0 flex-1 whitespace-normal break-words text-left text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: tie.awayTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{awayName}</span>
                               </div>
                             </div>
                             )}
@@ -301,11 +301,11 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                                         {phase} · {label}
                                       </div>
                                       <div className="flex items-center justify-between gap-2">
-                                        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-                                          <span className="min-w-0 whitespace-normal break-words text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: legHomeId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{legHomeName}</span>
+                                        <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+                                          <span className="min-w-0 flex-1 whitespace-normal break-words text-right text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: legHomeId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{legHomeName}</span>
                                           <Crest crestId={allTeams.find(t => t.id === legHomeId)?.crestId} name={legHomeName} size={20} />
                                         </div>
-                                        <div className="flex w-28 shrink-0 flex-col items-center justify-center gap-1 sm:w-32">
+                                        <div className="flex w-24 shrink-0 flex-col items-center justify-center gap-1 sm:w-28 md:w-32">
                                           {koRoundHidden ? (
                                             <span className="text-xs text-gray-600"><Lock size="1em" strokeWidth={2.5} aria-label="Resultado oculto" className="inline-block" /></span>
                                           ) : (
@@ -318,9 +318,9 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                                             </button>
                                           )}
                                         </div>
-                                        <div className="flex min-w-0 flex-1 items-center justify-start gap-2">
+                                        <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5">
                                           <Crest crestId={allTeams.find(t => t.id === legAwayId)?.crestId} name={legAwayName} size={20} />
-                                          <span className="min-w-0 whitespace-normal break-words text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: legAwayId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{legAwayName}</span>
+                                          <span className="min-w-0 flex-1 whitespace-normal break-words text-left text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: legAwayId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{legAwayName}</span>
                                         </div>
                                       </div>
                                     </div>

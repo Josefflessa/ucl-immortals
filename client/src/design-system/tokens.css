@@ -1166,9 +1166,19 @@ body.home-menu-scroll-lock {
   .ui-tabs--side > .ui-tab[data-state="active"] { box-shadow: inset 3px 0 0 var(--ui-brand); }
 }
 
-/* The end-of-campaign review is primarily read on desktop. Give its reused
- * competition tables and result cards a comfortable reading scale while the
- * existing compact mobile layout remains untouched. */
+/* Keep standings readable on narrow screens without horizontal scrolling. */
+.competition-report-standing-grid {
+  grid-template-columns: 1.5rem minmax(0, 1fr) 1.8rem 1.8rem 1.8rem 1.8rem 2.4rem 1.8rem 2.4rem;
+}
+
+@media (max-width: 639px) {
+  .competition-report-standing-grid {
+    grid-template-columns: 1.5rem minmax(0, 1fr) 1.8rem 2.4rem;
+  }
+}
+
+/* The end-of-campaign review reuses these components. Match the live
+ * competition's larger desktop reading scale there. */
 @media (min-width: 900px) {
   :is(.competition-report-review, .competition-live-reading) [class~="text-[12px]"],
   :is(.competition-report-review, .competition-live-reading) [class~="text-xs"] { font-size: 16px !important; line-height: 1.35 !important; }

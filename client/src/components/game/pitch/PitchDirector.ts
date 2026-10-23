@@ -291,12 +291,17 @@ export class PitchDirector {
     }
   }
 
-  /** Back to the radio view: the players leave and the ball glides to where play restarts. */
+  /** Back to the radio view: a goal resets to kickoff; other chances return to the keeper. */
   endDanger(goalScoredBy: Side | null): void {
     this.sample();
-    const zone: Zone = goalScoredBy
-      ? { side: otherSide(goalScoredBy), third: 1 } // kick-off on the centre spot
+    const kickoffSide = goalScoredBy ? otherSide(goalScoredBy) : null;
+    const zone: Zone = kickoffSide
+      ? { side: kickoffSide, third: 1 } // kick-off on the centre spot
       : { side: otherSide(this.lastAttackSide), third: 0 }; // the keeper restarts
+    // A goal ends the chance and returns play to a clean kick-off layout at once.
+    // Keeping the final shot positions here made the action appear to linger after
+    // the goal message had already disappeared.
+    if (kickoffSide) this.pos.set(kickoffPositions(this.sides, kickoffSide));
     this.startZone(zone);
     this.emit({ mode: 'flow', zone, cast: [], focus: null, threat: null, touches: [], timing: DEFAULT_TIMING, epic: false, referee: false });
   }

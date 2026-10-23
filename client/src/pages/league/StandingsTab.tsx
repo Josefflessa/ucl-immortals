@@ -19,7 +19,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
         )}
         {visible && (isKnockout || !spoilerLock) && (
           <div
-            className="rounded-xl overflow-hidden overflow-x-auto"
+            className="rounded-xl overflow-hidden"
             style={{ border: '1px solid var(--ui-surface-3)' }}
           >
             {hasGroupStage ? (
@@ -44,8 +44,8 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                   {groupTables.map(group => {
                     const groupLabel = String.fromCharCode(65 + group.groupId);
                     return (
-                      <div key={group.groupId} className="overflow-x-auto rounded-xl" style={{ border: '1px solid var(--ui-surface-3)', background: '#0A0A14' }}>
-                        <div className="flex min-w-[420px] items-center justify-between border-b px-3 py-2.5 sm:px-4" style={{ borderColor: 'var(--ui-surface-3)', background: 'var(--ui-surface-1)' }}>
+                      <div key={group.groupId} className="overflow-hidden rounded-xl" style={{ border: '1px solid var(--ui-surface-3)', background: '#0A0A14' }}>
+                        <div className="flex items-center justify-between gap-2 border-b px-3 py-2.5 sm:px-4" style={{ borderColor: 'var(--ui-surface-3)', background: 'var(--ui-surface-1)' }}>
                           <span className="text-sm font-black tracking-widest" style={{ color: group.groupId === playerGroup?.groupId ? 'var(--ui-brand-strong)' : '#FFFFFF', fontFamily: 'var(--font-game), sans-serif' }}>
                             GRUPO {groupLabel}
                           </span>
@@ -53,9 +53,9 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                             {state.competitionFormat.qualifiedPerGroup} avançam
                           </span>
                         </div>
-                        <div className="competition-report-standing-grid grid min-w-[420px] gap-0 px-3 py-2 sm:px-4" style={{ gridTemplateColumns: '1.5rem 1fr 1.8rem 1.8rem 1.8rem 1.8rem 2.4rem 1.8rem 2.4rem', borderBottom: '1px solid var(--ui-surface-3)' }}>
-                          {['#', 'Time', 'J', 'V', 'E', 'D', 'GP', 'GC', 'PTS'].map(h => (
-                            <div key={`${group.groupId}-${h}`} className="text-center text-[12px] font-bold" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                        <div className="competition-report-standing-grid grid gap-0 border-b px-3 py-2 sm:px-4" style={{ borderColor: 'var(--ui-surface-3)' }}>
+                          {['#', 'Time', 'J', 'V', 'E', 'D', 'GP', 'GC', 'PTS'].map((h, hi) => (
+                            <div key={`${group.groupId}-${h}`} className={`text-center text-[12px] font-bold ${hi >= 3 && hi <= 7 ? 'hidden sm:block' : ''}`} style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                               {h}
                             </div>
                           ))}
@@ -67,9 +67,8 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                           return (
                             <div
                               key={entry.teamId}
-                              className="competition-report-standing-grid grid min-w-[420px] items-center gap-0 px-3 py-2 sm:px-4 sm:py-2.5"
+                              className="competition-report-standing-grid grid items-center gap-0 px-3 py-2 sm:px-4 sm:py-2.5"
                               style={{
-                                gridTemplateColumns: '1.5rem 1fr 1.8rem 1.8rem 1.8rem 1.8rem 2.4rem 1.8rem 2.4rem',
                                 background: isPlayer ? 'var(--ui-surface-2)' : i % 2 === 0 ? '#0A0A14' : 'var(--ui-bg)',
                                 borderBottom: '1px solid var(--ui-surface-3)',
                                 borderLeft: isPlayer ? '3px solid var(--ui-brand)' : '3px solid transparent',
@@ -88,7 +87,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                                 </span>
                               </div>
                               {[entry.played, entry.won, entry.drawn, entry.lost, entry.goalsFor, entry.goalsAgainst].map((val, vi) => (
-                                <div key={vi} className="text-center text-[12px] sm:text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
+                                <div key={vi} className={`text-center text-[12px] sm:text-xs ${vi > 0 ? 'hidden sm:block' : ''}`} style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                                   {val}
                                 </div>
                               ))}
@@ -104,16 +103,15 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                 </div>
               </div>
             ) : (
-            <div style={{ minWidth: '420px' }}>
+            <>
             {/* Table header */}
             <div className="competition-report-standing-grid grid gap-0 px-3 sm:px-4 py-2"
               style={{
-                gridTemplateColumns: '1.5rem 1fr 1.8rem 1.8rem 1.8rem 1.8rem 2.4rem 1.8rem 2.4rem',
                 background: 'var(--ui-surface-1)',
                 borderBottom: '1px solid var(--ui-surface-3)',
               }}>
-              {['#', 'Time', 'J', 'V', 'E', 'D', 'GP', 'GC', 'PTS'].map(h => (
-                <div key={h} className="text-[12px] sm:text-xs font-bold text-center"
+              {['#', 'Time', 'J', 'V', 'E', 'D', 'GP', 'GC', 'PTS'].map((h, hi) => (
+                <div key={h} className={`text-[12px] sm:text-xs font-bold text-center ${hi >= 3 && hi <= 7 ? 'hidden sm:block' : ''}`}
                   style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                   {h}
                 </div>
@@ -133,7 +131,6 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                   key={entry.teamId}
                   className="competition-report-standing-grid grid gap-0 px-3 sm:px-4 py-2 sm:py-2.5 items-center"
                   style={{
-                    gridTemplateColumns: '1.5rem 1fr 1.8rem 1.8rem 1.8rem 1.8rem 2.4rem 1.8rem 2.4rem',
                     background: isPlayer
                       ? 'var(--ui-surface-2)'
                       : i % 2 === 0 ? '#0A0A14' : 'var(--ui-bg)',
@@ -166,7 +163,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                     </span>
                   </div>
                   {[entry.played, entry.won, entry.drawn, entry.lost, entry.goalsFor, entry.goalsAgainst].map((val, vi) => (
-                    <div key={vi} className="text-center text-[12px] sm:text-xs"
+                    <div key={vi} className={`text-center text-[12px] sm:text-xs ${vi > 0 ? 'hidden sm:block' : ''}`}
                       style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                       {val}
                     </div>
@@ -178,7 +175,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                 </div>
               );
             })}
-            </div>
+            </>
             )}
           </div>
         )}
