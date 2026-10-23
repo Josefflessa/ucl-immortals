@@ -25,10 +25,10 @@ export default function MissionResolutionModal({ resolution, onClose, missionsPr
       ? expired.length === 1 ? 'MISSÃO EXPIRADA' : 'MISSÕES EXPIRADAS'
       : 'RESULTADO DAS MISSÕES';
   const subtitle = onlyCompleted
-    ? 'Você concluiu as missões que estavam no seu mural.'
+    ? 'Você concluiu suas missões ativas.'
     : onlyExpired
-      ? 'O prazo terminou e as missões do seu mural foram encerradas sem recompensa.'
-      : 'A partida concluiu algumas missões do seu mural; outras expiraram sem recompensa.';
+      ? 'O prazo das suas missões ativas terminou, sem recompensa.'
+      : 'A partida concluiu algumas das suas missões ativas; outras expiraram sem recompensa.';
 
   return (
     <GameModal

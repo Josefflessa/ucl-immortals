@@ -13,7 +13,7 @@ import { COMPETITION_FINISH_STAGES, competitionCoinReward, competitionStagePoint
 import DifficultyEmblem from '../components/game/DifficultyEmblem';
 import { CoinAmount, ItemArt } from '../components/album/AlbumPieces';
 import { cn } from '../lib/utils';
-import { AppShell, Button, ChoiceCard, FixedActionBar, GameModal, PageContainer, SectionHeader, TopBar } from '../design-system';
+import { AppShell, Button, ChoiceCard, ChoiceCheck, FixedActionBar, GameModal, IconButton, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 const FINISH_STAGE_LABELS: Record<CompetitionFinishStage, string> = {
   champion: 'Campeão',
@@ -95,12 +95,12 @@ export default function SetupPage() {
           {/* Title */}
           <SectionHeader
             title="Escolha a dificuldade"
-            description={isOnlineRoomCreation ? 'Define a força dos bots que completarão a competição da sala.' : 'Define a força dos times controlados pela IA na competição.'}
+            description={isOnlineRoomCreation ? 'Define a força dos bots que completam a sala. Eles ficam mais fortes conforme a competição avança.' : 'Define a força dos bots. Eles ficam mais fortes conforme a competição avança.'}
             className="mb-8"
           />
 
           {/* Difficulty grid */}
-          <div className="ui-stack">
+          <div className="flex flex-col gap-3">
             {DIFFICULTY_LEVELS.map(diff => {
               const isSelected = state.difficulty === diff.id;
               const color = getRarityColor(diff.id as Rarity);
@@ -111,35 +111,32 @@ export default function SetupPage() {
                     selected={isSelected}
                     onClick={() => handleDifficultyClick(diff.id)}
                     title="Clique duas vezes para escolher e continuar"
-                    className={cn('ui-choice flex w-full items-center gap-3.5 px-4 py-3.5', canViewDifficultyRewards ? 'pr-14' : 'pr-4')}
+                    className={cn('flex w-full items-center gap-3.5 px-4 py-3.5', canViewDifficultyRewards ? 'pr-16' : 'pr-4')}
                     style={{
                       background: isSelected ? `${color}14` : undefined,
-                      border: `1.5px solid ${isSelected ? color : '#1A1A2A'}`,
+                      borderColor: isSelected ? color : undefined,
                       boxShadow: isSelected ? `0 0 0 1px ${color}22` : 'none',
                     }}
                   >
-                    <DifficultyEmblem difficulty={diff.id} size={72} className={cn('-my-2 transition-transform', isSelected && 'scale-105')} />
+                    <DifficultyEmblem difficulty={diff.id} size={72} className={cn('-my-2 shrink-0 transition-transform', isSelected && 'scale-105')} />
                     <div className="min-w-0 flex-1">
-                      <span className="font-black tracking-wider" style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 20, color: isSelected ? color : '#FFFFFF' }}>
-                        {diff.name.toUpperCase()}
-                      </span>
-                    </div>
-                    {isSelected ? (
-                      <div className={cn('flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full', !canViewDifficultyRewards && 'absolute right-2 top-1/2 -translate-y-1/2')} style={{ background: color, color: 'var(--ui-bg)', fontSize: 13, fontWeight: 900 }} aria-hidden="true">
-                        ✓
+                      <div className="flex items-center gap-2">
+                        <span className="font-display text-title uppercase leading-none tracking-caps" style={{ color: isSelected ? color : 'var(--ui-text)' }}>
+                          {diff.name}
+                        </span>
+                        {isSelected ? <ChoiceCheck size="small" color={color} /> : null}
                       </div>
-                    ) : null}
+                      <p className="mt-1 text-body-sm leading-ui-snug text-[var(--ui-text-muted)] text-pretty">{diff.description}</p>
+                    </div>
                   </ChoiceCard>
                   {canViewDifficultyRewards ? (
-                    <button
-                      type="button"
-                      aria-label={`Ver recompensas de ${diff.name}`}
-                      title={`Recompensas de ${diff.name}`}
+                    <IconButton
+                      label={`Ver recompensas de ${diff.name}`}
                       onClick={() => setInfoDifficulty(diff.id as RankedDifficultyId)}
-                      className="absolute right-2 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-strong)]"
+                      className="absolute right-3 top-1/2 -translate-y-1/2"
                     >
                       <Info size={18} aria-hidden="true" />
-                    </button>
+                    </IconButton>
                   ) : null}
                 </div>
               );

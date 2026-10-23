@@ -146,19 +146,19 @@ export const DEFAULT_COMPETITION_FORMAT: CompetitionFormat = LEAGUE_KNOCKOUT_DEF
 
 export const COMPETITION_FORMAT_PRESETS: Record<CompetitionFormatId, CompetitionFormatPreset> = {
   league: {
-    id: 'league', name: 'Pontos corridos', shortDescription: 'Todos contra todos em ida e volta.',
-    description: 'Uma liga completa, decidida pela tabela, com mando de campo invertido no returno. Não existe mata-mata.', icon: '🏟️', format: LEAGUE_DEFAULT,
+    id: 'league', name: 'Pontos corridos', shortDescription: 'Todos contra todos. Campeão pela tabela.',
+    description: 'Uma liga completa, decidida pela tabela. Em ida e volta, o mando se inverte no returno. Não existe mata-mata.', icon: '🏟️', format: LEAGUE_DEFAULT,
   },
   league_knockout: {
-    id: 'league_knockout', name: 'Liga + mata-mata', shortDescription: 'A experiência atual do UCL Immortals.',
+    id: 'league_knockout', name: 'Liga + mata-mata', shortDescription: 'Fase de liga e depois mata-mata até a final.',
     description: 'Fase de liga, playoff quando necessário, oitavas, quartas, semis e final.', icon: '🏆', format: LEAGUE_KNOCKOUT_DEFAULT,
   },
   groups_knockout: {
-    id: 'groups_knockout', name: 'Grupos + mata-mata', shortDescription: 'Grupos de quatro no estilo Copa do Mundo.',
+    id: 'groups_knockout', name: 'Grupos + mata-mata', shortDescription: 'Fase de grupos e depois mata-mata, estilo Copa do Mundo.',
     description: 'Times divididos em grupos, com classificados avançando para o mata-mata.', icon: '🌐', format: GROUPS_KNOCKOUT_DEFAULT,
   },
   knockout: {
-    id: 'knockout', name: 'Mata-mata direto', shortDescription: 'Eliminação desde a primeira partida.',
+    id: 'knockout', name: 'Mata-mata direto', shortDescription: 'Eliminação desde a primeira fase.',
     description: 'Sem tabela de liga: cada confronto vale a permanência no torneio.', icon: '⚔️', format: KNOCKOUT_DEFAULT,
   },
 };

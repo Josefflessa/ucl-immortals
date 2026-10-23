@@ -99,7 +99,7 @@ export default function CompetitionExitControl() {
         onOpenChange={open => { if (!open) setTransferTarget(null); }}
         title="Transferir anfitrião?"
         description={`A partir de agora, ${transferTarget?.name ?? 'esse jogador'} controlará o início, reinício e encerramento da sala.`}
-        confirmLabel="Transferir host"
+        confirmLabel="Transferir anfitrião"
         intent="primary"
         onConfirm={() => {
           if (transferTarget) transferHostOnline(transferTarget.id);

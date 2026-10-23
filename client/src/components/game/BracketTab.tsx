@@ -130,7 +130,7 @@ export default function BracketTab({ reviewMode = false }: { reviewMode?: boolea
       <div className="mb-3 text-sm leading-relaxed text-[var(--ui-text-muted)]">
         {reviewMode
           ? <>Veja os confrontos e quem avançou em cada fase. Seu time aparece em <span style={{ color: 'var(--ui-brand)' }}>dourado</span>.</>
-          : <>Caminho até o título — seu time em <span style={{ color: 'var(--ui-brand)' }}>dourado</span>. O placar da fase em andamento aparece depois que os replays forem assistidos.</>}
+          : <>Caminho até o título — seu time em <span style={{ color: 'var(--ui-brand)' }}>dourado</span>. O placar da fase em andamento aparece depois que todos assistirem às partidas.</>}
       </div>
       <div className="overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">
         <div className="flex gap-3 min-w-max lg:mx-auto">
@@ -148,9 +148,9 @@ export default function BracketTab({ reviewMode = false }: { reviewMode?: boolea
                 <div className="ui-badge w-full justify-center"
                   style={{
                     fontFamily: 'var(--font-game), sans-serif',
-                    background: status === 'active' ? '#C9A84C' : '#0F0F1A',
-                    color: status === 'active' ? '#080810' : status === 'done' ? '#6A6A7A' : '#44445A',
-                    border: `1px solid ${status === 'active' ? '#C9A84C' : '#1A1A2A'}`,
+                    background: status === 'active' ? 'var(--ui-brand)' : 'var(--ui-surface-1)',
+                    color: status === 'active' ? '#080810' : status === 'done' ? 'var(--ui-text-faint)' : '#44445A',
+                    border: `1px solid ${status === 'active' ? 'var(--ui-brand)' : 'var(--ui-surface-3)'}`,
                   }}>
                   {knockoutRoundLabel(key, firstRoundSize)}
                 </div>

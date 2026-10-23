@@ -607,7 +607,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
       {!hideTopBar ? <TopBar
-        title={historyEntry ? undefined : partialReport ? 'UCL IMMORTALS — RESUMO PARCIAL' : 'UCL IMMORTALS — FIM DE TEMPORADA'}
+        title={historyEntry ? undefined : partialReport ? 'UCL IMMORTALS — RESUMO PARCIAL' : 'UCL IMMORTALS — FIM DA COMPETIÇÃO'}
       /> : null}
 
       {!historyEntry && account && state.mode === 'solo' && games > 0 && historySaveStatus !== 'idle' && (
@@ -846,7 +846,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
               {[
                 { l: 'SALDO DE GOLS', v: `${goalDiff > 0 ? '+' : ''}${goalDiff}`, c: goalDiff >= 0 ? '#22C55E' : '#EF4444' },
                 { l: 'APROVEITAMENTO', v: `${aproveitamento}%`, c: '#22C55E' },
-                { l: 'JOGOS S/ SOFRER', v: `${cleanSheets}`, c: '#3B82F6' },
+                { l: 'SEM SOFRER GOLS', v: `${cleanSheets}`, c: '#3B82F6' },
                 { l: 'MAIOR VITÓRIA', v: biggestWin ? `${biggestWin.gf}–${biggestWin.ga}` : '—', c: '#C9A84C' },
               ].map(m => (
                 <div key={m.l} className="px-4 py-3 border-r" style={{ borderColor: 'var(--ui-surface-3)' }}>
@@ -865,7 +865,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
           >
             <div className="px-5 py-3 border-b" style={{ borderColor: 'var(--ui-surface-3)' }}>
-              <span className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>DESTAQUES DA TEMPORADA</span>
+              <span className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>DESTAQUES DA COMPETIÇÃO</span>
             </div>
             <div className="divide-y" style={{ borderColor: 'var(--ui-surface-3)' }}>
               {seasonHighlights.map(highlight => (
@@ -966,7 +966,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                     return ([
                       { t: 'club' as const, l: 'Mesmo clube' },
                       { t: 'nation' as const, l: 'Mesma nação' },
-                      { t: 'coach' as const, l: 'Mesmo técnico' },
+                      { t: 'coach' as const, l: 'Mesmo treinador' },
                       { t: 'partner' as const, l: 'Dupla histórica' },
                     ]).map(({ t, l }) => {
                       const n = links.filter(lk => lk.type === t).length;

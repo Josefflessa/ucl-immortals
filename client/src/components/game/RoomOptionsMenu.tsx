@@ -168,7 +168,7 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
                     }}
                   >
                     <ArrowRightLeft size={15} className="text-[var(--ui-brand-strong)]" />
-                    TRANSFERIR HOST
+                    TRANSFERIR ANFITRIÃO
                   </button>
                   {showHostPicker && (
                     <div className="mb-1 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-1">

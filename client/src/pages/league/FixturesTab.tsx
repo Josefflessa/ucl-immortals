@@ -7,6 +7,9 @@ import type { LeagueHub } from './useLeagueHub';
 import { CardIcon, InjuryIcon } from '../../components/game/StatusIcon';
 import { Ban, Check, CircleCheck, CircleX, Crown, Hourglass, Lock, LogOut, Play, Search, Target, TriangleAlert, Trophy, Users } from 'lucide-react';
 import { INLINE_ICON } from '../../components/game/inlineIcon';
+import { Button } from '../../design-system';
+
+const GOLD_BUTTON = 'shadow-[0_0_25px_rgba(201,168,76,0.3)]';
 
 
 // Matches tab (league phase): round fixtures, absences banner, bet buttons and
@@ -68,8 +71,8 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
             style={contentBottomSpace}
           >
             <div className="flex justify-between items-center mb-1">
-              <span className="text-xs font-bold tracking-widest text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                {isGroupStage ? 'TODAS AS PARTIDAS DA RODADA' : 'PARTIDAS DA RODADA'}
+              <span className="ui-section-label">
+                {isGroupStage ? 'Todas as partidas da rodada' : 'Partidas da rodada'}
               </span>
             </div>
 
@@ -121,7 +124,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
               <div className="rounded-xl px-4 py-3 mb-1" style={{ background: '#241010', border: '1px solid #EF444488' }}>
                 <div className="text-[13px] font-black tracking-widest mb-1" style={{ color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}><Ban {...INLINE_ICON} />BANCO ACIMA DO LIMITE</div>
                 <div className="text-[12px] font-bold" style={{ color: '#E8C4C4', fontFamily: 'var(--font-game), sans-serif' }}>
-                  Seu banco tem {reserveCount}/{MAX_RESERVE_PLAYERS} reservas. Venda ou remova jogadores na aba MERCADO para liberar a partida.
+                  Seu banco tem {reserveCount}/{MAX_RESERVE_PLAYERS} reservas. Venda reservas na aba MERCADO para liberar a partida.
                 </div>
               </div>
             )}
@@ -135,12 +138,12 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
               return (
                 <section
                   key={groupId === null ? 'all-fixtures' : `group-${groupId}`}
-                  className={isGroupStage ? 'overflow-hidden rounded-xl border border-[#1A1A2A] bg-[#0A0A14]' : undefined}
+                  className={isGroupStage ? 'overflow-hidden rounded-xl border border-[var(--ui-surface-3)] bg-[var(--ui-bg-raised)]' : undefined}
                 >
                   {isGroupStage && (
-                    <div className="flex items-center justify-between gap-3 border-b border-[#1A1A2A] bg-[#0F0F1A] px-4 py-2.5">
+                    <div className="flex items-center justify-between gap-3 border-b border-[var(--ui-surface-3)] bg-[#0F0F1A] px-4 py-2.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-black tracking-widest" style={{ color: isMyGroup ? 'var(--ui-brand-strong)' : '#FFFFFF', fontFamily: 'var(--font-game), sans-serif' }}>
+                        <span className="text-sm font-black tracking-widest" style={{ color: isMyGroup ? 'var(--ui-brand-strong)' : 'var(--ui-text)', fontFamily: 'var(--font-game), sans-serif' }}>
                           GRUPO {groupLabel}
                         </span>
                         {isMyGroup && <span className="rounded-full border border-primary/33 bg-primary/10 px-2 py-0.5 text-[12px] font-black tracking-wider text-brand-strong">SEU GRUPO</span>}
@@ -164,8 +167,8 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
               const homeName = getTeamName(fixture.homeTeamId);
               const awayName = getTeamName(fixture.awayTeamId);
 
-              const homeColor = fixture.homeTeamId === localTeamId ? '#C9A84C' : isHomeHuman ? '#818CF8' : '#FFF';
-              const awayColor = fixture.awayTeamId === localTeamId ? '#C9A84C' : isAwayHuman ? '#818CF8' : '#FFF';
+              const homeColor = fixture.homeTeamId === localTeamId ? 'var(--ui-brand-strong)' : isHomeHuman ? 'var(--ui-info)' : 'var(--ui-text)';
+              const awayColor = fixture.awayTeamId === localTeamId ? 'var(--ui-brand-strong)' : isAwayHuman ? 'var(--ui-info)' : 'var(--ui-text)';
 
               return (
                 <div
@@ -173,7 +176,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                   className={isMyFixture ? "p-4 rounded-xl transition-all lg:col-span-2" : "p-4 rounded-xl transition-all"}
                   style={{
                     background: isMyFixture ? 'linear-gradient(135deg, var(--ui-surface-2), #0b0b14)' : isHumanMatch ? 'linear-gradient(135deg, #0f0f1f, #0a0a18)' : 'var(--ui-surface-1)',
-                    border: isMyFixture ? '1px solid #c9a84c55' : isHumanMatch ? '1px solid #6366f155' : '1px solid var(--ui-surface-3)',
+                    border: isMyFixture ? '1px solid var(--ui-brand-line)' : isHumanMatch ? '1px solid rgba(129, 140, 248, 0.3)' : '1px solid var(--ui-line-subtle)',
                     boxShadow: isMyFixture ? '0 0 15px rgba(201, 168, 76, 0.1)' : 'none',
                   }}
                 >
@@ -194,17 +197,17 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                         {fixture.result.playerStats && (
                           <button onClick={() => openMatchDetails({ ...fixture.result!, round: fixture.round }, { isKnockout: false, isFinal: false })}
                             className="mt-1 inline-flex h-7 min-h-0 min-w-[92px] shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[12px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
-                            style={{ background: 'var(--ui-surface-2)', border: '1px solid var(--ui-line)', color: '#9AA8C8', fontFamily: 'var(--font-game), sans-serif' }}>
+                            style={{ background: 'var(--ui-surface-2)', border: '1px solid var(--ui-line)', color: 'var(--ui-text-soft)', fontFamily: 'var(--font-game), sans-serif' }}>
                             <Search {...INLINE_ICON} />Detalhes
                           </button>
                         )}
                       </>
                     ) : hideRoundScore && fixture.played ? (
-                      <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: isMyFixture ? 'var(--ui-brand)' : isHumanMatch ? '#6366f1' : '#4A4A5A' }}>
+                      <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: isMyFixture ? 'var(--ui-brand)' : isHumanMatch ? 'var(--ui-info)' : 'var(--ui-text-faint)' }}>
                         {isMyFixture ? <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-600" />AO VIVO</span> : <Lock size="1em" aria-label="Resultado oculto" className="inline-block" />}
                       </span>
                     ) : (
-                      <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: isMyFixture ? 'var(--ui-brand)' : isHumanMatch ? '#6366f1' : '#4A4A5A' }}>
+                      <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: isMyFixture ? 'var(--ui-brand)' : isHumanMatch ? 'var(--ui-info)' : 'var(--ui-text-faint)' }}>
                         {isMyFixture ? '⚽ VS' : isHumanMatch ? <><Users {...INLINE_ICON} />VS</> : 'VS'}
                       </span>
                     )}
@@ -225,12 +228,12 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                       if (!myBet) return null;
                       // Online, a revealed ticket was already announced to its owner.
                       if (!myBet.revealed || (state.mode !== 'online' && hideRoundScore)) {
-                        return <div className="mt-2 text-center text-[12px] font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}><Target {...INLINE_ICON} />palpite em andamento</div>;
+                        return <div className="mt-2 text-center text-[12px] font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}><Target {...INLINE_ICON} />aposta em andamento</div>;
                       }
-                      const txt = myBet.tier === 'exact' ? `Palpite: placar exato (+${myBet.payout})`
-                        : myBet.tier === 'outcome' ? `Palpite: resultado certo (+${myBet.payout})`
+                      const txt = myBet.tier === 'exact' ? `Aposta: placar exato (+${myBet.payout})`
+                        : myBet.tier === 'outcome' ? `Aposta: resultado certo (+${myBet.payout})`
                           : myBet.tier === 'builder' ? `Aposta certa (+${myBet.payout})`
-                          : `Palpite perdido (−${myBet.stake})${(myBet.protectionRefund ?? 0) > 0 ? ` · devolução +${myBet.protectionRefund}` : ''}`;
+                          : `Aposta perdida (−${myBet.stake})${(myBet.protectionRefund ?? 0) > 0 ? ` · devolução +${myBet.protectionRefund}` : ''}`;
                       return <div className="mt-2 text-center text-[13px] font-black" style={{ color: myBet.won ? 'var(--ui-success)' : 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>{myBet.won ? <CircleCheck {...INLINE_ICON} /> : <CircleX {...INLINE_ICON} />}{txt}</div>;
                     }
                     return (
@@ -242,9 +245,9 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                           homeTeamId: fixture.homeTeamId,
                           awayTeamId: fixture.awayTeamId,
                         })}
-                          className="px-3 py-1 rounded-lg text-[13px] font-black tracking-wider transition-transform hover:scale-[1.03]"
-                          style={{ fontFamily: 'var(--font-game), sans-serif', background: myBet ? '#C9A84C22' : 'var(--ui-surface-1)', color: 'var(--ui-brand-strong)', border: '1px solid #C9A84C55' }}>
-                          <Target {...INLINE_ICON} />{myBet ? `${myBet.market === 'builder' ? 'Aposta' : 'Palpite'}: ${describeBet(myBet)} · ${myBet.stake} (editar)` : 'Palpitar'}
+                          className="inline-flex min-h-8 items-center rounded-(--ui-radius-md) px-3 text-body-sm font-black tracking-wider transition-colors hover:bg-[var(--ui-brand-soft)]"
+                          style={{ fontFamily: 'var(--font-game), sans-serif', background: myBet ? 'var(--ui-brand-soft)' : 'var(--ui-surface-1)', color: 'var(--ui-brand-strong)', border: '1px solid var(--ui-brand-line)' }}>
+                          <Target {...INLINE_ICON} />{myBet ? `Aposta: ${describeBet(myBet)} · ${myBet.stake} (editar)` : 'Apostar'}
                         </button>
                       </div>
                     );
@@ -281,7 +284,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                         </button>
                       ))}
                       {!isActiveLeagueParticipant && totalReady > 0 && (
-                        <div className="mb-2 text-[13px] font-bold text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                        <div className="mb-2 text-[13px] font-bold text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                           Você não disputa esta rodada; o anfitrião inicia quando os participantes confirmarem.
                         </div>
                       )}
@@ -303,7 +306,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                       >
                         <Play {...INLINE_ICON} fill="currentColor" />JOGAR RODADA {leagueRound}
                       </button>
-                      <div className={`mt-2 text-[13px] font-bold text-gray-500 ${pinRoundAction ? 'max-lg:hidden' : ''}`} style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                      <div className={`mt-2 text-[13px] font-bold text-[var(--ui-text-muted)] ${pinRoundAction ? 'max-lg:hidden' : ''}`} style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                         {allReady
                           ? 'Todas as partidas começam ao mesmo tempo para todos.'
                           : 'Todos os participantes com partida precisam confirmar que estão prontos.'}
@@ -312,25 +315,16 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                   ) : !allPlayersWatched ? (
                     <div className="py-3">
                       <div className="text-sm font-bold animate-pulse" style={{ fontFamily: 'var(--font-game), sans-serif', color: 'var(--ui-brand)' }}>
-                        <Hourglass {...INLINE_ICON} />AGUARDANDO {waitingForCount} JOGADOR{waitingForCount !== 1 ? 'ES' : ''} VEREM O RESULTADO...
+                        <Hourglass {...INLINE_ICON} />AGUARDANDO {waitingForCount} JOGADOR{waitingForCount !== 1 ? 'ES' : ''} {waitingForCount !== 1 ? 'VEREM' : 'VER'} O RESULTADO...
                       </div>
-                      <div className="mt-1 text-[13px] text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                      <div className="mt-1 text-[13px] text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                         ({humanPlayersWithMatch.length - waitingForCount}/{humanPlayersWithMatch.length} concluídos)
                       </div>
                     </div>
                   ) : leagueRound < leagueRounds ? (
-                    <button
-                      onClick={handleAdvanceRound}
-                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01]"
-                      style={{
-                        fontFamily: 'var(--font-display), sans-serif',
-                        background: 'linear-gradient(135deg, var(--ui-brand) 0%, var(--ui-brand-strong) 50%, var(--ui-brand) 100%)',
-                        color: 'var(--ui-bg)',
-                        boxShadow: '0 0 25px rgba(201,168,76,0.3)',
-                      }}
-                    >
+                    <Button intent="primary" size="large" block onClick={handleAdvanceRound} className={GOLD_BUTTON}>
                       AVANÇAR PARA A RODADA {leagueRound + 1} →
-                    </button>
+                    </Button>
                   ) : (
                     <button
                       onClick={handleAdvanceKnockout}
@@ -342,7 +336,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                         boxShadow: '0 0 25px rgba(34,197,94,0.3)',
                       }}
                     >
-                      <Trophy {...INLINE_ICON} />{isLeagueOnly ? 'FINALIZAR COMPETIÇÃO →' : 'AVANÇAR PARA O MATA-MATA →'}
+                      <Trophy {...INLINE_ICON} />{isLeagueOnly ? 'ENCERRAR COMPETIÇÃO →' : 'AVANÇAR PARA O MATA-MATA →'}
                     </button>
                   )
                 ) : (
@@ -363,12 +357,12 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                           <CircleCheck {...INLINE_ICON} />ESTOU PRONTO
                         </button>
                       )}
-                      <div className="mt-2 text-[13px] font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#8A8A9A' }}>
+                      <div className="mt-2 text-[13px] font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: 'var(--ui-text-muted)' }}>
                         {readyCount}/{totalReady} pronto{totalReady !== 1 ? 's' : ''} · o anfitrião inicia quando todos confirmarem.
                       </div>
                     </> : <>
                       {totalReady > 0 && (
-                        <div className="mb-2 text-[13px] font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#8A8A9A' }}>
+                        <div className="mb-2 text-[13px] font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: 'var(--ui-text-muted)' }}>
                           {readyCount}/{totalReady} participantes prontos.
                         </div>
                       )}
@@ -401,74 +395,32 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                 )}
               </div>
             ) : (
-              <div className={`mt-6 ${mobileActionBarClasses} ${pinRoundAction ? 'max-lg:border-t max-lg:border-[var(--ui-line-subtle)]' : ''}`} style={mobileActionBarStyle}>
+              <div className={`mt-6 ${mobileActionBarClasses} ${pinRoundAction ? 'max-lg:border-t max-lg:border-[var(--ui-line-subtle)] lg:sticky lg:bottom-0 lg:z-(--ui-z-action-bar) lg:bg-gradient-to-t lg:from-[var(--ui-bg)] lg:from-70% lg:to-transparent lg:pb-4 lg:pt-6' : ''}`} style={mobileActionBarStyle}>
                 {!isPlayerMatchPlayed ? (
                   /* Solo: o botão de JOGAR fica embaixo dos confrontos (igual ao host no online). */
                   <>
-                    <button
-                      onClick={handlePlayPlayerMatch}
-                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all hover:scale-[1.01]"
-                      style={{
-                        fontFamily: 'var(--font-display), sans-serif',
-                        background: 'linear-gradient(135deg, var(--ui-brand) 0%, var(--ui-brand-strong) 50%, var(--ui-brand) 100%)',
-                        color: 'var(--ui-bg)',
-                        boxShadow: '0 0 25px rgba(201,168,76,0.3)',
-                      }}
-                    >
-                      <Play {...INLINE_ICON} fill="currentColor" />JOGAR RODADA {leagueRound}
-                    </button>
+                    <Button intent="primary" size="large" block onClick={handlePlayPlayerMatch} className={GOLD_BUTTON}>
+                      <Play size={18} fill="currentColor" aria-hidden="true" />JOGAR RODADA {leagueRound}
+                    </Button>
                   </>
                 ) : leagueRound < leagueRounds ? (
-                  <button
-                    onClick={handleAdvanceRound}
-                    className="w-full py-4 rounded-xl font-black text-xl tracking-widest cursor-pointer shadow-lg transition-all"
-                    style={{
-                      fontFamily: 'var(--font-display), sans-serif',
-                      background: 'linear-gradient(135deg, var(--ui-brand) 0%, var(--ui-brand-strong) 50%, var(--ui-brand) 100%)',
-                      color: 'var(--ui-bg)',
-                      boxShadow: '0 0 25px rgba(201,168,76,0.3)',
-                    }}
-                  >
+                  <Button intent="primary" size="large" block onClick={handleAdvanceRound} className={GOLD_BUTTON}>
                     AVANÇAR PARA A RODADA {leagueRound + 1} →
-                  </button>
+                  </Button>
                 ) : (
                   state.mode === 'solo' && !qualifies ? (
                     <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                      <button
-                        onClick={handleWatchRemainingCompetition}
-                        className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all hover:brightness-110"
-                        style={{
-                          fontFamily: 'var(--font-display), sans-serif',
-                          background: 'linear-gradient(135deg, var(--ui-brand) 0%, var(--ui-brand-strong) 50%, var(--ui-brand) 100%)',
-                          color: 'var(--ui-bg)',
-                          boxShadow: '0 0 25px rgba(201,168,76,0.3)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <Play {...INLINE_ICON} fill="currentColor" />ACOMPANHAR O RESTANTE →
-                      </button>
-                      <button
-                        onClick={handleFinishEliminatedCampaign}
-                        className="w-full rounded-xl border px-4 py-3 text-sm font-black tracking-wider transition-colors hover:bg-white/5 sm:w-auto"
-                        style={{ fontFamily: 'var(--font-game), sans-serif', borderColor: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)' }}
-                      >
-                        <Trophy {...INLINE_ICON} />ENCERRAR E VER RESULTADO FINAL
-                      </button>
+                      <Button intent="primary" size="large" block onClick={handleWatchRemainingCompetition} className={GOLD_BUTTON}>
+                        <Play size={18} fill="currentColor" aria-hidden="true" />ACOMPANHAR O MATA-MATA →
+                      </Button>
+                      <Button intent="secondary" size="large" onClick={handleFinishEliminatedCampaign} className="w-full font-ui text-body-sm sm:w-auto">
+                        <Trophy size={16} aria-hidden="true" />Encerrar e ver resultado
+                      </Button>
                     </div>
                   ) : (
-                    <button
-                      onClick={qualifies ? handleAdvanceKnockout : handleFinishEliminatedCampaign}
-                      className="w-full py-4 rounded-xl font-black text-xl tracking-widest transition-all"
-                      style={{
-                        fontFamily: 'var(--font-display), sans-serif',
-                        background: 'linear-gradient(135deg, var(--ui-success) 0%, #4ADE80 50%, var(--ui-success) 100%)',
-                        color: '#000',
-                        boxShadow: '0 0 25px rgba(34,197,94,0.3)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Trophy {...INLINE_ICON} />{isLeagueOnly ? 'FINALIZAR COMPETIÇÃO →' : 'AVANÇAR PARA O MATA-MATA →'}
-                    </button>
+                    <Button intent="success" size="large" block onClick={qualifies ? handleAdvanceKnockout : handleFinishEliminatedCampaign}>
+                      <Trophy size={18} aria-hidden="true" />{isLeagueOnly ? 'ENCERRAR COMPETIÇÃO →' : qualifies ? 'AVANÇAR PARA O MATA-MATA →' : 'VER RESULTADO FINAL →'}
+                    </Button>
                   )
                 )}
               </div>

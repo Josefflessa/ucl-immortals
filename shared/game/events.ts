@@ -196,7 +196,7 @@ export const GAME_EVENTS: readonly GameEvent[] = [
   {
     id: 'brasil-em-campo-2026',
     name: 'Brasil em Campo',
-    description: 'Vença quatro competições no Ouro ou acima com pelo menos seis jogadores brasileiros titulares e desbloqueie o escudo da Seleção Brasileira para usar nas competições.',
+    description: 'Vença quatro competições no Ouro ou acima com pelo menos 6 brasileiros titulares na final e desbloqueie o escudo da Seleção Brasileira para usar nas competições.',
     startsAt: brasiliaMidnight(2026, 10, 15),
     endsAt: brasiliaMidnight(2026, 11, 1),
     rewardCrestId: 'brazil',

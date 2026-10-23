@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   GitBranch,
   Info,
+  LayoutGrid,
+  ListOrdered,
   Settings2,
   Swords,
   Trophy,
@@ -30,9 +32,17 @@ import {
   type CompetitionFormatId,
   type LeagueLegs,
 } from '@shared/game/competition';
-import { AppShell, Button, ChoiceCard, FixedActionBar, Input, PageContainer, SectionHeader, TopBar } from '../design-system';
+import { AppShell, Button, ChoiceCard, ChoiceCheck, FixedActionBar, Input, PageContainer, SectionHeader, TopBar } from '../design-system';
 
-const labelClass = 'text-[12px] font-bold uppercase tracking-[0.11em] text-[var(--ui-text-muted)]';
+// Interface icons for each preset (the shared data keeps an emoji for plain-text contexts).
+const FORMAT_ICONS: Record<CompetitionFormatId, typeof Trophy> = {
+  league: ListOrdered,
+  league_knockout: Trophy,
+  groups_knockout: LayoutGrid,
+  knockout: Swords,
+};
+
+const labelClass = 'text-label font-bold uppercase tracking-wide-caps text-[var(--ui-text-muted)]';
 const inputClass = 'ui-input mt-2 w-full text-left sm:text-center';
 
 type NumberFieldProps = {
@@ -85,11 +95,11 @@ function ConfigSection({ index, icon, eyebrow, title, description, children }: {
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/33 bg-primary/7 text-primary" aria-hidden="true">{icon}</span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-[12px] font-black tracking-[0.16em] text-primary">{index}</span>
-              <span className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">{eyebrow}</span>
+              <span className="text-label font-black tracking-kicker text-primary">{index}</span>
+              <span className="text-label font-bold uppercase tracking-kicker text-[var(--ui-text-muted)]">{eyebrow}</span>
             </div>
             <h2 className="mt-1 text-lg font-black text-white">{title}</h2>
-            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--ui-text-muted)]">{description}</p>
+            <p className="mt-1 max-w-2xl text-body-sm leading-ui-snug text-[var(--ui-text-muted)]">{description}</p>
           </div>
         </div>
       </div>
@@ -229,7 +239,7 @@ export default function TournamentFormatPage() {
     : format.id === 'groups_knockout'
       ? `${format.qualifiedPerGroup} por grupo seguem adiante.`
       : format.id === 'knockout'
-        ? 'Perdeu, está eliminado.'
+        ? 'Quem perde o confronto está fora.'
         : 'A classificação define o caminho do mata-mata.';
   const finalValue = format.id === 'league'
     ? 'Sem mata-mata'
@@ -244,13 +254,14 @@ export default function TournamentFormatPage() {
       <PageContainer wide className="flex flex-col gap-6 pt-5 pb-32 sm:pt-8 sm:pb-32">
         <SectionHeader
           title="Formato do torneio"
-          description="Escolha um modelo pronto e personalize apenas o que faz sentido para aquela estrutura."
+          description="Escolha um formato. Se quiser, ajuste os detalhes."
         />
 
         <div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             {(Object.values(COMPETITION_FORMAT_PRESETS) as typeof COMPETITION_FORMAT_PRESETS[CompetitionFormatId][]).map(option => {
               const selected = format.id === option.id;
+              const FormatIcon = FORMAT_ICONS[option.id];
               return (
                 <ChoiceCard
                   key={option.id}
@@ -258,19 +269,16 @@ export default function TournamentFormatPage() {
                   onClick={() => selectPreset(option.id)}
                   onDoubleClick={() => continueWithPreset(option.id)}
                   title="Clique duas vezes para escolher e continuar"
-                  className="ui-choice min-h-[164px] p-4 text-left transition-transform hover:-translate-y-0.5"
-                  style={{
-                    background: selected ? '#171523' : '#0F0F1A',
-                    border: `1px solid ${selected ? '#C9A84C' : '#242436'}`,
-                    boxShadow: selected ? '0 0 0 1px rgba(201,168,76,0.18)' : 'none',
-                  }}
+                  className="relative flex items-center gap-3.5 p-4 text-left sm:block sm:min-h-[156px] sm:p-5"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-3xl" aria-hidden="true">{option.icon}</span>
-                    {selected && <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-sm font-black text-[#080810]">✓</span>}
+                  <div className="flex shrink-0 items-start justify-between gap-3">
+                    <span className={`flex size-11 items-center justify-center rounded-(--ui-radius-md) border ${selected ? 'border-[var(--ui-brand-line)] bg-[var(--ui-brand-soft)] text-[var(--ui-brand-strong)]' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)] text-[var(--ui-text-soft)]'}`} aria-hidden="true"><FormatIcon size={22} strokeWidth={2.2} /></span>
+                    {selected && <ChoiceCheck className="absolute right-3 top-3 sm:static" />}
                   </div>
-                  <div className="mt-3 font-black tracking-wide text-white" style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 22 }}>{option.name.toUpperCase()}</div>
-                  <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">{option.shortDescription}</p>
+                  <div className="min-w-0 pr-8 sm:pr-0">
+                  <div className={`font-display sm:mt-4 text-title-lg uppercase leading-none tracking-caps ${selected ? 'text-[var(--ui-brand-strong)]' : 'text-[var(--ui-text)]'}`}>{option.name}</div>
+                  <p className="mt-1.5 text-body-sm leading-ui-snug text-[var(--ui-text-muted)]">{option.shortDescription}</p>
+                  </div>
                 </ChoiceCard>
               );
             })}
@@ -278,15 +286,10 @@ export default function TournamentFormatPage() {
         </div>
 
         <div className="flex justify-center">
-          <button
-            type="button"
-            aria-expanded={advancedOpen}
-            onClick={() => setAdvancedOpen(open => !open)}
-            className="flex items-center gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] px-4 py-3 text-xs font-black uppercase tracking-wider text-[var(--ui-text-muted)] transition-colors hover:border-primary/53 hover:text-brand-strong"
-          >
-            <Settings2 size={15} />
-            {advancedOpen ? 'Ocultar opções avançadas' : 'Ver opções avançadas'}
-          </button>
+          <Button intent="secondary" size="small" aria-expanded={advancedOpen} onClick={() => setAdvancedOpen(open => !open)}>
+            <Settings2 size={15} aria-hidden="true" />
+            {advancedOpen ? 'Ocultar opções avançadas' : 'Personalizar formato'}
+          </Button>
         </div>
 
         <div className={advancedOpen ? 'grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1.28fr)_minmax(280px,0.72fr)]' : 'block'}>
@@ -336,7 +339,7 @@ export default function TournamentFormatPage() {
                     min={1}
                     max={Math.max(1, format.teamCount - 1)}
                     onChange={value => setNumber('leagueRounds', value)}
-                    helper="Uma rodada representa uma sequência de partidas contra os adversários."
+                    helper="Em cada rodada, cada time faz um jogo."
                   />
                 )}
 
@@ -360,7 +363,7 @@ export default function TournamentFormatPage() {
                     <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs leading-relaxed text-[var(--ui-text-muted)] sm:col-span-2">
                       <div className="flex items-center gap-2 font-bold text-primary"><GitBranch size={14} /> Fechamento automático da fase</div>
                       <p className="mt-2"><strong className="text-white">{format.teamCount} times</strong> serão distribuídos em <strong className="text-white">{format.groupCount} grupos</strong>; <strong className="text-white">{format.qualifiedTeams}</strong> avançam para o mata-mata.</p>
-                      <p className="mt-1 text-[13px] text-[var(--ui-text-faint)]">Para este modelo, o jogo valida se o total fecha os grupos e se a classificação forma as oitavas.</p>
+                      <p className="mt-1 text-[13px] text-[var(--ui-text-faint)]">O mata-mata precisa de exatamente 16 classificados.</p>
                     </div>
                   </>
                 )}
@@ -369,7 +372,7 @@ export default function TournamentFormatPage() {
             </ConfigSection>
 
             {hasKnockout && (
-              <ConfigSection index="02" eyebrow="FASE ELIMINATÓRIA" title="Como serão os confrontos?" description="Escolha o ritmo das fases eliminatórias e personalize o formato da final." icon={<Swords size={17} />}>
+              <ConfigSection index="02" eyebrow="FASE ELIMINATÓRIA" title="Como serão os confrontos?" description="Escolha jogo único ou ida e volta, e o formato da final." icon={<Swords size={17} />}>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {([1, 2] as const).map(legs => (
                     <ChoiceCard
@@ -409,7 +412,7 @@ export default function TournamentFormatPage() {
             <div className="ui-panel overflow-hidden p-0">
               <div className="border-b border-[var(--ui-line-subtle)] bg-[var(--ui-panel-inset)] px-4 py-4 sm:px-5">
                 <div className="flex items-start gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/27 bg-primary/7 text-xl" aria-hidden="true">{preset.icon}</div>
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/27 bg-primary/7 text-[var(--ui-brand-strong)]" aria-hidden="true">{(() => { const SummaryIcon = FORMAT_ICONS[format.id]; return <SummaryIcon size={18} />; })()}</div>
                   <div className="min-w-0">
                     <div className="ui-section-label">RESUMO DO TORNEIO</div>
                     <h2 className="mt-0.5 text-lg font-black leading-tight text-white text-balance">{preset.name}</h2>
@@ -418,7 +421,7 @@ export default function TournamentFormatPage() {
                 </div>
               </div>
               <div className="p-3 sm:p-4">
-                <div className="grid grid-cols-2 gap-4 border-b border-[var(--ui-line-subtle)] pb-3">
+                <div className={`grid gap-4 border-b border-[var(--ui-line-subtle)] pb-3 grid-cols-1 sm:grid-cols-2 ${advancedOpen ? 'lg:grid-cols-1' : ''}`}>
                   <SummaryMetric icon={<Users size={14} />} label="Participantes" value={`${format.teamCount} times`} detail="Total da competição." />
                   <SummaryMetric icon={<Bot size={14} />} label="Bots" value={isOnlineRoomCreation ? 'Automático' : `${Math.max(0, format.teamCount - 1)}`} detail={isOnlineRoomCreation ? 'Preenchem as vagas restantes.' : 'Além do seu time.'} />
                 </div>

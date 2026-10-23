@@ -64,17 +64,17 @@ function PageRewardBanner({ page, complete, completionCount, missing }: { page: 
     : returning ? 'Novas cartas na página' : 'Recompensa da página';
   const itemDescription = (key: AlbumItemKey) => itemLabel(key);
   const subtitle = complete
-    ? completionCount > 1 ? `${items.map(itemDescription).join(' + ')} adicionado ao inventário.` : page.kind === 'club' ? 'Moldura e fundo de perfil desbloqueados. Use em Conta → Aparência.' : `${items.map(itemDescription).join(' + ')} adicionado ao inventário.`
+    ? completionCount > 1 ? `${items.map(itemDescription).join(' + ')} adicionado ao inventário.` : page.kind === 'club' ? 'Moldura e fundo de perfil desbloqueados. Use no seu perfil, em Personalizar.' : `${items.map(itemDescription).join(' + ')} adicionado ao inventário.`
     : returning ? `Faltam ${missing} ${missing === 1 ? 'carta' : 'cartas'} para completar a página e ganhar ${items.map(itemDescription).join(' + ')}.`
-      : `Faltam ${missing} ${missing === 1 ? 'carta' : 'cartas'} para desbloquear ${page.kind === 'club' ? `a moldura e o fundo de perfil do ${page.title}` : items.map(itemDescription).join(' + ')}.`;
+      : `Faltam ${missing} ${missing === 1 ? 'carta' : 'cartas'} para desbloquear ${page.kind === 'club' ? `a moldura e o fundo de perfil: ${page.title}` : items.map(itemDescription).join(' + ')}.`;
   const competitionBonus = (
     <div className="flex items-center gap-2.5 border-t border-[#E9C46A]/15 bg-[#E9C46A]/[.035] px-3 py-2">
       <Sparkles size={14} className="shrink-0 text-[#E9C46A]" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <div className="text-[9px] font-bold uppercase tracking-[0.13em] text-[#E9C46A]">Bônus da página completa</div>
-        <p className="mt-0.5 text-[11px] leading-snug text-[var(--ui-text-muted)]">+3 em todos os atributos dos jogadores desta página.</p>
+        <div className="text-micro font-bold uppercase tracking-[0.13em] text-[#E9C46A]">Bônus da página completa</div>
+        <p className="mt-0.5 text-caption leading-snug text-[var(--ui-text-muted)]">+3 em todos os atributos destas cartas nas competições.</p>
       </div>
-      <span className="shrink-0 rounded-md border border-[#E9C46A]/30 bg-[#E9C46A]/10 px-2 py-0.5 text-[11px] font-black tabular-nums text-[#E9C46A]">+3</span>
+      <span className="shrink-0 rounded-md border border-[#E9C46A]/30 bg-[#E9C46A]/10 px-2 py-0.5 text-caption font-black tabular-nums text-[#E9C46A]">+3</span>
     </div>
   );
   if (page.kind === 'club' && page.clubId) {
@@ -87,15 +87,15 @@ function PageRewardBanner({ page, complete, completionCount, missing }: { page: 
               <ClubFrameRing clubId={page.clubId} className="absolute" style={{ left: '-20%', top: '-20%', width: '140%', height: '140%' }} />
             </span>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#E9C46A]">
+              <div className="flex items-center gap-1.5 text-micro font-bold uppercase tracking-kicker text-[#E9C46A]">
                 {complete ? <Check size={12} aria-hidden="true" /> : returning ? <Gift size={11} aria-hidden="true" /> : <Lock size={11} aria-hidden="true" />}
                 {stateLabel}
               </div>
               <div className="mt-0.5 flex items-center gap-2 text-sm font-semibold text-white">
                 {returning ? <ItemArt itemKey={CLUB_PAGE_RECOMPLETE[0]} height={30} /> : null}
-                <span>{returning ? itemDescription(CLUB_PAGE_RECOMPLETE[0]) : `Moldura e fundo de perfil do ${page.title}`}</span>
+                <span>{returning ? itemDescription(CLUB_PAGE_RECOMPLETE[0]) : `Moldura e fundo de perfil: ${page.title}`}</span>
               </div>
-              <div className="mt-0.5 text-[11px] leading-snug text-white/80">{subtitle}</div>
+              <div className="mt-0.5 text-caption leading-snug text-white/80">{subtitle}</div>
             </div>
           </div>
         </ClubCover>
@@ -108,14 +108,14 @@ function PageRewardBanner({ page, complete, completionCount, missing }: { page: 
       <div className="flex items-center gap-3 px-3.5 py-3">
         <div className="flex shrink-0 items-end gap-1">{items.map((key, i) => <ItemArt key={`${key}:${i}`} itemKey={key} height={48} />)}</div>
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#E9C46A]">
+          <div className="flex items-center gap-1.5 text-micro font-bold uppercase tracking-kicker text-[#E9C46A]">
             {complete ? <Check size={12} aria-hidden="true" /> : returning ? <Gift size={11} aria-hidden="true" /> : <Lock size={11} aria-hidden="true" />}
             {stateLabel}
           </div>
           <div className="mt-0.5 text-sm font-semibold text-[var(--ui-text)]">
             <span>{items.map(itemDescription).join(' + ')}</span>
           </div>
-          {!complete ? <div className="mt-0.5 text-[11px] leading-snug text-[var(--ui-text-muted)]">{subtitle}</div> : null}
+          {!complete ? <div className="mt-0.5 text-caption leading-snug text-[var(--ui-text-muted)]">{subtitle}</div> : null}
         </div>
       </div>
       {competitionBonus}
@@ -252,9 +252,9 @@ function ExclusiveCardsView({ scale }: { scale: number }) {
                     <PlayerCard player={card} lite flat scale={scale} albumLevel={level > 0 ? level as AlbumLevel : undefined} />
                   </span>
                 </button>
-                <span className={cn('mt-1.5 line-clamp-2 text-center text-[12px] font-bold leading-tight', has ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text-faint)]')} style={{ maxWidth: Math.max(200 * scale, 96) }}>{card.shortName}</span>
-                <span className="mt-0.5 text-center text-[11px] text-[var(--ui-text-muted)]" style={{ maxWidth: Math.max(200 * scale, 96) }}>{exclusiveCardSource(card)}</span>
-                <span className={cn('mt-1 flex min-h-[13px] items-center justify-center gap-1.5 text-[11px] font-semibold', has ? 'text-[#55CBA0]' : 'text-[var(--ui-text-faint)]')}>
+                <span className={cn('mt-1.5 line-clamp-2 text-center text-label font-bold leading-tight', has ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text-faint)]')} style={{ maxWidth: Math.max(200 * scale, 96) }}>{card.shortName}</span>
+                <span className="mt-0.5 text-center text-caption text-[var(--ui-text-muted)]" style={{ maxWidth: Math.max(200 * scale, 96) }}>{exclusiveCardSource(card)}</span>
+                <span className={cn('mt-1 flex min-h-[13px] items-center justify-center gap-1.5 text-caption font-semibold', has ? 'text-[#55CBA0]' : 'text-[var(--ui-text-faint)]')}>
                   {has ? albumSticker ? <><LevelStars level={level} size={10} />{albumSticker.spare > 0 ? <span>{albumSticker.spare} repetida{albumSticker.spare === 1 ? '' : 's'}</span> : null}</> : 'Conquistada' : 'Ainda não conquistada'}
                 </span>
               </article>
@@ -454,7 +454,7 @@ function PageView({ page, onBack }: { page: AlbumPage; onBack: () => void }) {
           {section.title ? (
             <div className="mb-1 flex items-center gap-2 border-b border-[var(--ui-line-subtle)] pb-2">
               {section.clubId && getCrest(section.clubId) ? <img src={getCrest(section.clubId)!.url} alt="" referrerPolicy="no-referrer" className="size-5 object-contain" /> : null}
-              <span className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-muted)]">{section.title}</span>
+              <span className="text-label font-bold uppercase tracking-kicker text-[var(--ui-text-muted)]">{section.title}</span>
             </div>
           ) : null}
           <div className="grid justify-items-center gap-x-3 gap-y-5 sm:gap-x-5" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(200 * scale * 1.2)}px, 1fr))` }}>
@@ -580,7 +580,7 @@ function OwnedCardsView() {
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState title={search ? 'Nenhuma carta encontrada' : 'Seu álbum ainda está vazio'} description={search ? 'Tente buscar por outro nome, clube ou número.' : 'As cartas conquistadas aparecem aqui. Use a busca para encontrar uma específica ou explore as páginas do álbum.'} />
+        <EmptyState icon={search ? undefined : <Sparkles size={22} aria-hidden="true" />} title={search ? 'Nenhuma carta encontrada' : 'Seu álbum ainda está vazio'} description={search ? 'Tente buscar por outro nome, clube ou número.' : 'Abra pacotes para colar cartas aqui. Ganhe pacotes jogando campanhas, completando conquistas e páginas, no resgate diário ou na Loja.'} />
       ) : (
         <>
           <div className="grid justify-items-center gap-x-3 gap-y-5 sm:gap-x-5" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(200 * scale * 1.2)}px, 1fr))` }}>
@@ -624,7 +624,7 @@ function PageRow({ page, onOpen }: { page: AlbumPage; onOpen: () => void }) {
         </div>
         <div className="mt-1.5 flex items-center gap-2.5">
           <Progress value={progress.owned} max={progress.total} tone={progress.complete ? 'success' : 'brand'} className="h-1.5 flex-1" />
-          <span className="w-12 shrink-0 text-right text-[12px] font-bold tabular-nums text-[var(--ui-text-muted)]">{progress.owned}/{progress.total}</span>
+          <span className="w-12 shrink-0 text-right text-label font-bold tabular-nums text-[var(--ui-text-muted)]">{progress.owned}/{progress.total}</span>
         </div>
       </div>
       <ChevronRight size={16} className="shrink-0 text-[var(--ui-text-faint)] transition-transform group-hover:translate-x-0.5" aria-hidden="true" />

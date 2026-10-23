@@ -10,7 +10,7 @@ import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { Armchair, Ban, Eye, Snowflake, Target } from 'lucide-react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
 import { FORMATIONS, COACHES, Player, POS_PT } from '@shared/game/gameData';
-import { activePlayerTraits, getTraitInfo, traitEffectLabel } from '@shared/game/traits';
+import { activePlayerTraits, getTraitInfo, traitEffectLabel, traitLabel } from '@shared/game/traits';
 import PlaystyleIcon from '../components/game/PlaystyleIcon';
 import { DRAFT_TURN_SECONDS } from '@shared/const';
 import { AppShell, Button, Panel, PanelHeader, PanelTitle, Progress, TopBar } from '../design-system';
@@ -89,7 +89,7 @@ const DraftTimer = memo(function DraftTimer({
       </div>
       {timeLeft <= 5 && (
         <div className="text-xs mt-1 font-bold" style={{ color: 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>
-          Auto-pick!
+          Escolha automática!
         </div>
       )}
     </div>
@@ -162,7 +162,7 @@ const DraftOptions = memo(function DraftOptions({
                 return (
                   <div key={t} className="flex items-baseline gap-1.5 text-[13px]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                     <PlaystyleIcon trait={t} fallback={info?.icon} size={14} color="var(--ui-brand)" className="flex-shrink-0 translate-y-0.5" />
-                    <span className="font-black flex-shrink-0" style={{ color: isRolled ? 'var(--ui-brand-strong)' : '#FFF' }}>{isRolled ? `${t} (extra)` : t}</span>
+                    <span className="font-black flex-shrink-0" style={{ color: isRolled ? 'var(--ui-brand-strong)' : '#FFF' }}>{isRolled ? `${traitLabel(t)} (sorteada)` : traitLabel(t)}</span>
                     <span style={{ color: 'var(--ui-brand)' }}>{traitEffectLabel(t) || 'sem efeito direto'}</span>
                   </div>
                 );
@@ -285,7 +285,7 @@ export default function DraftPage() {
     return (
       <div className="ui-panel ui-panel--inset mb-4 p-3">
         <div className="text-[12px] font-black text-primary tracking-widest uppercase mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-          FILA DE ESCOLHAS (SNAKE DRAFT)
+          FILA DE ESCOLHAS
         </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {state.draftOrder.slice(state.draftTurnIndex, state.draftTurnIndex + 6).map((pid, idx) => {
@@ -329,7 +329,7 @@ export default function DraftPage() {
     return (
       <div className="ui-panel ui-panel--inset flex h-[280px] flex-col p-4">
         <div className="text-xs font-black text-primary tracking-widest uppercase mb-3" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-          ESCOLHAS DA RODADA ({state.draftHistory.length})
+          HISTÓRICO DE ESCOLHAS ({state.draftHistory.length})
         </div>
         <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
           {[...state.draftHistory].reverse().map((pick, idx) => (
@@ -399,7 +399,7 @@ export default function DraftPage() {
         right={(
           <div className="ml-auto flex items-center gap-3">
             <div className="hidden items-center gap-2 sm:flex">
-              <span className="text-xs text-[var(--ui-text-faint)]">Rodada</span>
+              <span className="text-xs text-[var(--ui-text-faint)]">Escolha</span>
               <span className="font-display text-lg text-[var(--ui-text)]">{round}</span>
               <span className="text-xs text-[var(--ui-text-faint)]">/ {totalRounds}</span>
             </div>
@@ -411,7 +411,7 @@ export default function DraftPage() {
                 disabled={vetoesLeft <= 0}
                 className="min-h-9 px-3 text-xs"
               >
-                <Ban size={14} /> VETAR ({vetoesLeft})
+                <Ban size={14} /> NOVAS OPÇÕES ({vetoesLeft})
               </Button>
             )}
             <CompetitionExitControl />
@@ -419,7 +419,7 @@ export default function DraftPage() {
         )}
       />
       {/* Progress bar */}
-      <Progress value={progressPct} max={100} tone="brand" className="h-1 rounded-none" aria-label={`Progresso do draft: rodada ${round} de ${totalRounds}`} />
+      <Progress value={progressPct} max={100} tone="brand" className="h-1 rounded-none" aria-label={`Progresso do draft: escolha ${round} de ${totalRounds}`} />
 
       <div className="ui-shell flex-1 flex flex-col gap-4 py-4 lg:grid lg:grid-cols-4 xl:w-[min(100%,1320px)] xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-8">
         {/* Left Column: Draft state, Queue, cards grid */}

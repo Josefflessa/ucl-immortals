@@ -75,15 +75,15 @@ export default function AlbumGrantsPrompt() {
         {coinsAwarded > 0 ? (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-3">
             <div className="min-w-0">
-              <div className="text-[11px] font-black tracking-[0.14em] text-[var(--ui-text-faint)]">MOEDAS RECEBIDAS</div>
-              <div className="mt-0.5 text-xs text-[var(--ui-text-muted)]">Adicionadas à sua carteira</div>
+              <div className="text-caption font-black tracking-kicker text-[var(--ui-text-faint)]">MOEDAS RECEBIDAS</div>
+              <div className="mt-0.5 text-xs text-[var(--ui-text-muted)]">Adicionadas ao seu saldo</div>
             </div>
             <CoinAmount value={coinsAwarded} size={17} className="shrink-0 text-lg text-[var(--ui-brand-strong)]" />
           </div>
         ) : null}
         {grouped.length > 0 ? (
           <section className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-inset)] p-3 sm:p-4" aria-label="Itens recebidos">
-            <div className="mb-2 text-[11px] font-black tracking-[0.14em] text-[var(--ui-text-faint)]">ITENS ADICIONADOS AO ÁLBUM</div>
+            <div className="mb-2 text-caption font-black tracking-kicker text-[var(--ui-text-faint)]">ITENS ADICIONADOS AO ÁLBUM</div>
             <div className="space-y-2">
               {grouped.map(([key, count]) => (
                 <div key={key} className="flex min-h-[96px] items-center gap-3 rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-2.5 py-2 sm:gap-4 sm:px-3">

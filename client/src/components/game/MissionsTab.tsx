@@ -112,7 +112,7 @@ function MissionCard({
           </div>
           {resolved ? (
             <div className="flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-black tracking-widest" style={{ color: '#66667A', background: '#0B0B14', fontFamily: 'var(--font-game), sans-serif' }}>
-              <LockKeyhole size={12} /> DISPONÍVEL NO PRÓXIMO MURAL
+              <LockKeyhole size={12} /> JÁ RESOLVIDA NESTE MURAL
             </div>
           ) : (
             <Button intent="primary" size="default" className="w-full" disabled={!canAccept} onClick={onAccept}>
@@ -165,7 +165,7 @@ export default function MissionsTab() {
               <h2 className="text-2xl font-black tracking-widest text-balance text-white" style={{ fontFamily: 'var(--font-display), sans-serif' }}>MURAL DE MISSÕES</h2>
             </div>
             <p className="mt-1 max-w-2xl text-sm text-pretty leading-relaxed" style={{ color: '#9696AA', fontFamily: 'var(--font-game), sans-serif' }}>
-              A cada rodada, o mural faz um novo sorteio. Uma missão pode aparecer novamente em outra rodada; as aceitas continuam valendo até serem concluídas, expirarem ou serem removidas.
+              O mural é sorteado a cada rodada. Missões aceitas valem até serem concluídas, expirarem ou serem removidas.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2 md:ml-auto md:shrink-0">

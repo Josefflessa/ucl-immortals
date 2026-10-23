@@ -317,9 +317,9 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
   { id: 'finalist', name: 'Finalista', category: 'titles', metric: 'finals', thresholds: [3, 10, 30, 80], goal: n => `Chegue à final ${n} vezes`, byDifficulty: true },
   { id: 'persistent_runner_up', name: 'Vice Persistente', category: 'titles', metric: 'runnerUps', thresholds: [1, 5, 15, 40], goal: (n, one) => (one ? 'Seja vice-campeão' : `Seja vice-campeão ${n} vezes`), byDifficulty: true },
   { id: 'dynasty', name: 'Hegemonia', category: 'titles', metric: 'bestTitleStreak', thresholds: [2, 3, 5, 8], goal: n => `Seja campeão em ${n} competições seguidas`, byDifficulty: true },
-  { id: 'ladder', name: 'Escalada', category: 'titles', metric: 'titleDifficulties', thresholds: [1, 2, 3, 4], immortalThreshold: 5, goal: n => `Seja campeão em ${n} dificuldades diferentes` },
+  { id: 'ladder', name: 'Escalada', category: 'titles', metric: 'titleDifficulties', thresholds: [1, 2, 3, 4], immortalThreshold: 5, goal: (n, one) => (one ? 'Seja campeão em uma dificuldade' : `Seja campeão em ${n} dificuldades diferentes`) },
   { id: 'perfect_campaign', name: 'Campanha Perfeita', category: 'titles', metric: 'perfectTitles', thresholds: [1, 2, 5, 10], goal: (n, one) => times(n, one, 'Seja campeão vencendo todos os jogos'), byDifficulty: true },
-  { id: 'winning_coach', name: 'Técnico Vencedor', category: 'titles', metric: 'titleCoaches', thresholds: [2, 4, 7, 10], goal: n => `Seja campeão com ${n} técnicos diferentes`, byDifficulty: true },
+  { id: 'winning_coach', name: 'Treinador Vencedor', category: 'titles', metric: 'titleCoaches', thresholds: [2, 4, 7, 10], goal: n => `Seja campeão com ${n} treinadores diferentes`, byDifficulty: true },
   { id: 'crest_collector', name: 'Colecionador de Escudos', category: 'titles', metric: 'titleCrests', thresholds: [2, 5, 10, 20], goal: n => `Seja campeão com ${n} escudos diferentes`, byDifficulty: true },
   // Campanha
   { id: 'unbeaten', name: 'Invicto', category: 'campaign', metric: 'unbeatenTitles', thresholds: [1, 3, 10, 20], goal: (n, one) => times(n, one, 'Seja campeão sem perder um jogo'), byDifficulty: true },
@@ -361,7 +361,7 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
   { id: 'point_scorer', name: 'Pontuador', category: 'career', metric: 'rankingPoints', thresholds: [100, 500, 2000, 6000], goal: n => `Some ${n} pontos de ranking` },
   { id: 'loyal_crest', name: 'Fiel ao Escudo', category: 'career', metric: 'loyalCrest', thresholds: [5, 15, 40, 100], goal: n => `Conclua ${n} competições com o mesmo escudo`, detail: 'crest' },
   { id: 'lasting_partnership', name: 'Parceria Duradoura', category: 'career', metric: 'loyalCoach', thresholds: [5, 15, 40, 100], goal: n => `Conclua ${n} competições com o mesmo técnico`, detail: 'coach' },
-  { id: 'explorer', name: 'Explorador', category: 'career', metric: 'difficultiesPlayed', thresholds: [1, 2, 3, 4], immortalThreshold: 5, goal: n => `Jogue em ${n} dificuldades diferentes` },
+  { id: 'explorer', name: 'Explorador', category: 'career', metric: 'difficultiesPlayed', thresholds: [1, 2, 3, 4], immortalThreshold: 5, goal: (n, one) => (one ? 'Jogue em uma dificuldade' : `Jogue em ${n} dificuldades diferentes`) },
   { id: 'regular', name: 'Frequentador', category: 'career', metric: 'activeDays', thresholds: [3, 10, 30, 100], goal: n => `Conclua competições em ${n} dias diferentes` },
   // Dificuldade
   { id: 'immortal_legend', name: 'Lenda Imortal', category: 'difficulty', metric: 'immortalTitles', thresholds: [1, 3, 10, 25], goal: (n, one) => (one ? 'Seja campeão no Imortal' : `Seja campeão ${n} vezes no Imortal`) },

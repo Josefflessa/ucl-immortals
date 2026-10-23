@@ -367,7 +367,7 @@ export default function SquadEditor({
           <div className="mt-2 w-full flex items-start gap-1.5 px-2 py-1.5 rounded-md text-[13px] leading-snug"
             style={{ background: '#22C55E18', border: '1px solid #22C55E40', color: '#4ADE80', fontFamily: 'var(--font-game), sans-serif' }}>
             <span className="shrink-0" aria-hidden="true">✓</span>
-            <span className="min-w-0 break-words">Inclui <b>+{PREFERRED_FORMATION_CHEM_BONUS}</b> da formação preferida do técnico ({coach.name})</span>
+            <span className="min-w-0 break-words">Inclui <b>+{PREFERRED_FORMATION_CHEM_BONUS}</b> da formação preferida do treinador ({coach.name})</span>
           </div>
         )}
         {/* Cartas especiais que mexem na QUÍMICA GERAL (total) do time: Pilar, Noé, 12º Homem, Improvisador (+), Lobo Solitário, Forasteiro e Fominha (−). */}
@@ -460,7 +460,7 @@ export default function SquadEditor({
               type="button"
               onClick={() => setFieldSettingsPanel('coach')}
               className="group flex min-h-[76px] w-full min-w-0 items-center gap-2 rounded-lg border border-primary/60 bg-[#080F0AF2] px-2 py-2 text-left shadow-lg backdrop-blur-sm transition-colors hover:border-[#F0D77A] hover:bg-[#122016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              title="Abrir informações do técnico e estádio"
+              title="Abrir informações do treinador e do estádio"
             >
               <span className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border border-primary/60 bg-[#15151F] sm:h-16 sm:w-16">
                 {coachDisplayPhoto ? (
@@ -477,7 +477,7 @@ export default function SquadEditor({
                 {coachPrime && <span className="absolute bottom-0 right-0 rounded-tl-md bg-brand-strong px-0.5 text-[12px] font-black leading-3 text-[#17120A]">★</span>}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-black tracking-[0.12em] text-[#B4B4C4]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>TÉCNICO{coachPrime ? ' · PRIME' : ''}</span>
+                <span className="block truncate text-[13px] font-black tracking-[0.12em] text-[#B4B4C4]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>TREINADOR{coachPrime ? ' · PRIME' : ''}</span>
                 <span className="block whitespace-normal break-words text-[17px] font-black leading-tight text-[#F0D77A] sm:text-lg" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{coach.name}</span>
               </span>
             </button>
@@ -611,8 +611,8 @@ export default function SquadEditor({
             />
             {!activeRole && (
               <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px]" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#8A8A9A' }}>
-                <span className="font-bold tracking-wider text-[#6A6A7A]">CONEXÕES:</span>
-                {([['club', 'Mesmo clube'], ['nation', 'Mesma nação'], ['coach', 'Mesmo técnico'], ['partner', 'Dupla histórica']] as const).map(([t, label]) => (
+                <span className="font-bold tracking-wider text-[var(--ui-text-faint)]">CONEXÕES:</span>
+                {([['club', 'Mesmo clube'], ['nation', 'Mesma nação'], ['coach', 'Mesmo treinador'], ['partner', 'Dupla histórica']] as const).map(([t, label]) => (
                   <span key={t} className="flex items-center gap-1">
                     <span style={{ width: 12, height: 2.5, borderRadius: 2, background: CHEM_LINK_COLOR[t], display: 'inline-block' }} />
                     {label}
@@ -680,12 +680,12 @@ export default function SquadEditor({
                   })}
                 </div>
                 <p className="text-[13px] mt-2" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
-                  Segure uma reserva para levar o campo à tela e clique no titular que ela vai substituir.
+                  Segure (ou arraste) uma reserva até o titular que ela vai substituir.
                 </p>
               </>
             ) : (
               <p className="text-[13px]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
-                Sem reservas ainda. Você ganha uma <b style={{ color: 'var(--ui-brand-strong)' }}>oferta de recrutamento ao fim de cada rodada</b> — as contratações aparecem aqui no banco.
+                Sem reservas ainda. As contratações do <b style={{ color: 'var(--ui-brand-strong)' }}>recrutamento</b> aparecem aqui no banco.
               </p>
             )}
           </div>
@@ -696,13 +696,13 @@ export default function SquadEditor({
         open={fieldSettingsPanel !== null}
         onOpenChange={open => { if (!open) setFieldSettingsPanel(null); }}
         size="wide"
-        title={fieldSettingsPanel === 'formation' ? 'FORMAÇÃO' : fieldSettingsPanel === 'tactic' ? 'TÁTICA DO TIME' : 'TÉCNICO'}
+        title={fieldSettingsPanel === 'formation' ? 'FORMAÇÃO' : fieldSettingsPanel === 'tactic' ? 'TÁTICA DO TIME' : 'TREINADOR'}
         subtitle={
           fieldSettingsPanel === 'formation'
             ? 'Escolha o esquema e veja como ele muda o comportamento do time.'
             : fieldSettingsPanel === 'tactic'
-              ? 'Escolha a mentalidade que orienta o comportamento do time na partida.'
-              : 'Confira o técnico e os efeitos ativos do seu time.'
+              ? 'Escolha a tática que orienta o comportamento do time na partida.'
+              : 'Confira o treinador e os efeitos ativos do seu time.'
         }
         closeLabel="Fechar configurações do campo"
         className="!h-dvh !w-screen !max-h-dvh !max-w-none rounded-none border-0 sm:!h-auto sm:!max-h-[min(92dvh,860px)] sm:!w-full sm:!max-w-3xl sm:rounded-[var(--ui-radius-xl)] sm:border"
@@ -973,7 +973,7 @@ export default function SquadEditor({
                               className="mt-2 w-full rounded-lg px-3 py-2.5 text-xs font-bold"
                               style={{ color: '#F3F4F6', background: '#12121E', border: '1px solid #29293A', fontFamily: 'var(--font-game), sans-serif' }}
                             >
-                              <option value="">Manual · escolher no modal</option>
+                              <option value="">Manual</option>
                               {EVOLVE_ATTRS.map(attribute => (
                                 <option key={attribute.key} value={attribute.key} disabled={!hasFutureEvolveLevel && selectedPlayer.autoEvolveAttribute !== attribute.key}>
                                   {attribute.label}
@@ -985,7 +985,7 @@ export default function SquadEditor({
                                 ? `Os próximos pacotes de +${EVOLVE_POINTS} irão para ${EVOLVE_ATTRS.find(attribute => attribute.key === selectedPlayer.autoEvolveAttribute)?.label.toLowerCase()}. Pontos já liberados continuam como estão.`
                                 : selectedPlayer.autoEvolveAttribute
                                   ? 'Os níveis que liberam pontos já foram concluídos. Você ainda pode desligar a preferência.'
-                                  : 'Sem automação: distribua manualmente os pontos já liberados e escolha os próximos no modal.'}
+                                  : 'Sem automação: você distribui os pontos liberados.'}
                             </span>
                           </label>
                         )}
@@ -1004,7 +1004,7 @@ export default function SquadEditor({
                                 className="flex items-center justify-center rounded-lg px-3 py-2.5 text-[13px] font-black transition-transform active:scale-[0.98]"
                                 style={{
                                   background: (ep[a.key] ?? 0) > 0 ? '#0a2114' : '#0A0A12',
-                                  color: (ep[a.key] ?? 0) > 0 ? '#4ADE80' : availablePoints >= EVOLVE_POINTS ? '#C9C9D5' : '#6A6A7A',
+                                  color: (ep[a.key] ?? 0) > 0 ? '#4ADE80' : availablePoints >= EVOLVE_POINTS ? '#C9C9D5' : 'var(--ui-text-faint)',
                                   border: `1px solid ${(ep[a.key] ?? 0) > 0 ? '#22C55E88' : '#1A1A2A'}`,
                                   cursor: availablePoints >= EVOLVE_POINTS ? 'pointer' : 'default',
                                   fontFamily: 'var(--font-game), sans-serif',

@@ -30,6 +30,29 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* Design-system scales as Tailwind utilities (see docs/design/DESIGN_SYSTEM.md).
+     text-micro … text-display, leading-ui-*, tracking-caps …; z-index uses z-(--ui-z-modal). */
+  --text-micro: var(--ui-fs-micro);
+  --text-caption: var(--ui-fs-caption);
+  --text-label: var(--ui-fs-label);
+  --text-body-sm: var(--ui-fs-body-sm);
+  --text-body: var(--ui-fs-body);
+  --text-lead: var(--ui-fs-lead);
+  --text-title-sm: var(--ui-fs-title-sm);
+  --text-title: var(--ui-fs-title);
+  --text-title-lg: var(--ui-fs-title-lg);
+  --text-heading: var(--ui-fs-heading);
+  --text-display: var(--ui-fs-display);
+  --leading-ui-none: var(--ui-leading-none);
+  --leading-ui-tight: var(--ui-leading-tight);
+  --leading-ui-snug: var(--ui-leading-snug);
+  --leading-ui-normal: var(--ui-leading-normal);
+  --tracking-display: var(--ui-tracking-display);
+  --tracking-tight-caps: var(--ui-tracking-tight-caps);
+  --tracking-caps: var(--ui-tracking-caps);
+  --tracking-wide-caps: var(--ui-tracking-wide-caps);
+  --tracking-kicker: var(--ui-tracking-kicker);
 }
 
 /* UCL Immortals — UI theme bridge.

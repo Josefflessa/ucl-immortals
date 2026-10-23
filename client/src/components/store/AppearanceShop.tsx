@@ -89,7 +89,7 @@ export default function AppearanceShop() {
         }).catch(() => undefined);
       }
       setConfirming(null);
-      toast.success(`${confirmingItem.name} adicionada à sua coleção.`);
+      toast.success(`${confirmingItem.name} agora é sua.`);
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'Não foi possível concluir a compra.');
     } finally {
@@ -162,7 +162,7 @@ export default function AppearanceShop() {
                 <article key={frame.key} className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border bg-[var(--ui-surface-1)]" style={{ borderColor: `color-mix(in srgb, ${frame.color} 36%, var(--ui-line-subtle))` }}>
                   <div className="relative grid h-32 place-items-center overflow-hidden sm:h-36" style={{ background: `radial-gradient(ellipse at center, ${frame.color}20, transparent 70%)` }}>
                     <FrameImage frameKey={frame.key} className="size-28 sm:size-32" />
-                    {equipped ? <span className="absolute right-1.5 top-1.5 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold" style={{ color: frame.color, borderColor: `${frame.color}55`, backgroundColor: 'var(--ui-surface-1)' }}>Em uso</span> : null}
+                    {equipped ? <span className="absolute right-1.5 top-1.5 rounded-full border px-1.5 py-0.5 text-micro font-semibold" style={{ color: frame.color, borderColor: `${frame.color}55`, backgroundColor: 'var(--ui-surface-1)' }}>Em uso</span> : null}
                   </div>
                   <div className="flex flex-1 flex-col border-t border-[var(--ui-line-subtle)] p-2.5 sm:p-3">
                     <div className="flex min-h-9 items-start justify-between gap-1.5">
@@ -178,7 +178,7 @@ export default function AppearanceShop() {
                           <span className="flex w-full items-center justify-between gap-1.5"><span>Comprar</span><CoinAmount value={price} size={13} className="text-inherit" /></span>
                         </Button>
                       )}
-                      {!owned && !canAfford ? <p className="mt-1 text-center text-[9px] leading-tight text-[var(--ui-text-muted)]">Faltam {(price - (album?.coins ?? 0)).toLocaleString('pt-BR')} moedas</p> : null}
+                      {!owned && !canAfford ? <p className="mt-1 text-center text-micro leading-tight text-[var(--ui-text-muted)]">Faltam {(price - (album?.coins ?? 0)).toLocaleString('pt-BR')} moedas</p> : null}
                     </div>
                   </div>
                 </article>
@@ -199,7 +199,7 @@ export default function AppearanceShop() {
               <article key={cover.key} className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)]">
                 <div className="relative aspect-[3/2] overflow-hidden bg-[var(--ui-surface-2)]">
                   <img src={cover.src} alt="" loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover" />
-                  {equipped ? <span className="absolute right-1.5 top-1.5 rounded-full border border-white/20 bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white">Em uso</span> : null}
+                  {equipped ? <span className="absolute right-1.5 top-1.5 rounded-full border border-white/20 bg-black/70 px-1.5 py-0.5 text-micro font-semibold text-white">Em uso</span> : null}
                 </div>
                 <div className="flex flex-1 flex-col border-t border-[var(--ui-line-subtle)] p-2.5 sm:p-3">
                   <h3 className="min-h-9 break-words font-display text-sm leading-tight text-[var(--ui-text)] sm:text-base">{cover.name}</h3>
@@ -213,7 +213,7 @@ export default function AppearanceShop() {
                         <span className="flex w-full items-center justify-between gap-1.5"><span>Comprar</span><CoinAmount value={price} size={13} className="text-inherit" /></span>
                       </Button>
                     )}
-                    {!owned && !canAfford ? <p className="mt-1 text-center text-[9px] leading-tight text-[var(--ui-text-muted)]">Faltam {(price - (album?.coins ?? 0)).toLocaleString('pt-BR')} moedas</p> : null}
+                    {!owned && !canAfford ? <p className="mt-1 text-center text-micro leading-tight text-[var(--ui-text-muted)]">Faltam {(price - (album?.coins ?? 0)).toLocaleString('pt-BR')} moedas</p> : null}
                   </div>
                 </div>
               </article>
@@ -239,7 +239,7 @@ export default function AppearanceShop() {
                 <article key={style.key} className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)]">
                   <div className="relative grid min-h-24 place-items-center overflow-hidden bg-[radial-gradient(ellipse_at_center,rgba(233,196,106,.11),transparent_72%)] px-2">
                     <StyledName name="Seu nome" styleKey={style.key} className="font-shop-preview max-w-full" />
-                    {equipped ? <span className="absolute right-1.5 top-1.5 rounded-full border border-white/20 bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white">Em uso</span> : null}
+                    {equipped ? <span className="absolute right-1.5 top-1.5 rounded-full border border-white/20 bg-black/70 px-1.5 py-0.5 text-micro font-semibold text-white">Em uso</span> : null}
                   </div>
                   <div className="flex flex-1 flex-col border-t border-[var(--ui-line-subtle)] p-2.5 sm:p-3">
                     <h3 className="min-h-9 break-words font-display text-sm leading-tight text-[var(--ui-text)] sm:text-base">{style.name}</h3>
@@ -253,7 +253,7 @@ export default function AppearanceShop() {
                           <span className="flex w-full items-center justify-between gap-1.5"><span>Comprar</span><CoinAmount value={price} size={13} className="text-inherit" /></span>
                         </Button>
                       )}
-                      {!owned && !canAfford ? <p className="mt-1 text-center text-[9px] leading-tight text-[var(--ui-text-muted)]">Faltam {(price - (album?.coins ?? 0)).toLocaleString('pt-BR')} moedas</p> : null}
+                      {!owned && !canAfford ? <p className="mt-1 text-center text-micro leading-tight text-[var(--ui-text-muted)]">Faltam {(price - (album?.coins ?? 0)).toLocaleString('pt-BR')} moedas</p> : null}
                     </div>
                   </div>
                 </article>

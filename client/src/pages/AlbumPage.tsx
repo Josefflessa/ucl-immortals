@@ -146,7 +146,7 @@ function FilterSelect({
 }) {
   return (
     <label htmlFor={id} className="min-w-0">
-      <span className="mb-1.5 block text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">
+      <span className="mb-1.5 block text-label font-bold uppercase tracking-kicker text-[var(--ui-text-faint)]">
         {label}
       </span>
       <div className="relative">
@@ -205,32 +205,32 @@ function PlayerDetail({
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span
-            className="rounded-full border px-2.5 py-1 text-[12px] font-bold uppercase tracking-[0.15em]"
+            className="rounded-full border px-2.5 py-1 text-label font-bold uppercase tracking-[0.15em]"
             style={{ color: rarityColor, borderColor: `${rarityColor}66`, backgroundColor: `${rarityColor}14` }}
           >
             {RARITY_LABELS[player.rarity]}
           </span>
-          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">
+          <span className="text-xs font-semibold uppercase tracking-wide-caps text-[var(--ui-text-faint)]">
             {catalogPath.club.name} · {catalogPath.league.name}
           </span>
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="ui-panel ui-panel--inset p-3">
-            <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Geral da carta</div>
+            <div className="text-label font-bold uppercase tracking-wide-caps text-[var(--ui-text-faint)]">Geral da carta</div>
             <div className="mt-1 font-display text-3xl leading-none tabular-nums" style={{ color: rarityColor }}>{player.overall}</div>
-            <div className="mt-1 text-[12px] font-semibold text-[var(--ui-text-faint)]">Base original: {originalOverall}</div>
+            <div className="mt-1 text-label font-semibold text-[var(--ui-text-faint)]">Base original: {originalOverall}</div>
           </div>
           <div className="ui-panel ui-panel--inset p-3">
-            <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Posição</div>
+            <div className="text-label font-bold uppercase tracking-wide-caps text-[var(--ui-text-faint)]">Posição</div>
             <div className="mt-1 font-display text-3xl leading-none text-[var(--ui-text)]">{getPositionLabel(player.position)}</div>
           </div>
           <div className="ui-panel ui-panel--inset p-3">
-            <div className="min-w-0 text-[10px] font-bold uppercase leading-tight tracking-[0.08em] text-[var(--ui-text-faint)]">Nacionalidade</div>
+            <div className="min-w-0 text-micro font-bold uppercase leading-tight tracking-caps text-[var(--ui-text-faint)]">Nacionalidade</div>
             <div className="mt-1 truncate text-sm font-bold text-[var(--ui-text)]">{player.nation}</div>
           </div>
           <div className="ui-panel ui-panel--inset p-3">
-            <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Versões</div>
+            <div className="text-label font-bold uppercase tracking-wide-caps text-[var(--ui-text-faint)]">Versões</div>
             <div className="mt-1 font-display text-3xl leading-none tabular-nums text-[var(--ui-text)]">{versionCount}</div>
           </div>
         </div>
@@ -260,29 +260,29 @@ function PlayerDetail({
 
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
-            <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Clube e liga</div>
+            <div className="text-label font-bold uppercase tracking-kicker text-[var(--ui-text-faint)]">Clube e liga</div>
             <p className="mt-1 text-sm text-[var(--ui-text)]">
               <strong>{catalogPath.club.name}</strong> · {catalogPath.league.name}
             </p>
           </div>
           <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
-            <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Posições</div>
+            <div className="text-label font-bold uppercase tracking-kicker text-[var(--ui-text-faint)]">Posições</div>
             <p className="mt-1 text-sm text-[var(--ui-text)]">
               Principal: <strong>{getPositionLabel(player.position)}</strong>
               {secondaryPositions.length > 0 ? ` · Também: ${secondaryPositions.map(getPositionLabel).join(', ')}` : ''}
             </p>
           </div>
           <div className="rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
-            <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Disponibilidade</div>
+            <div className="text-label font-bold uppercase tracking-kicker text-[var(--ui-text-faint)]">Disponibilidade</div>
             <p className="mt-1 text-sm text-[var(--ui-text)]">
-              {EVENT_UNIQUE_CARD_IDS.has(player.id) ? 'Carta Única exclusiva de evento' : player.isUnique ? 'Carta Única da loja' : 'Carta regular do catálogo'}
+              {EVENT_UNIQUE_CARD_IDS.has(player.id) ? 'Carta Única exclusiva de evento' : player.isUnique ? 'Carta Única' : 'Carta regular do catálogo'}
             </p>
           </div>
         </div>
 
         {player.historicalPartners && player.historicalPartners.length > 0 ? (
           <div className="mt-4 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3">
-            <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Conexões históricas</div>
+            <div className="text-label font-bold uppercase tracking-kicker text-[var(--ui-text-faint)]">Conexões históricas</div>
             <p className="mt-1 text-sm leading-relaxed text-[var(--ui-text-muted)]">
               {player.historicalPartners.map(readablePlayerId).join(' · ')}
             </p>
@@ -435,8 +435,8 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
         </button>
         <div className="mt-2 w-full min-w-0 text-center">
           <h3 className="truncate text-xs font-bold text-[var(--ui-text)]">{player.shortName}</h3>
-          <p className="mt-0.5 truncate text-[13px] text-[var(--ui-text-muted)]" title={canonicalClubName(player.club)}>{canonicalClubName(player.club)}</p>
-          <div className="mt-1 w-full min-w-0 max-w-full text-center text-[12px] font-bold uppercase leading-tight tracking-[0.06em]" style={{ color }} title={metaDescription}>
+          <p className="mt-0.5 truncate text-body-sm text-[var(--ui-text-muted)]" title={canonicalClubName(player.club)}>{canonicalClubName(player.club)}</p>
+          <div className="mt-1 w-full min-w-0 max-w-full text-center text-label font-bold uppercase leading-tight tracking-tight-caps" style={{ color }} title={metaDescription}>
             <div className="truncate">{getPositionLabel(shownPosition)} · {positionDescription}</div>
             <div className="truncate text-[var(--ui-text-muted)]">{RARITY_LABELS[player.rarity]}</div>
           </div>
@@ -449,13 +449,13 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
     <>
         {showIntro ? (
           <>
-            <SectionHeader title="Álbum de jogadores" className="mb-5" />
+            <SectionHeader title="Catálogo" className="mb-5" />
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Metric label="Cartas" value={ALBUM_PLAYERS.length} detail="versões disponíveis" tone="brand" />
-              <Metric label="Jogadores" value={versionCounts.size} detail="identidades no catálogo" />
+              <Metric label="Jogadores" value={versionCounts.size} detail="jogadores diferentes" />
               <Metric label="Clubes" value={allClubs.length} detail="representados" />
-              <Metric label="Países dos clubes" value={clubCountries.length} detail="na hierarquia" />
+              <Metric label="Países dos clubes" value={clubCountries.length} detail="com clubes no catálogo" />
             </div>
           </>
         ) : null}
@@ -465,7 +465,7 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal size={17} className="text-[var(--ui-brand-strong)]" aria-hidden="true" />
-                <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-[var(--ui-text)]">Filtros do álbum</h2>
+                <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-[var(--ui-text)]">Filtros do catálogo</h2>
               </div>
               {hasFilters ? (
                 <Button intent="ghost" onClick={resetFilters} className="min-h-8 px-2.5 text-xs">
@@ -476,14 +476,14 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_repeat(6,minmax(120px,1fr))]">
               <label htmlFor="album-search" className="min-w-0">
-                <span className="mb-1.5 block text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Buscar</span>
+                <span className="mb-1.5 block text-label font-bold uppercase tracking-kicker text-[var(--ui-text-faint)]">Buscar</span>
                 <div className="relative">
                   <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)]" />
                   <Input
                     id="album-search"
                     value={search}
                     onChange={event => handleSearchChange(event.target.value)}
-                    placeholder="Nome, país ou clube..."
+                    placeholder="Nome, país ou clube…"
                     className="w-full pl-9"
                   />
                 </div>
@@ -524,7 +524,7 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
               <div className="flex items-start gap-2">
                 <LayoutGrid size={16} className="mt-0.5 shrink-0 text-[var(--ui-brand-strong)]" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Grade</div>
+                  <div className="text-label font-bold uppercase tracking-kicker text-[var(--ui-text-faint)]">Grade</div>
                   <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-label="Escolher grade do álbum">
                     {GRID_OPTIONS.map(option => {
                       const selected = gridColumns === option.columns;
@@ -536,12 +536,12 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
                           className={cn('flex min-h-10 min-w-0 flex-col items-start justify-center gap-0.5 rounded-lg px-2.5 py-2 sm:flex-row sm:items-center sm:gap-2 sm:px-3', selected && 'border-[var(--ui-brand)] bg-[var(--ui-brand-soft)]')}
                         >
                           <span className="text-xs font-bold leading-none text-[var(--ui-text)]">{option.label}</span>
-                          <span className="text-[12px] leading-none text-[var(--ui-text-faint)]">{option.detail}</span>
+                          <span className="text-label leading-none text-[var(--ui-text-faint)]">{option.detail}</span>
                         </ChoiceCard>
                       );
                     })}
                   </div>
-                  <p className="mt-1.5 text-[12px] text-[var(--ui-text-faint)]">A grade se adapta à largura da tela.</p>
+                  <p className="mt-1.5 text-label text-[var(--ui-text-faint)]">A grade se adapta à largura da tela.</p>
                 </div>
               </div>
 
@@ -577,15 +577,15 @@ function CatalogBrowser({ showIntro }: { showIntro: boolean }) {
               >
                 {positionFilter !== 'ALL' && visiblePrimaryPlayers.length > 0 ? (
                   <div className="col-span-full flex items-center gap-2 border-b border-[var(--ui-line-subtle)] pb-2">
-                    <span className="text-[12px] font-bold uppercase tracking-[0.16em] text-[var(--ui-brand-strong)]">Posição principal</span>
-                    <span className="text-[12px] font-semibold text-[var(--ui-text-faint)]">({primaryPositionCount})</span>
+                    <span className="text-label font-bold uppercase tracking-[0.16em] text-[var(--ui-brand-strong)]">Posição principal</span>
+                    <span className="text-label font-semibold text-[var(--ui-text-faint)]">({primaryPositionCount})</span>
                   </div>
                 ) : null}
                 {(positionFilter === 'ALL' ? visiblePlayers : visiblePrimaryPlayers).map(renderPlayerCard)}
                 {positionFilter !== 'ALL' && visibleSecondaryPlayers.length > 0 ? (
                   <div className="col-span-full flex items-center gap-2 border-b border-[var(--ui-line-subtle)] pb-2 pt-2">
-                    <span className="text-[12px] font-bold uppercase tracking-[0.16em] text-[var(--ui-text-muted)]">2ª posição</span>
-                    <span className="text-[12px] font-semibold text-[var(--ui-text-faint)]">({secondaryPositionCount})</span>
+                    <span className="text-label font-bold uppercase tracking-[0.16em] text-[var(--ui-text-muted)]">2ª posição</span>
+                    <span className="text-label font-semibold text-[var(--ui-text-faint)]">({secondaryPositionCount})</span>
                   </div>
                 ) : null}
                 {visibleSecondaryPlayers.map(renderPlayerCard)}

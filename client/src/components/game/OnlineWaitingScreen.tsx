@@ -7,7 +7,7 @@ interface OnlineWaitingScreenProps {
   headerRight?: ReactNode;
 }
 
-export default function OnlineWaitingScreen({ message, detail = 'A partida continua sincronizada para todos.', headerRight }: OnlineWaitingScreenProps) {
+export default function OnlineWaitingScreen({ message, detail = 'Tudo continua sincronizado para todos.', headerRight }: OnlineWaitingScreenProps) {
   return (
     <AppShell className="relative flex min-h-dvh flex-col overflow-hidden">
       <TopBar right={headerRight} />

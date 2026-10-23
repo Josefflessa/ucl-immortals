@@ -217,7 +217,7 @@ export default function AlbumInventory() {
       <section>
         <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-[var(--ui-text)]">Pacotes e envelopes</h2>
         {items.length === 0 ? (
-          <EmptyState title="Nenhum pacote guardado" description="Campanhas concluídas, títulos e páginas completas enchem o inventário. Também dá para comprar pacotes na Loja." />
+          <EmptyState title="Nenhum pacote guardado" description="Ganhe pacotes jogando campanhas, completando conquistas e páginas, no resgate diário ou na Loja." />
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {items.map(([key, quantity]) => (
@@ -251,7 +251,7 @@ export default function AlbumInventory() {
           </div>
         </div>
         {spares.length === 0 ? (
-          <EmptyState title="Nenhuma carta repetida" description="As cópias extras que saírem nos pacotes aparecem aqui. Use-as para evoluir cartas ou venda-as por moedas." />
+          <EmptyState title="Nenhuma carta repetida" description="Suas cópias extras aparecem aqui. Use-as para evoluir cartas ou venda-as por moedas." />
         ) : (
           <>
             <AlbumFilterToolbar
@@ -275,8 +275,8 @@ export default function AlbumInventory() {
                   ['upgrade', 'Podem evoluir', filterCounts.upgrade],
                   ['maxed', 'Nível máximo', filterCounts.maxed],
                 ] as [SpareFilter, string, number][]).map(([value, label, count]) => (
-                  <button key={value} type="button" disabled={selectionAction === 'apply' && value === 'maxed'} aria-pressed={filter === value} onClick={() => setFilter(value)} className={`flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 text-[11px] font-bold transition-colors ${filter === value ? 'bg-[var(--ui-surface-3)] text-[var(--ui-text)] shadow-sm' : 'text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]'} disabled:cursor-not-allowed disabled:opacity-40`}>
-                    <span className="truncate">{label}</span><span className="shrink-0 text-[10px] tabular-nums opacity-70">{count}</span>
+                  <button key={value} type="button" disabled={selectionAction === 'apply' && value === 'maxed'} aria-pressed={filter === value} onClick={() => setFilter(value)} className={`flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 text-caption font-bold transition-colors ${filter === value ? 'bg-[var(--ui-surface-3)] text-[var(--ui-text)] shadow-sm' : 'text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]'} disabled:cursor-not-allowed disabled:opacity-40`}>
+                    <span className="truncate">{label}</span><span className="shrink-0 text-micro tabular-nums opacity-70">{count}</span>
                   </button>
                 ))}
               </div>
@@ -363,7 +363,7 @@ export default function AlbumInventory() {
                         <div className="shrink-0"><PlayerCard player={card} lite scale={0.28} albumLevel={albumLevel as AlbumLevel} /></div>
                         <div className="min-w-0 flex-1">
                           <div className="text-base font-bold leading-snug text-[var(--ui-text)] [overflow-wrap:anywhere]">{card.shortName}</div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-[var(--ui-text-muted)]">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-body-sm text-[var(--ui-text-muted)]">
                             <span>Nº {s.number} · {RARITY_LABEL[card.rarity]}</span>
                             <LevelStars level={levelForCopies(s.copies)} size={11} />
                           </div>

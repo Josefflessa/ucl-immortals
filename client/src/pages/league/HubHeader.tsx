@@ -4,6 +4,7 @@ import CreditsWallet from '../../components/game/CreditsWallet';
 import Crest from '../../components/game/Crest';
 import MissionQuickSummary from '../../components/game/MissionQuickSummary';
 import { Tab, TabList, Tabs, TopBar } from '../../design-system';
+import { CircleCheck, CircleX } from 'lucide-react';
 import { DIFFICULTY_LEVELS } from '@shared/game/gameData';
 import SpoilerLock from './SpoilerLock';
 import type { LeagueHub } from './useLeagueHub';
@@ -25,7 +26,7 @@ export function HubHeader({ hub }: { hub: LeagueHub }) {
           <div className="flex items-center gap-2 sm:gap-3">
               {!isKnockout && playerStanding && (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--ui-text-faint)]">Posição:</span>
+                <span className="text-label text-[var(--ui-text-muted)]">Posição</span>
                 <span className={`font-display text-xl ${qualifies ? 'text-[var(--ui-success)]' : 'text-[var(--ui-danger)]'}`}>{playerPosition}º</span>
               </div>
             )}
@@ -34,22 +35,14 @@ export function HubHeader({ hub }: { hub: LeagueHub }) {
         }
       />
 
-      {/* Hero banner */}
-      <div className="relative h-16 overflow-hidden sm:h-32">
-        <div className="absolute inset-0" style={{
-          background: 'linear-gradient(180deg, transparent, var(--ui-bg))',
-        }} />
-        <div className="relative z-10 flex items-center justify-center h-full">
-          <div className="text-center">
-            <h2 className="text-3xl sm:text-5xl font-black tracking-widest"
-              style={{ fontFamily: 'var(--font-display), sans-serif', color: isKnockout ? 'var(--ui-brand)' : '#FFFFFF' }}>
-              {isKnockout ? knockoutLabel : isGroupStage ? `FASE DE GRUPOS · RODADA ${leagueRound} DE ${leagueRounds}` : `RODADA ${leagueRound} DE ${leagueRounds}`}
-            </h2>
-            <p className="hidden sm:block" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif', fontSize: '13px' }}>
-              {isKnockout ? 'Mata-mata — gerencie seu time entre os confrontos' : isLeagueOnly ? 'Dispute rodada por rodada e seja o campeão da tabela' : isGroupStage ? `Dispute seu grupo e fique entre os ${state.competitionFormat.qualifiedPerGroup} primeiros` : `Dispute rodada por rodada e termine entre os ${qualifiedTeams} melhores`}
-            </p>
-          </div>
-        </div>
+      {/* Page title: the stage the competition is in, aligned with the content below. */}
+      <div className="ui-shell pt-5 sm:pt-8">
+        <h1 className={`ui-title ${isKnockout ? 'text-[var(--ui-brand-strong)]' : ''}`}>
+          {isKnockout ? knockoutLabel : isGroupStage ? `Fase de grupos · Rodada ${leagueRound} de ${leagueRounds}` : `Rodada ${leagueRound} de ${leagueRounds}`}
+        </h1>
+        <p className="ui-subtitle mt-1.5 text-body-sm sm:text-lead">
+          {isKnockout ? 'Gerencie seu time entre os confrontos do mata-mata.' : isLeagueOnly ? 'Dispute rodada por rodada e termine no topo da tabela.' : isGroupStage ? `Dispute seu grupo e fique entre os ${state.competitionFormat.qualifiedPerGroup} primeiros.` : `Dispute rodada por rodada e termine entre os ${qualifiedTeams} melhores.`}
+        </p>
       </div>
     </>
   );
@@ -84,12 +77,10 @@ export function HubSummary({ hub }: { hub: LeagueHub }) {
         )}
         {!isKnockout && !spoilerLock && playerStanding && (
           <div
-            className="rounded-xl p-4 mb-3"
+            className="ui-panel mb-3 p-4"
             style={{
-              background: qualifies
-                ? 'linear-gradient(135deg, #0A2A0A, #0F0F1A)'
-                : 'linear-gradient(135deg, #2A0A0A, #0F0F1A)',
-              border: `1px solid ${qualifies ? '#22C55E44' : '#EF444444'}`,
+              background: `linear-gradient(135deg, ${qualifies ? 'var(--ui-success-soft)' : 'var(--ui-danger-soft)'}, var(--ui-surface-1) 70%)`,
+              borderColor: qualifies ? 'var(--ui-success-line)' : 'var(--ui-danger-line)',
             }}
           >
             <div className="flex items-center gap-3">
@@ -101,7 +92,7 @@ export function HubSummary({ hub }: { hub: LeagueHub }) {
               </div>
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <Crest crestId={playerTeam?.crestId} name={playerTeam?.name} size={34} />
-                <div className="min-w-0 truncate text-lg font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFFFFF' }}>
+                <div className="min-w-0 truncate font-display text-title uppercase leading-none tracking-caps text-[var(--ui-text)]">
                   {playerTeam?.name}
                 </div>
               </div>
@@ -116,26 +107,26 @@ export function HubSummary({ hub }: { hub: LeagueHub }) {
                     <div className="text-lg sm:text-xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: 'var(--ui-brand)' }}>
                       {stat.value}
                     </div>
-                    <div className="text-xs" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                    <div className="text-caption font-bold tracking-caps text-[var(--ui-text-muted)]">
                       {stat.label}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="mt-3 border-t border-white/[.05] pt-2 text-center text-xs" style={{
-              color: (isLeagueOnly || groupQualified || directQual) ? 'var(--ui-success)' : playoffQual ? '#3B82F6' : 'var(--ui-danger)',
-              fontFamily: 'var(--font-game), sans-serif',
+            <div className="mt-3 flex items-center gap-1.5 border-t border-[var(--ui-line-subtle)] pt-2.5 text-body-sm font-semibold" style={{
+              color: (isLeagueOnly || groupQualified || directQual) ? 'var(--ui-success)' : playoffQual ? 'var(--ui-info)' : 'var(--ui-danger)',
             }}>
+              {(isLeagueOnly || groupQualified || directQual || playoffQual) ? <CircleCheck size={15} aria-hidden="true" /> : <CircleX size={15} aria-hidden="true" />}
               {isLeagueOnly
-                ? '✓ Competição decidida pela tabela'
+                ? 'Competição decidida pela tabela'
                 : isGroupStage
-                  ? groupQualified ? `✓ Classificado pelo grupo ${playerGroupLabel ?? ''}` : '✗ Eliminado — fora da zona de classificação do grupo'
+                  ? groupQualified ? `Classificado pelo grupo ${playerGroupLabel ?? ''}` : 'Fora da zona de classificação do grupo'
                 : directQual
-                ? `✓ Classificação direta às Oitavas (Top ${directTeams})`
+                ? `Classificação direta às oitavas (top ${directTeams})`
                 : playoffQual
-                  ? `✓ Zona de Playoff (${directTeams + 1}º a ${qualifiedTeams}º)`
-                  : `✗ Eliminado (fora do Top ${qualifiedTeams})`}
+                  ? `Zona de playoff (${directTeams + 1}º a ${qualifiedTeams}º)`
+                  : `Fora da zona de classificação (top ${qualifiedTeams})`}
             </div>
           </div>
         )}

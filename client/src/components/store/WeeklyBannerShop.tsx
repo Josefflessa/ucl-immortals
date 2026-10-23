@@ -41,9 +41,9 @@ function BannerCardPlaceholder() {
     <div className="flex flex-col items-center">
       <div className="flex aspect-[0.72] w-full max-w-[9rem] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)] text-[var(--ui-text-faint)]">
         <Sparkles size={20} aria-hidden="true" />
-        <span className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em]">Única</span>
+        <span className="mt-2 text-micro font-bold uppercase tracking-wide-caps">Única</span>
       </div>
-      <span className="mt-1.5 text-center text-[10px] text-[var(--ui-text-faint)]">Em breve</span>
+      <span className="mt-1.5 text-center text-micro text-[var(--ui-text-faint)]">Em breve</span>
     </div>
   );
 }
@@ -146,7 +146,7 @@ export default function WeeklyBannerShop() {
             return (
               <button key={rarity} type="button" aria-pressed={active} onClick={() => setFilter(rarity)} className={`relative flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--ui-brand)] ${active ? '' : 'text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]'}`} style={active ? { color: getRarityColor(rarity) } : undefined}>
                 <span className="truncate">{title}</span>
-                <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] tabular-nums ${active ? '' : 'bg-[var(--ui-surface-2)] text-[var(--ui-text-faint)]'}`} style={active ? { backgroundColor: `${getRarityColor(rarity)}18` } : undefined}>{count}</span>
+                <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-micro tabular-nums ${active ? '' : 'bg-[var(--ui-surface-2)] text-[var(--ui-text-faint)]'}`} style={active ? { backgroundColor: `${getRarityColor(rarity)}18` } : undefined}>{count}</span>
                 {active ? <span aria-hidden="true" className="absolute inset-x-3 bottom-[-1px] h-0.5 rounded-full" style={{ backgroundColor: getRarityColor(rarity) }} /> : null}
               </button>
             );
@@ -157,8 +157,8 @@ export default function WeeklyBannerShop() {
           {featured.map(({ id, card }) => (
             <div key={id} className="flex min-w-0 flex-col items-center">
               <PlayerCard player={card} lite scale={0.68} />
-              <span className="mt-1.5 max-w-full truncate text-center text-[10px] font-bold" style={{ color: getRarityColor(filter) }}>{card.shortName}</span>
-              <span className="mt-1 flex min-h-4 items-center justify-center gap-1 text-[10px] font-semibold text-[var(--ui-success)]">
+              <span className="mt-1.5 max-w-full truncate text-center text-micro font-bold" style={{ color: getRarityColor(filter) }}>{card.shortName}</span>
+              <span className="mt-1 flex min-h-4 items-center justify-center gap-1 text-micro font-semibold text-[var(--ui-success)]">
                 {album?.stickers.has(id) ? <><Check size={12} aria-hidden="true" /> <span>Já tem</span></> : null}
               </span>
             </div>
@@ -181,14 +181,14 @@ export default function WeeklyBannerShop() {
             );
           })}
         </dl>
-        <p className="mt-3 text-[10px] text-[var(--ui-text-faint)]">As Únicas exclusivas do banner não saem em pacotes nem envelopes.</p>
+        <p className="mt-3 text-micro text-[var(--ui-text-faint)]">As Únicas exclusivas do banner não saem em pacotes nem envelopes.</p>
       </section>
 
       <GameModal
         open={confirmOpen}
         onOpenChange={open => { if (!busy) setConfirmOpen(open); }}
         title={`Sortear ${drawCount === 1 ? 'uma carta' : `${drawCount} cartas`}?`}
-        subtitle="O resultado vai direto para o Álbum; cada sorteio avança o pity separadamente."
+        subtitle="O resultado vai direto para o Álbum; cada sorteio conta para a garantia."
         closeLabel="Fechar confirmação"
         footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button intent="ghost" disabled={busy} onClick={() => setConfirmOpen(false)}>Cancelar</Button><Button intent="primary" className="w-full sm:w-auto" loading={busy} disabled={coins < price * drawCount} onClick={() => void buy()}><span>Confirmar</span><CoinAmount value={price * drawCount} size={14} className="text-inherit" /></Button></div>}
       >

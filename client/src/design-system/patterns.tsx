@@ -112,7 +112,7 @@ export function GameModal({
     <DialogPrimitive.Root open={open} onOpenChange={next => { if (dismissible || next) onOpenChange(next); }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
-          className={cn('ui-modal-backdrop', stacked ? 'z-[60]' : 'z-50', fullscreen && 'ui-modal-backdrop--fullscreen')}
+          className={cn('ui-modal-backdrop', stacked ? 'z-(--ui-z-modal-stacked)' : 'z-(--ui-z-modal)', fullscreen && 'ui-modal-backdrop--fullscreen')}
           onClick={event => { if (!dismissible) event.preventDefault(); }}
         >
           <DialogPrimitive.Content

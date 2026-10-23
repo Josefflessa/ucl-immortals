@@ -30,7 +30,7 @@ function packLabel(itemKey: AlbumItemKey): string {
 function rewardStatus(dayIndex: number, todayIndex: number, claimed: boolean): string {
   if (claimed) return 'Resgatado';
   if (dayIndex === todayIndex) return 'Disponível hoje';
-  if (dayIndex < todayIndex) return 'Dia encerrado';
+  if (dayIndex < todayIndex) return 'Não resgatado';
   return 'Em breve';
 }
 
@@ -52,14 +52,14 @@ function RewardDay({ reward, todayIndex, claimed }: {
       style={{ borderColor: isToday && !claimed ? 'var(--ui-brand-strong)' : 'var(--ui-line-subtle)' }}
     >
       <div className="relative flex w-full min-w-0 items-center">
-        <span className="w-full whitespace-nowrap pr-12 text-left text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--ui-brand)]">{reward.shortDay}</span>
-        {isToday ? <Badge tone={claimed ? 'success' : 'brand'} className="absolute right-0 top-1/2 min-h-5 -translate-y-1/2 px-1 py-0 text-[9px] tracking-normal">Hoje</Badge> : null}
+        <span className="w-full whitespace-nowrap pr-12 text-left text-micro font-extrabold uppercase tracking-[0.1em] text-[var(--ui-brand)]">{reward.shortDay}</span>
+        {isToday ? <Badge tone={claimed ? 'success' : 'brand'} className="absolute right-0 top-1/2 min-h-5 -translate-y-1/2 px-1 py-0 text-micro tracking-normal">Hoje</Badge> : null}
       </div>
       <div className="my-1 flex h-[82px] items-center justify-center">
         <ItemArt itemKey={reward.itemKey} height={78} />
       </div>
       <strong className="text-sm leading-tight text-[var(--ui-text)]">{packLabel(reward.itemKey)}</strong>
-      <span className={cn('mt-1 inline-flex items-center gap-1 text-[11px] font-semibold', claimed ? 'text-emerald-300' : isToday ? 'text-[var(--ui-brand-strong)]' : 'text-[var(--ui-text-faint)]')}>
+      <span className={cn('mt-1 inline-flex items-center gap-1 text-caption font-semibold', claimed ? 'text-emerald-300' : isToday ? 'text-[var(--ui-brand-strong)]' : 'text-[var(--ui-text-faint)]')}>
         {claimed ? <Check size={12} aria-hidden="true" /> : isToday ? <Sparkles size={12} aria-hidden="true" /> : reward.dayIndex > todayIndex ? <LockKeyhole size={11} aria-hidden="true" /> : <Clock3 size={12} aria-hidden="true" />}
         {status}
       </span>
@@ -104,7 +104,7 @@ export default function DailyRewardsHomeButton() {
       const updated = await api<WeeklyRewardsState>('/api/account/daily-rewards/claim', { method: 'POST' });
       setState(updated);
       await refreshAlbum();
-      setSuccess(`${packLabel(todayReward.itemKey)} foi adicionado ao inventário do álbum.`);
+      setSuccess(`${packLabel(todayReward.itemKey)} foi adicionado ao inventário do Álbum.`);
     } catch (cause) {
       const status = (cause as Error & { status?: number }).status;
       if (status === 409) {
@@ -151,7 +151,7 @@ export default function DailyRewardsHomeButton() {
           </div>
         )}
       >
-        {error ? <StatusBanner tone="danger" title="Não foi possível atualizar">{error}</StatusBanner> : null}
+        {error ? <StatusBanner tone="danger" title="Não foi possível resgatar">{error}</StatusBanner> : null}
         {success ? <StatusBanner tone="success" title="Recompensa recebida">{success}</StatusBanner> : null}
         {loading && !state ? (
           <div className="flex min-h-32 items-center justify-center text-sm text-[var(--ui-text-muted)]"><RotateCw size={16} className="mr-2 animate-spin" aria-hidden="true" /> Carregando calendário…</div>

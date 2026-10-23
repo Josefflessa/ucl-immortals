@@ -42,7 +42,7 @@ export function EventsHomeButton({ pending, onOpen }: { pending: number; onOpen:
     >
       <PartyPopper size={19} aria-hidden="true" />
       {pending > 0 ? (
-        <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-bg)] bg-[var(--ui-brand)] px-1 text-[12px] font-bold leading-none tabular-nums text-[var(--ui-brand-ink)]">
+        <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-bg)] bg-[var(--ui-brand)] px-1 text-label font-bold leading-none tabular-nums text-[var(--ui-brand-ink)]">
           {pending > 9 ? '9+' : pending}
         </span>
       ) : null}
@@ -183,7 +183,7 @@ export function ChoiceEventCard({ event, onChoose }: { event: GameEventState; on
             </div>
             <ObjectiveList objectives={event.objectives} color={CHOICE_COLOR} />
             {!event.cardUnlocked && event.status !== 'ended' ? (
-              <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Vale qualquer competição concluída com a conta durante o evento, solo ou online. Nas missões de escudo, escolha o escudo do clube ao montar o time.</p>
+              <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Valem competições solo e online concluídas com a conta durante o evento. Nas missões de escudo, escolha o escudo do clube ao montar o time.</p>
             ) : null}
           </>
         ) : (
@@ -200,7 +200,7 @@ export function ChoiceEventCard({ event, onChoose }: { event: GameEventState; on
         aria-expanded={expanded}
         aria-controls={detailsId}
         onClick={() => setExpanded(value => !value)}
-        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-[12px] font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
+        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-label font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
         style={{ fontFamily: 'var(--font-game), sans-serif' }}
       >
         <span>{expanded ? 'RECOLHER' : 'VER DETALHES'}</span>
@@ -256,7 +256,7 @@ export function CardRewardEventCard({ event }: { event: GameEventState }) {
         </div>
         <ObjectiveList objectives={event.objectives} color={CHOICE_COLOR} />
         {!event.cardUnlocked && event.status !== 'ended' ? (
-          <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Vale qualquer competição concluída com a conta durante o evento, solo ou online.</p>
+          <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Valem competições solo e online concluídas com a conta durante o evento.</p>
         ) : null}
       </div> : null}
       <button
@@ -264,7 +264,7 @@ export function CardRewardEventCard({ event }: { event: GameEventState }) {
         aria-expanded={expanded}
         aria-controls={detailsId}
         onClick={() => setExpanded(value => !value)}
-        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-[12px] font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
+        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-label font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
         style={{ fontFamily: 'var(--font-game), sans-serif' }}
       >
         <span>{expanded ? 'RECOLHER' : 'VER DETALHES'}</span>
@@ -322,7 +322,7 @@ export function CrestRewardEventCard({ event }: { event: GameEventState }) {
         aria-expanded={expanded}
         aria-controls={detailsId}
         onClick={() => setExpanded(value => !value)}
-        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-[12px] font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
+        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-label font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
         style={{ fontFamily: 'var(--font-game), sans-serif' }}
       >
         <span>{expanded ? 'RECOLHER' : 'VER DETALHES'}</span>
@@ -394,14 +394,14 @@ export function NameStyleEventCard({ event, playerName, onChoose }: { event: Gam
             return (
               <li key={key} className={cn('flex flex-col items-center gap-2 rounded-xl border bg-[var(--ui-surface-1)] p-3 text-center', isChosen ? 'border-[var(--ui-brand)]' : 'border-[var(--ui-line-subtle)]', chosen && !isChosen && 'opacity-40')}>
                 <span className="block max-w-full font-display text-2xl"><StyledName name={playerName} styleKey={key} /></span>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">{style.name}</span>
+                <span className="text-caption font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">{style.name}</span>
                 {canPick ? <Button type="button" intent="primary" onClick={() => setConfirming(key)} className="w-full">ESCOLHER</Button> : null}
               </li>
             );
           })}
         </ul>
         {chosen ? <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Para usar, toque no lápis ao lado do seu nome no perfil.</p> : event.status !== 'ended' ? (
-          <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Vale qualquer competição concluída com a conta durante o evento, solo ou online.</p>
+          <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Valem competições solo e online concluídas com a conta durante o evento.</p>
         ) : null}
       </div> : null}
       <button
@@ -409,7 +409,7 @@ export function NameStyleEventCard({ event, playerName, onChoose }: { event: Gam
         aria-expanded={expanded}
         aria-controls={detailsId}
         onClick={() => setExpanded(value => !value)}
-        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-[12px] font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
+        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-label font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
         style={{ fontFamily: 'var(--font-game), sans-serif' }}
       >
         <span>{expanded ? 'RECOLHER' : 'VER DETALHES'}</span>
@@ -488,7 +488,7 @@ export function EventCard({ event, equippedFrame, onEquip }: {
             {wearing ? <><Check size={15} aria-hidden="true" /> USANDO A MOLDURA</> : <><Sparkles size={15} aria-hidden="true" /> USAR A MOLDURA</>}
           </Button>
         ) : event.status !== 'ended' ? (
-          <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Vale qualquer competição concluída com a conta durante o evento, solo ou online. A moldura fica com você para sempre.</p>
+          <p className="text-xs leading-relaxed text-[var(--ui-text-faint)]">Valem competições solo e online concluídas com a conta durante o evento. A moldura fica com você para sempre.</p>
         ) : null}
       </div> : null}
       <button
@@ -496,7 +496,7 @@ export function EventCard({ event, equippedFrame, onEquip }: {
         aria-expanded={expanded}
         aria-controls={detailsId}
         onClick={() => setExpanded(value => !value)}
-        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-[12px] font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
+        className="flex h-10 w-full items-center justify-center gap-1 border-t border-[var(--ui-line-subtle)] text-label font-black tracking-[0.16em] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
         style={{ fontFamily: 'var(--font-game), sans-serif' }}
       >
         <span>{expanded ? 'RECOLHER' : 'VER DETALHES'}</span>

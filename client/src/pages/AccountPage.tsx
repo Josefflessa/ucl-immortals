@@ -115,11 +115,11 @@ const AUTH_USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,23}$/i;
 const AUTH_PASSWORD_MIN_LENGTH = 8;
 
 const FRIEND_ERROR_MESSAGES: Record<string, string> = {
-  invalid_friend: 'Confira o nome de usuário. Você só pode adicionar outra pessoa.',
-  invalid_friend_username: 'Esse nome de usuário não é válido. Confira se digitou o @ corretamente.',
-  cannot_add_self: 'Esse é o seu próprio usuário. Digite o @ de outra pessoa para adicioná-la.',
-  user_not_found: 'Não encontramos esse usuário. Confira o @ e tente novamente.',
-  already_friends: 'Vocês já estão na sua lista de amigos.',
+  invalid_friend: 'Confira o nome de usuário e tente de novo.',
+  invalid_friend_username: 'Esse nome de usuário não é válido. Confira se digitou certo.',
+  cannot_add_self: 'Esse é o seu próprio usuário. Digite o nome de usuário de outra pessoa.',
+  user_not_found: 'Não encontramos esse usuário. Confira o nome e tente de novo.',
+  already_friends: 'Vocês já são amigos.',
   friendship_not_found: 'Essa solicitação não está mais disponível. Atualize a lista e tente novamente.',
   invalid_friend_action: 'Não foi possível atualizar essa amizade. Atualize a lista e tente novamente.',
 };
@@ -202,8 +202,8 @@ function RecordPlayerCardVisual({ player, playerId, photoUrl, name, effectiveSta
 }) {
   return player ? <PlayerCard player={player} effectiveStats={effectiveStats ?? undefined} scale={0.55} lite /> : <div className="flex h-[178px] w-[110px] shrink-0 flex-col items-center justify-center gap-2 rounded-xl border border-[var(--ui-line-strong)] bg-[var(--ui-surface)] p-2 text-center">
     <PlayerAvatar playerId={playerId} photoUrl={photoUrl ?? undefined} size={64} rounded="rounded-lg" ring={false} fallback={<Trophy size={20} aria-hidden="true" className="text-[var(--ui-text-muted)]" />} />
-    <span className="text-[12px] font-semibold leading-tight text-[var(--ui-text-muted)]">Carta final indisponível</span>
-    <span className="max-w-full truncate text-[12px] text-[var(--ui-text-faint)]">{name}</span>
+    <span className="text-label font-semibold leading-tight text-[var(--ui-text-muted)]">Carta final indisponível</span>
+    <span className="max-w-full truncate text-label text-[var(--ui-text-faint)]">{name}</span>
   </div>;
 }
 
@@ -228,8 +228,8 @@ function RecordCard({ record, rank }: { record: PublicRecordEntry; rank: number 
                 sizeClassName="size-9"
               />
               <div className="min-w-0">
-                <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Recorde por</span>
-                <span className="block truncate text-[13px] text-[var(--ui-text-muted)]">@{record.username_snapshot}</span>
+                <span className="block text-label uppercase tracking-wider text-[var(--ui-text-faint)]">Recorde por</span>
+                <span className="block truncate text-body-sm text-[var(--ui-text-muted)]">@{record.username_snapshot}</span>
               </div>
             </div>
           </div>
@@ -237,18 +237,18 @@ function RecordCard({ record, rank }: { record: PublicRecordEntry; rank: number 
         <div className="mt-2 flex min-w-0 items-center gap-2 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/70 px-2 py-1.5">
           <Crest crestId={record.crest_id_snapshot} name={record.team_name_snapshot} size={24} className="shrink-0 rounded-full" />
           <div className="min-w-0">
-            <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
+            <span className="block text-label uppercase tracking-wider text-[var(--ui-text-faint)]">Time da campanha</span>
             <span className="block truncate text-xs font-semibold text-[var(--ui-text)]">{record.team_name_snapshot}</span>
           </div>
         </div>
         <div className="mt-2 flex min-w-0 items-end justify-between gap-2">
           <div className="min-w-0">
-            <span className="block text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
+            <span className="block text-label uppercase tracking-wider text-[var(--ui-text-faint)]">Data da campanha</span>
             <time className="block truncate text-xs text-[var(--ui-text-muted)]" dateTime={new Date(record.completed_at).toISOString()}>{formatDate(record.completed_at)}</time>
           </div>
           <div className="shrink-0 text-right">
             <div className="font-display text-xl leading-none tabular-nums text-[var(--ui-brand-strong)] sm:text-2xl">{record.value}</div>
-            <div className="mt-1 text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</div>
+            <div className="mt-1 text-label uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</div>
           </div>
         </div>
       </div>
@@ -292,7 +292,7 @@ function DifficultyBadge({ difficultyId }: { difficultyId: string | null | undef
   const color = difficultyColor(difficultyId);
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-md border py-0.5 pl-0.5 pr-2 text-[12px] font-bold uppercase leading-none tracking-wide"
+      className="inline-flex items-center gap-1 rounded-md border py-0.5 pl-0.5 pr-2 text-label font-bold uppercase leading-none tracking-wide"
       style={{ borderColor: `color-mix(in srgb, ${color} 45%, transparent)`, color, background: `color-mix(in srgb, ${color} 10%, transparent)` }}
     >
       <DifficultyEmblem difficulty={difficultyId} size={20} />
@@ -311,29 +311,29 @@ function PersonalRecordCard({ category, record }: { category: PublicRecordEntry[
       {record ? <RecordPlayerCardVisual player={record.player_card} playerId={record.player_id} photoUrl={record.player_photo_url} name={record.player_name} effectiveStats={record.player_effective_stats} /> : <div aria-hidden="true" className="flex h-[178px] w-[110px] shrink-0 items-center justify-center rounded-xl border border-dashed border-[var(--ui-line-strong)] bg-[var(--ui-surface)] text-[var(--ui-text-faint)]"><Icon size={24} /></div>}
       {/* Reads top to bottom: what the record is, the mark, who set it, where it ranks, then the campaign. */}
       <div className="flex min-w-0 flex-1 flex-col self-stretch">
-        <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider text-[var(--ui-text-soft)]">
+        <span className="flex min-w-0 items-center gap-1.5 text-label font-bold uppercase tracking-wider text-[var(--ui-text-soft)]">
           <Icon size={14} aria-hidden="true" className="shrink-0 text-[var(--ui-brand-strong)]" />
           <span className="truncate">{meta.label}</span>
         </span>
         {record ? <>
           <div className="mt-1.5 flex items-baseline gap-1.5">
             <strong className="font-display text-4xl leading-none tabular-nums text-[var(--ui-brand-strong)]">{record.value.toLocaleString('pt-BR')}</strong>
-            <span className="text-[12px] font-bold uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</span>
+            <span className="text-label font-bold uppercase tracking-wider text-[var(--ui-text-faint)]">{meta.suffix}</span>
           </div>
           <strong className="mt-1 block truncate text-sm font-semibold text-[var(--ui-text)]">{record.player_name}</strong>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <DifficultyBadge difficultyId={record.difficulty_id} />
             {rankPosition ? <span role="status" aria-label={`${rankPosition}ª posição no ranking geral de ${meta.label.toLowerCase()}`} className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-[var(--ui-brand)]/30 bg-[var(--ui-brand-soft)] px-2 py-1 text-[var(--ui-brand-strong)]">
               <span className="font-display text-sm leading-none tabular-nums">#{rankPosition}</span>
-              <span className="text-[11px] font-bold uppercase leading-none tracking-wider">no geral</span>
+              <span className="text-caption font-bold uppercase leading-none tracking-wider">no geral</span>
             </span> : null}
           </div>
           <div className="mt-auto flex min-w-0 items-center gap-2 border-t border-[var(--ui-line-subtle)] pt-2.5">
             <Crest crestId={record.crest_id_snapshot} name={record.team_name_snapshot} size={26} className="shrink-0 rounded-full" />
             <div className="min-w-0">
               <span className="block truncate text-xs font-semibold text-[var(--ui-text)]">{record.team_name_snapshot}</span>
-              <span className="block text-[11px] font-semibold text-[var(--ui-brand-strong)]">{seasonLabel(record.season ?? seasonAt(record.completed_at))}</span>
-              <time className="block text-[11px] text-[var(--ui-text-muted)]" dateTime={new Date(record.completed_at).toISOString()}>{formatDate(record.completed_at)}</time>
+              <span className="block text-caption font-semibold text-[var(--ui-brand-strong)]">{seasonLabel(record.season ?? seasonAt(record.completed_at))}</span>
+              <time className="block text-caption text-[var(--ui-text-muted)]" dateTime={new Date(record.completed_at).toISOString()}>{formatDate(record.completed_at)}</time>
             </div>
           </div>
         </> : <span className="mt-2 block text-xs text-[var(--ui-text-muted)]">Ainda sem marca registrada</span>}
@@ -345,7 +345,7 @@ function PersonalRecordCard({ category, record }: { category: PublicRecordEntry[
 /** The one locked-state pill for appearance items (frames, covers): same look everywhere. */
 function LockedBadge({ text }: { text: string }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-white/20 bg-black/70 px-2 py-0.5 text-[10px] font-bold leading-tight text-white">
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-white/20 bg-black/70 px-2 py-0.5 text-micro font-bold leading-tight text-white">
       <Lock size={10} className="shrink-0" aria-hidden="true" /><span className="truncate">{text}</span>
     </span>
   );
@@ -362,7 +362,7 @@ function ScoreCard({ entry, rank }: { entry: ScoreLeaderboardEntry; rank: number
       </div>
       <div className="shrink-0 text-right">
         <div className="font-display text-2xl leading-none tabular-nums text-[var(--ui-brand-strong)]">{entry.points}</div>
-        <div className="mt-1 text-[12px] uppercase tracking-wider text-[var(--ui-text-faint)]">pontos</div>
+        <div className="mt-1 text-label uppercase tracking-wider text-[var(--ui-text-faint)]">pontos</div>
       </div>
     </article>
   );
@@ -380,7 +380,7 @@ function ProfileCareerContent({
   achievementsLoading = false,
   onEditShowcase,
   twoColumns = false,
-  showcaseEmptyText = 'Nenhum destaque ainda: conquistas, recordes e cartas do Álbum podem ser fixados aqui.',
+  showcaseEmptyText = 'Fixe conquistas, recordes e cartas do Álbum para mostrar no seu perfil.',
 }: {
   scorePosition: ScoreLeaderboardPosition | null;
   scorePositionLoading?: boolean;
@@ -563,9 +563,9 @@ function HistoryCard({ entry, onView }: { entry: CompetitionHistoryEntry; onView
                   <span className="min-w-0 truncate font-display text-xl font-bold leading-tight text-[var(--ui-text)] sm:text-2xl">{entry.team_name}</span>
                 </span>
                 <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                  <Badge tone={champion ? 'brand' : 'default'} className="px-2 py-1 text-[12px]">{finishLabel}</Badge>
-                  {partial ? <Badge className="px-2 py-1 text-[12px]">PARCIAL</Badge> : null}
-                  {summaryOnly ? <Badge className="px-2 py-1 text-[12px]">RESUMO</Badge> : null}
+                  <Badge tone={champion ? 'brand' : 'default'} className="px-2 py-1 text-label">{finishLabel}</Badge>
+                  {partial ? <Badge className="px-2 py-1 text-label">PARCIAL</Badge> : null}
+                  {summaryOnly ? <Badge className="px-2 py-1 text-label">RESUMO</Badge> : null}
                 </span>
                 {/* Difficulty always on its own line, with the points right after it. */}
                 <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -610,7 +610,7 @@ function CareerFinishBreakdown({ counts, filter }: { counts: AccountStats['finis
 
   return (
     <section aria-label="Competições por fase" className="space-y-3">
-      <SectionHeader title="Competições por fase" className="mb-0" />
+      <SectionHeader level="section" title="Competições por fase" className="mb-0" />
       <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Quantidade de competições encerradas em cada fase.</p>
       {filter}
       <div className="space-y-2">
@@ -976,7 +976,7 @@ export default function AccountPage() {
     setAppearanceError('');
     try {
       await updateProfile({ avatarKey: appearanceDraft.avatarKey, avatarBackgroundKey: appearanceDraft.avatarBackgroundKey, avatarFrameKey: appearanceDraft.avatarFrameKey, coverKey: appearanceDraft.coverKey });
-      setNotice('Foto e fundo do perfil atualizados.');
+      setNotice('Perfil atualizado.');
       setAppearanceOpen(false);
     } catch (err) {
       setAppearanceError(err instanceof Error ? err.message : 'Não foi possível salvar a aparência do perfil.');
@@ -1192,7 +1192,7 @@ export default function AccountPage() {
 
                 <div className="border-t border-[var(--ui-line-subtle)] pt-4">
                   <Button type="button" intent="ghost" disabled={busy} className="w-full" onClick={() => dispatch({ type: 'SET_PHASE', phase: 'menu' })}>Continuar como convidado</Button>
-                  <p className="mt-2 text-center text-[11px] leading-relaxed text-[var(--ui-text-faint)]">O modo convidado continua disponível sem criar uma conta.</p>
+                  <p className="mt-2 text-center text-caption leading-relaxed text-[var(--ui-text-faint)]">O modo convidado continua disponível sem criar uma conta.</p>
                 </div>
               </PanelBody>
             </Panel>
@@ -1231,7 +1231,7 @@ export default function AccountPage() {
               </Button>
               <div className="flex items-center gap-2">
                 <Button type="button" intent="ghost" onClick={openAppearanceEditor} className="min-h-10 border border-white/20 bg-black/60 px-3 text-xs text-white hover:bg-black/75">
-                  <Pencil size={14} aria-hidden="true" /> EDITAR
+                  <Pencil size={14} aria-hidden="true" /> PERSONALIZAR
                 </Button>
                 <Button type="button" intent="ghost" loading={logoutBusy} onClick={() => setLogoutConfirmOpen(true)} aria-label="Sair da conta" className="min-h-10 border border-red-300/30 bg-black/60 px-3 text-xs text-red-200 hover:bg-red-950/70">
                   {!logoutBusy ? <LogOut size={14} aria-hidden="true" /> : null} SAIR
@@ -1311,7 +1311,22 @@ export default function AccountPage() {
                 </div>
                 {scoreLoading ? <div className="space-y-2" aria-label="Carregando ranking de pontos">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-[76px] w-full rounded-xl" />)}</div>
                   : scoreRanking.length === 0 ? <EmptyState title="O ranking começa com as próximas campanhas" description="Cada competição concluída registra pontos conforme a fase alcançada e a dificuldade." />
-                    : <ol className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{scoreRanking.slice(0, 10).map((entry, index) => <li key={entry.username}><ScoreCard entry={entry} rank={index + 1} /></li>)}</ol>}
+                    : <>
+                      <ol className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{scoreRanking.slice(0, 10).map((entry, index) => <li key={entry.username}><ScoreCard entry={entry} rank={index + 1} /></li>)}</ol>
+                      {/* The viewer's own place when it is not in the Top 10 shown above. */}
+                      {seasonStanding && !(seasonStanding.status === 'ranked' && seasonStanding.position !== null && seasonStanding.position <= 10) ? (
+                        <div role="status" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-(--ui-radius-lg) border border-[var(--ui-brand-line)] bg-[var(--ui-brand-soft)] px-4 py-3">
+                          <span className="ui-section-label">Sua posição</span>
+                          <span className="text-body-sm font-semibold text-[var(--ui-text)]">
+                            {seasonStanding.status === 'ranked' && seasonStanding.position !== null
+                              ? `${seasonStanding.position}º de ${seasonStanding.participants.toLocaleString('pt-BR')} · ${seasonStanding.points.toLocaleString('pt-BR')} pontos`
+                              : seasonStanding.status === 'profile_not_public'
+                                ? 'Seu perfil é privado e não aparece no ranking.'
+                                : 'Você ainda não pontuou nesta temporada. Conclua uma competição para entrar.'}
+                          </span>
+                        </div>
+                      ) : null}
+                    </>}
               </TabPanel>
               <TabPanel value="records" className="space-y-3 pt-4">
                 <DifficultyFilter label="Dificuldade dos recordes" value={recordsDifficulty} onChange={value => { if (value !== 'all') setRecordsDifficulty(value); }} />
@@ -1359,7 +1374,7 @@ export default function AccountPage() {
           <TabPanel value="friends" className="space-y-5 pt-0">
             <SectionHeader title="Amigos" />
             <div className="mx-auto w-full max-w-3xl space-y-5 lg:max-w-5xl">
-              <Panel density="compact"><PanelBody className="p-3 sm:p-4"><form className="flex flex-col gap-2 sm:flex-row" onSubmit={event => { event.preventDefault(); void addFriend(); }}><label className="relative min-w-0 flex-1"><span className="sr-only">Nome de usuário</span><Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-[var(--ui-text-faint)]" /><Input className="pl-9" value={friendUsername} placeholder="Buscar por nome de usuário" onChange={event => setFriendUsername(event.target.value)} /></label><Button type="submit" intent="primary" loading={busy} disabled={!friendUsername.trim()} className="sm:min-w-40"><UserPlus size={16} aria-hidden="true" /> ADICIONAR</Button></form></PanelBody></Panel>
+              <Panel density="compact"><PanelBody className="p-3 sm:p-4"><form className="flex flex-col gap-2 sm:flex-row" onSubmit={event => { event.preventDefault(); void addFriend(); }}><label className="relative min-w-0 flex-1"><span className="sr-only">Nome de usuário</span><Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-[var(--ui-text-faint)]" /><Input className="pl-9" value={friendUsername} placeholder="Nome de usuário do amigo" onChange={event => setFriendUsername(event.target.value)} /></label><Button type="submit" intent="primary" loading={busy} disabled={!friendUsername.trim()} className="sm:min-w-40"><UserPlus size={16} aria-hidden="true" /> ADICIONAR</Button></form></PanelBody></Panel>
               <Tabs value={friendsTab} onValueChange={value => setFriendsTab(value as FriendsTab)}>
                 <TabList aria-label="Seções de amigos" className="mx-auto w-fit max-w-full flex-wrap justify-center gap-2 sm:gap-4 lg:[&>.ui-tab]:justify-center">
                   <Tab value="friends" className="inline-flex items-center gap-2"><Users size={14} aria-hidden="true" /> AMIGOS <span className="tabular-nums">{acceptedFriends.length}</span></Tab>
@@ -1368,15 +1383,15 @@ export default function AccountPage() {
                 </TabList>
                 <TabPanel value="friends" className="space-y-2 pt-4 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 lg:[&>*:only-child]:col-span-2">
                   {friendsLoading ? <div className="space-y-2" aria-label="Carregando amigos">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-[72px] w-full rounded-xl" />)}</div>
-                    : acceptedFriends.length === 0 ? <EmptyState title="Você ainda não tem amigos" description="Adicione alguém pelo nome de usuário." />
+                    : acceptedFriends.length === 0 ? <EmptyState icon={<Users size={22} aria-hidden="true" />} title="Você ainda não tem amigos" description="Busque pelo nome de usuário acima e toque em Adicionar. A amizade vale quando a pessoa aceitar." />
                       : acceptedFriends.map(friend => {
                         const person = friendIdentity(friend, account.id);
                         const unreadMessages = friend.unread_message_count ?? 0;
                         return <article key={friend.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4">
                           <Button type="button" intent="ghost" aria-label={`Ver perfil de ${person.name}`} title={`Ver perfil de ${person.name}`} onClick={() => void viewFriendProfile(person.username)} className="group flex h-auto min-h-0 min-w-0 flex-1 items-center justify-start gap-3 rounded-lg border-0 bg-transparent p-0 text-left normal-case font-normal tracking-normal hover:translate-y-0 hover:border-transparent hover:bg-transparent">
                             <CompactProfileAvatar name={person.name} avatarKey={person.avatarKey} avatarUrl={person.avatarUrl} backgroundKey={person.avatarBackgroundKey} frameKey={person.avatarFrameKey} />
-                            <span className="min-w-0 flex-1"><strong className="flex min-w-0 items-center gap-1.5 text-sm text-[var(--ui-text)]"><span className="min-w-0 truncate"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></span>{unreadMessages > 0 ? <span aria-label={`${unreadMessages} ${unreadMessages === 1 ? 'mensagem não lida' : 'mensagens não lidas'}`} className="shrink-0 rounded-full bg-[var(--ui-danger)] px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{unreadMessages > 9 ? '9+' : unreadMessages}</span> : null}</strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className={`mt-1 inline-flex items-center gap-1.5 text-[11px] ${person.isAvailable ? 'text-[var(--ui-success)]' : 'text-[var(--ui-text-muted)]'}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${person.isAvailable ? 'bg-[var(--ui-success)]' : person.isOnline ? 'bg-[var(--ui-warning)]' : 'bg-[var(--ui-text-faint)]'}`} />{person.isAvailable ? 'Disponível' : person.isOnline ? 'Ocupado' : 'Offline'}</span></span>
-                            <span className="hidden shrink-0 text-[12px] font-bold text-[var(--ui-text-muted)] sm:block">VER PERFIL</span>
+                            <span className="min-w-0 flex-1"><strong className="flex min-w-0 items-center gap-1.5 text-sm text-[var(--ui-text)]"><span className="min-w-0 truncate"><StyledName name={person.name} styleKey={person.nameStyleKey} size="sm" /></span>{unreadMessages > 0 ? <span aria-label={`${unreadMessages} ${unreadMessages === 1 ? 'mensagem não lida' : 'mensagens não lidas'}`} className="shrink-0 rounded-full bg-[var(--ui-danger)] px-1.5 py-0.5 text-micro font-bold leading-none text-white">{unreadMessages > 9 ? '9+' : unreadMessages}</span> : null}</strong><span className="block truncate text-xs text-[var(--ui-text-muted)]">@{person.username}</span><span className={`mt-1 inline-flex items-center gap-1.5 text-caption ${person.isAvailable ? 'text-[var(--ui-success)]' : 'text-[var(--ui-text-muted)]'}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${person.isAvailable ? 'bg-[var(--ui-success)]' : person.isOnline ? 'bg-[var(--ui-warning)]' : 'bg-[var(--ui-text-faint)]'}`} />{person.isAvailable ? 'Disponível' : person.isOnline ? 'Ocupado' : 'Offline'}</span></span>
+                            <span className="hidden shrink-0 text-label font-bold text-[var(--ui-text-muted)] sm:block">VER PERFIL</span>
                           </Button>
                           <FriendActions friendshipId={friend.id} friendName={person.name} friendNameStyleKey={person.nameStyleKey} friendAvatarKey={person.avatarKey} friendAvatarBackgroundKey={person.avatarBackgroundKey} friendAvatarUrl={person.avatarUrl} friendAvatarFrameKey={person.avatarFrameKey} friendOnline={person.isOnline} friendAvailable={person.isAvailable} unreadMessageCount={friend.unread_message_count ?? 0} initiallyOpenChat={chatFriendshipRequestId === friend.id} onInitialChatOpened={() => setChatFriendshipRequestId(current => current === friend.id ? null : current)} onMessagesRead={markFriendMessagesRead} removeDisabled={busy} onRemove={() => void actFriend(friend.id, 'remove')} />
                         </article>;
@@ -1437,7 +1452,7 @@ export default function AccountPage() {
                 if (style === null) return (
                   <button key="default" type="button" aria-pressed={nameStyleDraft === null} onClick={() => setNameStyleDraft(null)} className={cn('flex min-h-20 min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border p-2 text-center transition-colors', nameStyleDraft === null ? 'border-[var(--ui-brand)] bg-[var(--ui-brand)]/10' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] hover:border-[var(--ui-line-strong)]')}>
                     <span className="block w-full truncate font-ui text-xl font-bold text-[var(--ui-text)]">{nameDraft.trim() || 'Seu nome'}</span>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">Padrão</span>
+                    <span className="text-caption font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">Padrão</span>
                   </button>
                 );
                 const owned = ownedNameStyles.includes(style.key);
@@ -1448,10 +1463,10 @@ export default function AccountPage() {
                   <button key={style.key} type="button" disabled={!owned} aria-pressed={selected} title={owned ? style.name : lockedLabel} onClick={() => setNameStyleDraft(style.key)}
                     className={cn('relative flex min-h-20 min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border p-2 text-center transition-colors', selected ? 'border-[var(--ui-brand)] bg-[var(--ui-brand)]/10' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)]', owned ? 'hover:border-[var(--ui-line-strong)]' : 'cursor-not-allowed')}>
                     <span className={cn('block w-full min-w-0 overflow-hidden font-display text-xl', !owned && 'opacity-35 grayscale')}><StyledName name={nameDraft.trim() || 'Seu nome'} styleKey={style.key} size="sm" className="w-full" /></span>
-                    <span className="flex max-w-full items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">
+                    <span className="flex max-w-full items-center gap-1 text-caption font-bold uppercase tracking-wider text-[var(--ui-text-muted)]">
                       {owned ? (selected ? <Check size={11} aria-hidden="true" /> : null) : <Lock size={11} aria-hidden="true" />}{style.name}
                     </span>
-                    {!owned ? <span className="max-w-full text-[10px] leading-tight text-[var(--ui-text-faint)]">{lockedLabel}</span> : null}
+                    {!owned ? <span className="max-w-full text-micro leading-tight text-[var(--ui-text-faint)]">{lockedLabel}</span> : null}
                   </button>
                 );
               })}
@@ -1474,7 +1489,7 @@ export default function AccountPage() {
             <TabList className="ui-tabs--split-mobile">
               <Tab value="avatar" className="inline-flex items-center justify-center gap-2"><UserRound size={15} aria-hidden="true" /> AVATAR</Tab>
               <Tab value="frame" className="inline-flex items-center justify-center gap-2"><Sparkles size={15} aria-hidden="true" /> MOLDURA</Tab>
-              <Tab value="cover" className="inline-flex items-center justify-center gap-2"><ImageIcon size={15} aria-hidden="true" /> CAPA</Tab>
+              <Tab value="cover" className="inline-flex items-center justify-center gap-2"><ImageIcon size={15} aria-hidden="true" /> FUNDO</Tab>
             </TabList>
             <TabPanel value="frame" className="pt-4">
               {/* Event and shop frames can be equipped after they have been unlocked or bought. */}
@@ -1503,7 +1518,7 @@ export default function AccountPage() {
                       {frameKey ? <FrameImage frameKey={frameKey} className="absolute inset-0 size-full" /> : null}
                     </span>
                     <span className="text-xs font-bold text-[var(--ui-text)]">{label}</span>
-                    {!owned ? <LockedBadge text={frame?.rewardOnly ? 'Prêmio de temporada' : frame?.shopPrice !== undefined ? 'Disponível na loja' : `Evento ${event?.name ?? ''}`} /> : frameClub ? <span className="text-[11px] leading-tight text-[var(--ui-text-muted)]">Página completa no álbum</span> : null}
+                    {!owned ? <LockedBadge text={frame?.rewardOnly ? 'Prêmio de temporada' : frame?.shopPrice !== undefined ? 'Disponível na loja' : `Evento ${event?.name ?? ''}`} /> : frameClub ? <span className="text-caption leading-tight text-[var(--ui-text-muted)]">Página completa no Álbum</span> : null}
                     {selected ? <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]"><Check size={12} aria-hidden="true" /></span> : null}
                   </Button>;
                 })}
@@ -1568,13 +1583,13 @@ export default function AccountPage() {
                     className={cn('relative aspect-[3/2] h-auto min-h-0 w-full overflow-hidden rounded-xl border p-0 disabled:opacity-100', selected ? 'border-[var(--ui-brand)] ring-2 ring-[var(--ui-brand)]/40' : 'border-[var(--ui-line-subtle)]')}
                   >
                     {cover ? <img src={cover.src} alt="" loading="lazy" decoding="async" className={cn('absolute inset-0 size-full object-cover', !owned && 'grayscale opacity-40')} /> : item.kind === 'club' ? <ClubCover clubId={item.clubId} className="absolute inset-0" /> : null}
-                    {item.kind === 'club' ? <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-4 text-left text-[11px] font-bold text-white">{name}</span> : null}
+                    {item.kind === 'club' ? <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-4 text-left text-caption font-bold text-white">{name}</span> : null}
                     {!owned ? <span className="absolute inset-0 grid place-items-center"><LockedBadge text={cover?.rewardOnly ? 'Prêmio de temporada' : 'Disponível na loja'} /></span> : null}
                     {selected ? <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]"><Check size={12} aria-hidden="true" /></span> : null}
                   </Button>;
                 })}
               </div>
-              <GalleryPagination page={appearancePages.cover} pageCount={Math.ceil(coverItems.length / APPEARANCE_ITEMS_PER_PAGE)} label="Paginação das capas" onPageChange={page => setAppearancePages(current => ({ ...current, cover: page }))} />
+              <GalleryPagination page={appearancePages.cover} pageCount={Math.ceil(coverItems.length / APPEARANCE_ITEMS_PER_PAGE)} label="Paginação dos fundos" onPageChange={page => setAppearancePages(current => ({ ...current, cover: page }))} />
             </TabPanel>
           </Tabs>
         </div>
@@ -1583,17 +1598,17 @@ export default function AccountPage() {
         open={pointsInfoOpen}
         onOpenChange={setPointsInfoOpen}
         title="PONTUAÇÃO DO RANKING"
-        subtitle="Cada campanha rende pontos uma vez, ao ser concluída."
+        subtitle="Pontos por fase alcançada e dificuldade."
         closeLabel="Fechar explicação da pontuação"
       >
         <div className="space-y-4">
-          <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Cada campanha vale pontos pela fase alcançada, e quanto maior a dificuldade, mais vale cada fase:</p>
+          <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">Cada competição concluída rende pontos uma vez, pela fase alcançada. Quanto maior a dificuldade, mais vale cada fase:</p>
           <div className="overflow-hidden rounded-lg border border-[var(--ui-line-subtle)]">
             <table className="w-full table-fixed border-collapse text-xs">
               <thead>
                 <tr className="bg-[var(--ui-surface-inset)]">
                   <th scope="col" className="w-[26%] px-2 py-2 text-left font-bold text-[var(--ui-text-soft)]">Fase</th>
-                  {RANKED_DIFFICULTY_IDS.map(id => <th key={id} scope="col" className="px-1 py-2 text-right text-[11px] font-bold sm:px-1.5 sm:text-xs" style={{ color: difficultyColor(id) }}>
+                  {RANKED_DIFFICULTY_IDS.map(id => <th key={id} scope="col" className="px-1 py-2 text-right text-caption font-bold sm:px-1.5 sm:text-xs" style={{ color: difficultyColor(id) }}>
                     <DifficultyEmblem difficulty={id} size={28} className="mb-0.5 ml-auto block" />
                     {id === 'legendary' ? <><span className="sm:hidden" aria-hidden="true">Lend.</span><span className="sr-only sm:not-sr-only">{difficultyName(id)}</span></> : difficultyName(id)}
                   </th>)}
@@ -1607,7 +1622,7 @@ export default function AccountPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">O ranking geral soma os pontos de todas as competições concluídas, solo e online, em qualquer dificuldade; o filtro mostra só uma dificuldade. Em caso de empate: mais títulos; depois, mais campanhas pontuadas.</p>
+          <p className="text-xs leading-relaxed text-[var(--ui-text-muted)]">O ranking geral soma os pontos de todas as competições concluídas, solo e online, em qualquer dificuldade. Em caso de empate: mais títulos; depois, mais competições pontuadas.</p>
         </div>
       </GameModal>
       <GameModal

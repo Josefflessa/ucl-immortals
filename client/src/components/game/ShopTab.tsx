@@ -202,11 +202,11 @@ export default function ShopTab() {
   const close = () => { setActive(null); setSelPlayerId(null); setVariantPage(0); setTurbinarView('catalog'); setSelectedPackRarity(null); };
 
   const ITEMS: { id: ItemId; icon: string; name: string; cost: number | null; color: string; desc: string }[] = [
-    { id: 'coach', icon: '🎓', name: 'TROCAR TÉCNICO', cost: COSTS.changeCoach, color: '#A78BFA', desc: 'Troca o comandante do time (muda buffs e estilo).' },
+    { id: 'coach', icon: '🎓', name: 'TROCAR TREINADOR', cost: COSTS.changeCoach, color: '#A78BFA', desc: 'Troca o comandante do time (muda buffs e estilo).' },
     { id: 'playerPacks', icon: '📦', name: 'PACOTES DE JOGADOR', cost: null, color: '#F0C674', desc: 'Escolha uma raridade, do Bronze à Única, e abra um pacote temático para reforçar o elenco.' },
-    { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: COSTS.scout, color: '#38BDF8', desc: `Paga ao abrir e escolhe 1 de até 4 jogadores ${SCOUT_MIN_OVERALL}+ da posição principal escolhida.` },
+    { id: 'scout', icon: '🔍', name: 'CAÇA-TALENTOS', cost: COSTS.scout, color: '#38BDF8', desc: `Escolha uma posição e contrate 1 de até 4 jogadores ${SCOUT_MIN_OVERALL}+ dela.` },
     { id: 'turbinar', icon: '✨', name: 'TURBINAR CARTA', cost: COSTS.turbinar, color: '#E8C84A', desc: 'Consulte todas as características e aplique uma delas a um jogador.' },
-    { id: 'removeVariant', icon: '🧹', name: 'REMOVER CARACTERÍSTICA', cost: COSTS.removeVariant, color: '#F87171', desc: 'Tira a carta especial de um jogador — pra depois aplicar outra (via Turbinar).' },
+    { id: 'removeVariant', icon: '🧹', name: 'REMOVER CARACTERÍSTICA', cost: COSTS.removeVariant, color: '#F87171', desc: 'Tira a característica de um jogador — pra depois aplicar outra (via Turbinar).' },
   ];
 
   const availableVariants = selPlayer
@@ -477,12 +477,12 @@ export default function ShopTab() {
                   );
                 })()}
 
-                {/* TROCAR TÉCNICO */}
+                {/* TROCAR TREINADOR */}
                 {active === 'coach' && (
                   <div className="space-y-2">
-                    <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Escolha o novo técnico (−{COSTS.changeCoach} créditos):</p>
+                    <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Escolha o novo treinador (−{COSTS.changeCoach} créditos):</p>
                     {COACHES.filter(c => c.id !== team.coachId).map(c => (
-                      <button key={c.id} onClick={() => askConfirm('Trocar Técnico', `Trocar o comandante para ${c.name} por 💰 ${COSTS.changeCoach}?`, () => { buyCoach(c.id); close(); })}
+                      <button key={c.id} onClick={() => askConfirm('Trocar treinador', `Trocar o comandante para ${c.name} por 💰 ${COSTS.changeCoach}?`, () => { buyCoach(c.id); close(); })}
                         className="w-full text-left rounded-lg p-3 flex items-center gap-3 transition-all hover:border-primary/60 active:scale-[0.99]"
                         style={{ background: '#07070f', border: '1px solid var(--ui-surface-3)' }}>
                         {c.photoUrl && <img src={c.photoUrl} alt={c.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" style={{ objectPosition: 'center top', border: '1px solid #C9A84C44' }} />}
@@ -557,7 +557,7 @@ export default function ShopTab() {
                   !selPlayer ? (
                     <div>
                       <button type="button" onClick={() => { setTurbinarView('catalog'); setVariantPage(0); }} className="mb-3 text-xs font-bold" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}>ⓘ ver características especiais</button>
-                      <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Escolha o jogador que vai receber a carta especial:</p>
+                      <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>Escolha o jogador que vai receber a característica:</p>
                       <div className="space-y-3">
                         {[{ t: 'TITULARES', c: '#22C55E', list: team.players.slice(0, 11) }, { t: 'BANCO / RESERVAS', c: '#818CF8', bench: true, list: team.players.slice(11) }].map(g => g.list.length === 0 ? null : (
                           <div key={g.t}>
@@ -581,7 +581,7 @@ export default function ShopTab() {
                       <p className="text-xs mb-3" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                         {variantCount(selPlayer) === 1
                           ? <>2ª característica para <b style={{ color: '#F0E6C0' }}>{selPlayer.shortName}</b> <Star {...INLINE_ICON} fill="currentColor" />(−{COSTS.turbinar} créditos):</>
-                          : <>Carta especial para <b style={{ color: 'var(--ui-brand)' }}>{selPlayer.shortName}</b> (−{COSTS.turbinar} créditos):</>}
+                          : <>Característica para <b style={{ color: 'var(--ui-brand)' }}>{selPlayer.shortName}</b> (−{COSTS.turbinar} créditos):</>}
                       </p>
                       <div className="space-y-2">
                         {visibleVariants.map(v => {

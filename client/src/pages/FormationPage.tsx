@@ -8,7 +8,7 @@ import FormationField from '../components/game/FormationField';
 import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import ImpactMeter from '../components/game/ImpactMeter';
-import { AppShell, Button, ChoiceCard, FixedActionBar, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
+import { AppShell, Badge, Button, ChoiceCard, ChoiceCheck, FixedActionBar, PageContainer, Panel, SectionHeader, StatusBanner, TopBar } from '../design-system';
 import { Star } from 'lucide-react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
 import { useAlbum } from '../contexts/AlbumContext';
@@ -57,7 +57,7 @@ export default function FormationPage() {
 
   const selectedFormation = FORMATIONS.find(f => f.id === state.selectedFormationId);
   if (state.mode === 'online' && isReady) {
-    return <OnlineWaitingScreen message="Os demais jogadores estão definindo a tática…" headerRight={<CompetitionExitControl />} />;
+    return <OnlineWaitingScreen message="Os demais jogadores estão escolhendo a formação…" headerRight={<CompetitionExitControl />} />;
   }
 
   return (
@@ -65,25 +65,23 @@ export default function FormationPage() {
       <TopBar right={<CompetitionExitControl />} />
 
       <PageContainer wide className="flex flex-col gap-6 pb-32">
-        <div className="flex flex-col gap-6 lg:flex-row">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         {/* Left: Formation list */}
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <SectionHeader
             title="Escolha a formação"
             description={selectedCoach ? `${selectedCoach.name} prefere ${selectedCoach.preferredFormation}.` : undefined}
             className="mb-6"
           />
 
-          <div role="note" className="ui-panel ui-panel--inset mb-4 px-3 py-2.5">
-            <div className="text-xs font-black tracking-widest" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
-              COMO LER OS INDICADORES
-            </div>
-            <p className="mt-1 text-sm leading-relaxed text-pretty" style={{ color: '#A7A7B8', fontFamily: 'var(--font-game), sans-serif' }}>
-              Controle gera mais iniciativa, volume de jogadas e posse. Ataque torna suas chances mais perigosas. Defesa reduz o perigo das chances adversárias. Um confronto favorável concede um <b style={{ color: 'var(--ui-success)' }}>bônus temporário ao time durante a partida</b>.
+          <div role="note" className="ui-panel ui-panel--inset mb-4 px-4 py-3">
+            <div className="ui-kicker mb-0">Como ler os indicadores</div>
+            <p className="mt-1.5 text-body leading-ui-snug text-pretty" style={{ color: 'var(--ui-text-soft)', fontFamily: 'var(--font-game), sans-serif' }}>
+              Controle gera mais iniciativa, volume de jogadas e posse. Ataque torna suas chances mais perigosas. Defesa reduz o perigo das chances adversárias. Um confronto favorável dá um <b style={{ color: 'var(--ui-success)' }}>bônus ao time durante a partida</b>.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             {FORMATIONS.map((formation) => {
               const isSelected = state.selectedFormationId === formation.id;
               const isPreferred = selectedCoach?.preferredFormation === formation.id;
@@ -95,34 +93,21 @@ export default function FormationPage() {
                     onClick={() => handleSelect(formation.id)}
                     onDoubleClick={() => handleDoubleClick(formation.id)}
                     title="Clique duas vezes para escolher e iniciar o draft"
-                    className="ui-choice text-left p-4"
-                    style={{
-                      background: isSelected ? '#14142A' : '#0F0F1A',
-                      border: `1px solid ${isSelected ? '#C9A84C' : isPreferred ? '#C9A84C44' : '#1A1A2A'}`,
-                      boxShadow: isSelected ? '0 0 0 1px rgba(201,168,76,0.18)' : 'none',
-                    }}
+                    className="p-4 text-left"
+                    style={!isSelected && isPreferred ? { borderColor: 'var(--ui-brand-line)' } : undefined}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <span
-                        className="text-2xl font-black"
-                        style={{
-                          fontFamily: 'var(--font-display), sans-serif',
-                          color: isSelected ? 'var(--ui-brand)' : '#FFFFFF',
-                          letterSpacing: '0.1em',
-                        }}
-                      >
+                    <div className="mb-2 flex min-h-7 items-center justify-between gap-2">
+                      <span className={`font-display text-heading leading-none tracking-caps ${isSelected ? 'text-[var(--ui-brand-strong)]' : 'text-[var(--ui-text)]'}`}>
                         {formation.name}
                       </span>
-                      {isPreferred && (
-                        <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                          style={{ background: '#C9A84C22', color: 'var(--ui-brand)', border: '1px solid #C9A84C44', fontFamily: 'var(--font-game), sans-serif' }}>
-                          <Star {...INLINE_ICON} fill="currentColor" />Preferida
-                        </span>
-                      )}
-                      {isSelected && !isPreferred && (
-                        <div className="w-4 h-4 rounded-full flex items-center justify-center text-xs"
-                          style={{ background: 'var(--ui-brand)', color: 'var(--ui-bg)', fontWeight: 'bold' }}>✓</div>
-                      )}
+                      <span className="flex items-center gap-2">
+                        {isPreferred && (
+                          <Badge tone="brand">
+                            <Star {...INLINE_ICON} fill="currentColor" />Preferida
+                          </Badge>
+                        )}
+                        {isSelected && <ChoiceCheck size="small" />}
+                      </span>
                     </div>
 
                     {/* Impacto qualitativo (setas) */}
@@ -132,7 +117,7 @@ export default function FormationPage() {
 
                     {/* Matchup info — bônus situacional de equipe, aplicado somente durante a partida */}
                     {(formation.counters.length > 0 || formation.counteredBy.length > 0) && (
-                      <div className="mt-3 space-y-1 text-sm leading-relaxed text-pretty" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
+                      <div className="mt-3 space-y-1 text-body-sm leading-ui-snug text-pretty" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                         {formation.counters.length > 0 && (
                           <div>
                             <span className="font-bold" style={{ color: 'var(--ui-success)' }}>Vantagem contra: </span>
@@ -141,8 +126,8 @@ export default function FormationPage() {
                         )}
                         {formation.counteredBy.length > 0 && (
                           <div>
-                            <span className="font-bold" style={{ color: '#F97316' }}>Desvantagem contra: </span>
-                            <span style={{ color: '#F97316' }}>{formation.counteredBy.join(', ')} (o rival terá {formationAdvantageLabelForAnalysisLevel(1).toLowerCase()})</span>
+                            <span className="font-bold" style={{ color: 'var(--ui-caution)' }}>Desvantagem contra: </span>
+                            <span style={{ color: 'var(--ui-caution)' }}>{formation.counteredBy.join(', ')} (o rival terá {formationAdvantageLabelForAnalysisLevel(1).toLowerCase()})</span>
                           </div>
                         )}
                       </div>
@@ -155,7 +140,7 @@ export default function FormationPage() {
         </div>
 
         {/* Right: Formation preview */}
-        <div className="flex flex-col items-center gap-4 lg:w-80">
+        <div className="flex flex-col items-center gap-4 lg:sticky lg:top-6 lg:w-80 lg:shrink-0">
           <div className="ui-kicker mb-0">Prévia da formação</div>
 
           {selectedFormation && (
@@ -175,22 +160,19 @@ export default function FormationPage() {
 
           {selectedFormation && (
             <Panel tone="inset" className="w-full p-4">
-              <div className="mb-2 text-sm font-bold tracking-widest"
-                style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
-                INDICADORES DO ESQUEMA
-              </div>
+              <div className="ui-kicker">Indicadores do esquema</div>
               <ImpactMeter profile={formationProfile(selectedFormation.id)} />
               <div className="mt-3 space-y-2 text-sm" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 <div>
-                  <span className="font-bold text-[#22C55E]">Vantagem contra:</span>{' '}
-                  <span className="text-[#BFC0CE]">{selectedFormation.counters.join(', ') || 'Nenhuma formação específica'}</span>
+                  <span className="font-bold text-[var(--ui-success)]">Vantagem contra:</span>{' '}
+                  <span className="text-[var(--ui-text-soft)]">{selectedFormation.counters.join(', ') || 'Nenhuma formação específica'}</span>
                 </div>
                 <div>
-                  <span className="font-bold text-[#F97316]">Desvantagem contra:</span>{' '}
-                  <span className="text-[#BFC0CE]">{selectedFormation.counteredBy.join(', ') || 'Nenhuma formação específica'}</span>
+                  <span className="font-bold text-[var(--ui-caution)]">Desvantagem contra:</span>{' '}
+                  <span className="text-[var(--ui-text-soft)]">{selectedFormation.counteredBy.join(', ') || 'Nenhuma formação específica'}</span>
                 </div>
-                <div className="text-xs text-[#8A8A9A]">
-                  Um confronto favorável concede <strong className="text-[#22C55E]">{formationAdvantageLabelForAnalysisLevel(1).toLowerCase()}</strong> ao time durante a partida.
+                <div className="text-label text-[var(--ui-text-muted)]">
+                  Um confronto favorável concede <strong className="text-[var(--ui-success)]">{formationAdvantageLabelForAnalysisLevel(1).toLowerCase()}</strong> ao time durante a partida.
                 </div>
               </div>
             </Panel>
@@ -199,9 +181,9 @@ export default function FormationPage() {
         </div>
 
         {state.mode === 'solo' && albumError && (
-          <div role="status" className="mt-4 rounded-lg border px-3 py-2 text-xs leading-relaxed" style={{ borderColor: '#F59E0B55', color: '#FCD34D', background: '#F59E0B12' }}>
-            Não foi possível confirmar os níveis do Álbum. Tente iniciar novamente para carregar o progresso antes do draft.
-          </div>
+          <StatusBanner tone="warning" role="status" className="mt-4">
+            Não foi possível confirmar os níveis do Álbum. Toque em Iniciar draft de novo para carregar o progresso.
+          </StatusBanner>
         )}
       </PageContainer>
       <FixedActionBar>

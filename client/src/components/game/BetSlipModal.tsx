@@ -55,7 +55,7 @@ function formatGoalLine(line: number): string {
 
 function selectionLabel(selection: BetBuilderSelection): string {
   if (selection.type === 'exact_score') return `Placar ${selection.homeGoals}-${selection.awayGoals}`;
-  if (selection.type === 'outcome') return selection.value === 'home' ? 'Casa vence' : selection.value === 'away' ? 'Fora vence' : 'Empate';
+  if (selection.type === 'outcome') return selection.value === 'home' ? 'Mandante vence' : selection.value === 'away' ? 'Visitante vence' : 'Empate';
   if (selection.type === 'total_goals') return `${selection.operator === 'over' ? 'Mais de' : 'Menos de'} ${formatGoalLine(selection.line)} gols`;
   if (selection.type === 'total_cards') return `${selection.operator === 'over' ? 'Mais de' : 'Menos de'} ${formatGoalLine(selection.line)} cartões`;
   return selection.value ? 'Ambas marcam: sim' : 'Ambas marcam: não';
@@ -209,9 +209,9 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
               <div>
                 <div className="mb-1.5 text-[12px] font-black tracking-widest text-[var(--ui-text-faint)]">RESULTADO</div>
                 <div className="grid grid-cols-3 gap-2">
-                  <Choice label="Casa vence" active={selections.some(selection => sameSelection(selection, { type: 'outcome', value: 'home' }))} disabled={!canAddMarket('outcome')} onClick={() => choose({ type: 'outcome', value: 'home' })} />
+                  <Choice label="Mandante vence" active={selections.some(selection => sameSelection(selection, { type: 'outcome', value: 'home' }))} disabled={!canAddMarket('outcome')} onClick={() => choose({ type: 'outcome', value: 'home' })} />
                   <Choice label="Empate" active={selections.some(selection => sameSelection(selection, { type: 'outcome', value: 'draw' }))} disabled={!canAddMarket('outcome')} onClick={() => choose({ type: 'outcome', value: 'draw' })} />
-                  <Choice label="Fora vence" active={selections.some(selection => sameSelection(selection, { type: 'outcome', value: 'away' }))} disabled={!canAddMarket('outcome')} onClick={() => choose({ type: 'outcome', value: 'away' })} />
+                  <Choice label="Visitante vence" active={selections.some(selection => sameSelection(selection, { type: 'outcome', value: 'away' }))} disabled={!canAddMarket('outcome')} onClick={() => choose({ type: 'outcome', value: 'away' })} />
                 </div>
               </div>
 
@@ -283,7 +283,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
 
           <div>
             <div className="mb-1 flex items-center justify-between gap-3 text-[12px] font-bold tracking-widest text-[var(--ui-text-faint)]">
-              <span>VALOR APOSTADO</span><span className="whitespace-nowrap">resta: {remainingCap} · saldo: {points}</span>
+              <span>VALOR APOSTADO</span><span className="whitespace-nowrap">limite da rodada: {remainingCap} · saldo: {points}</span>
             </div>
             <input type="number" min={1} max={maxStake} value={stake}
               onChange={event => setStake(Math.max(0, Math.min(maxStake, Math.floor(Number(event.target.value) || 0))))}

@@ -124,7 +124,7 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
             <div className="w-[66px] h-[66px] rounded-lg flex items-center justify-center flex-shrink-0 text-2xl" style={{ background: '#14142a', border: `2px solid ${accent}55`, color: accent }}><GraduationCap size={30} strokeWidth={2} aria-hidden="true" /></div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7A7A8A', fontFamily: 'var(--font-game), sans-serif' }}>Técnico</div>
+            <div className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7A7A8A', fontFamily: 'var(--font-game), sans-serif' }}>Treinador</div>
             <div className="whitespace-normal break-words text-sm font-black leading-tight" style={{ color: '#FFF', fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em' }}>
               {coach?.name ?? '—'}
             </div>

@@ -209,7 +209,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
   const [penaltiesAway, setPenaltiesAway] = useState<boolean[]>([]);
   const [penaltyHomeScore, setPenaltyHomeScore] = useState(0);
   const [penaltyAwayScore, setPenaltyAwayScore] = useState(0);
-  const [penaltyCommentary, setPenaltyCommentary] = useState('A disputa de pênaltis vai começar! Escolha o próximo batedor.');
+  const [penaltyCommentary, setPenaltyCommentary] = useState('A disputa de pênaltis vai começar!');
   const [penaltyWinner, setPenaltyWinner] = useState<string | null>(null);
   // Replay-mode kick-by-kick index (-1 = not in replay penalty mode)
   const [penaltyReplayIdx, setPenaltyReplayIdx] = useState(-1);
@@ -412,7 +412,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
         if (replayResult.penaltyWinner) {
           // Enter penalty mode and auto-play kicks one by one (kick-by-kick narration).
           pitchDirector.startShootout();
-          setPenaltyCommentary('⚡ DISPUTA DE PÊNALTIS! Máxima tensão...');
+          setPenaltyCommentary('⚡ DISPUTA DE PÊNALTIS! Máxima tensão…');
           setPenaltyMode(true);
           setPenaltyReplayIdx(0);
           setIsPlaying(false);
@@ -1199,7 +1199,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
             {homeTeam.name.split(' ')[0].toUpperCase()} {homeScore + firstLeg.home} - {awayScore + firstLeg.away} {awayTeam.name.split(' ')[0].toUpperCase()}
           </span>
           <span className="hidden sm:inline text-[12px] text-gray-600" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-            (1ª mão {firstLeg.home}-{firstLeg.away})
+            (ida {firstLeg.home}-{firstLeg.away})
           </span>
         </div>
       )}
@@ -1275,7 +1275,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               finishedContent={(
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 <span className="text-sm sm:text-base font-extrabold uppercase text-white">
-                  {homeScore > awayScore ? `Vitória do ${homeTeam.name}` : awayScore > homeScore ? `Vitória do ${awayTeam.name}` : 'Empate'} · {homeScore} × {awayScore}
+                  {homeScore > awayScore ? `${homeTeam.name} vence` : awayScore > homeScore ? `${awayTeam.name} vence` : 'Empate'} · {homeScore} × {awayScore}
                 </span>
                 {manOfTheMatch && (
                   <span className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] sm:text-[13px] font-black" style={{ background: 'rgba(201,168,76,.14)', color: 'var(--ui-brand)', border: '1px solid rgba(201,168,76,.35)' }}>

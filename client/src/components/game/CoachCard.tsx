@@ -24,7 +24,7 @@ export default function CoachCard({ coach, formation, isPrime = false, primePhot
     <div className={bare ? '' : 'rounded-xl overflow-hidden'} style={bare ? undefined : { background: '#0F0F1A', border: `1px solid ${isPrime ? '#C9A84C55' : '#1A1A2A'}` }}>
       {showHeader && (
         <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: 'var(--ui-surface-3)', background: '#0A0A12' }}>
-          <span className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}><GraduationCap {...INLINE_ICON} />TÉCNICO</span>
+          <span className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}><GraduationCap {...INLINE_ICON} />TREINADOR</span>
           <span className="text-[11px] font-bold tracking-wider" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>COMANDO DO TIME</span>
         </div>
       )}
@@ -63,8 +63,8 @@ export default function CoachCard({ coach, formation, isPrime = false, primePhot
             <span style={{ color: 'var(--ui-text-faint)' }}>Formação preferida:</span>
             <span className="px-2 py-0.5 rounded font-black" style={{ background: '#C9A84C22', color: 'var(--ui-brand-strong)', border: '1px solid #C9A84C44' }}>{coach.preferredFormation}</span>
             {formation?.id === coach.preferredFormation
-              ? <span className="font-bold inline-flex items-center gap-1" style={{ color: 'var(--ui-success)' }}><Check size="1em" strokeWidth={3} aria-hidden="true" />em uso · <span style={{ color: 'var(--ui-success)' }}>+{PREFERRED_FORMATION_CHEM_BONUS} Química Geral</span></span>
-              : <span style={{ color: '#8A8A9A' }}>Use essa formação para dar <b style={{ color: 'var(--ui-success)' }}>+{PREFERRED_FORMATION_CHEM_BONUS} de Química Geral</b> ao time.</span>}
+              ? <span className="font-bold inline-flex items-center gap-1" style={{ color: 'var(--ui-success)' }}><Check size="1em" strokeWidth={3} aria-hidden="true" />em uso · <span style={{ color: 'var(--ui-success)' }}>+{PREFERRED_FORMATION_CHEM_BONUS} química geral</span></span>
+              : <span style={{ color: '#8A8A9A' }}>Use essa formação para dar <b style={{ color: 'var(--ui-success)' }}>+{PREFERRED_FORMATION_CHEM_BONUS} de química geral</b> ao time.</span>}
           </div>
         )}
       </div>

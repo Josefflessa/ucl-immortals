@@ -10,7 +10,8 @@ import { useGame } from '../contexts/GameContext';
 import { useAccount } from '../contexts/AccountContext';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { NATIONAL_TEAM_CRESTS, PLAYABLE_CREST_CATALOG, PLAYABLE_CRESTS, getCrest } from '@shared/game/crests';
-import { AppShell, Button, FixedActionBar, Input, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
+import Crest from '../components/game/Crest';
+import { AppShell, Button, Chip, EmptyState, Field, FixedActionBar, Input, PageContainer, Panel, SectionHeader, TopBar } from '../design-system';
 const GOLD = '#C9A84C';
 const NATIONAL_TEAMS_TAB = 'Seleções';
 
@@ -64,88 +65,81 @@ export default function CrestPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full">
           <SectionHeader
             title="Nome e escudo do time"
-            description="Dê um nome ao seu time e represente um clube no torneio. O escudo é só visual — não muda os atributos — e é opcional: pode pular e usar as iniciais."
+            description="Dê um nome ao seu time e, se quiser, escolha o escudo de um clube. O escudo é só visual: não muda nenhum atributo."
             className="mb-6"
           />
 
-          {/* The club's name */}
-          <Panel tone="inset" className="mx-auto mb-6 max-w-md space-y-2 p-4">
-            <label htmlFor="team-name" className="block text-xs font-bold tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>NOME DO SEU TIME</label>
-            <Input
-              id="team-name"
-              type="text"
-              value={teamName}
-              onChange={event => dispatch({ type: 'SET_TEAM_NAME', name: event.target.value })}
-              onKeyDown={event => { if (event.key === 'Enter') handleContinue(); }}
-              placeholder="Ex: Real Madrid Lendário"
-              maxLength={20}
-              autoFocus
-              autoComplete="off"
-              className="ui-input"
-            />
-            <p className="text-[12px] text-[var(--ui-text-faint)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-              {nameValid ? 'É assim que seu time aparece na competição e no histórico.' : 'Escolha um nome com pelo menos 2 letras para continuar.'}
-            </p>
+          {/* Identity: how the team will look in the competition */}
+          <Panel className="mb-8 p-4 sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+              <div className="flex items-center gap-4 sm:contents">
+                <div className="grid size-20 shrink-0 place-items-center rounded-(--ui-radius-lg) border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)]">
+                  <Crest crestId={selected} name={teamName.trim() || undefined} size={56} />
+                </div>
+                <div className="min-w-0 sm:hidden">
+                  <div className="ui-section-label">Prévia</div>
+                  <div className="mt-1 truncate font-display text-title uppercase leading-none tracking-caps text-[var(--ui-text)]">{teamName.trim() || 'Seu time'}</div>
+                </div>
+              </div>
+              <Field
+                label="Nome do seu time"
+                htmlFor="team-name"
+                hint={nameValid ? 'É assim que seu time aparece na competição e no histórico.' : 'Use pelo menos 2 letras para continuar.'}
+                className="min-w-0 flex-1 sm:max-w-md"
+              >
+                <Input
+                  id="team-name"
+                  type="text"
+                  value={teamName}
+                  onChange={event => dispatch({ type: 'SET_TEAM_NAME', name: event.target.value })}
+                  onKeyDown={event => { if (event.key === 'Enter') handleContinue(); }}
+                  placeholder="Ex.: Real Madrid Lendário"
+                  maxLength={20}
+                  autoFocus
+                  autoComplete="off"
+                />
+              </Field>
+              <div className="flex min-w-0 items-center justify-between gap-3 border-t border-[var(--ui-line-subtle)] pt-3 sm:ml-auto sm:flex-col sm:items-end sm:border-0 sm:pt-0">
+                <div className="min-w-0 sm:text-right">
+                  <div className="ui-section-label">Escudo</div>
+                  <div className="mt-1 truncate text-body-sm font-semibold text-[var(--ui-text-soft)]">{selectedDef ? selectedDef.name : 'Iniciais do time'}</div>
+                </div>
+                {selectedDef ? (
+                  <Button size="small" intent="ghost" onClick={() => dispatch({ type: 'SET_CREST', crestId: null })}>
+                    Remover escudo
+                  </Button>
+                ) : null}
+              </div>
+            </div>
           </Panel>
 
-          {/* Selected preview */}
-          <div className="flex items-center justify-center gap-3 mb-5 min-h-[56px]">
-            {selectedDef ? (
-              <>
-                <img src={selectedDef.url} alt={selectedDef.name} referrerPolicy="no-referrer"
-                  className="w-12 h-12 object-contain"
-                  style={{ borderRadius: selectedDef.clipToCircle ? '50%' : undefined }} />
-                <span className="text-lg font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: GOLD }}>
-                  {selectedDef.name.toUpperCase()}
-                </span>
-                <Button onClick={() => dispatch({ type: 'SET_CREST', crestId: null })} intent="ghost" className="min-h-8 px-2 text-xs">
-                  remover
-                </Button>
-              </>
-            ) : (
-              <span className="text-sm" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
-                Nenhum escudo selecionado (usará as iniciais do time)
-              </span>
-            )}
-          </div>
+          <SectionHeader
+            level="section"
+            title="Escudo"
+            description="Opcional. Sem escudo, o time usa as iniciais do nome."
+          />
 
           {/* Search */}
           <Input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Buscar clube ou seleção..."
-            className="ui-input mb-4"
-            aria-label="Buscar clube"
+            placeholder="Buscar clube ou seleção"
+            className="mb-3 lg:max-w-md"
+            aria-label="Buscar clube ou seleção"
+            type="search"
           />
 
-          {/* League tabs (hidden while searching) */}
+          {/* League filter (hidden while searching) */}
           {!search && (
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1 lg:flex-wrap lg:overflow-visible">
-              <Button onClick={() => setOpenLeague(NATIONAL_TEAMS_TAB)} intent="ghost"
-                className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold transition-all"
-                style={{
-                  background: nationalTeamsOpen ? `${GOLD}22` : '#0F0F1A',
-                  border: `1px solid ${nationalTeamsOpen ? GOLD : '#1A1A2A'}`,
-                  color: nationalTeamsOpen ? GOLD : '#8A8A9A',
-                  fontFamily: 'var(--font-game), sans-serif',
-                }}>
+            <div className="ui-chip-row mb-4" role="group" aria-label="Filtrar por liga">
+              <Chip selected={nationalTeamsOpen} onClick={() => setOpenLeague(NATIONAL_TEAMS_TAB)}>
                 {NATIONAL_TEAMS_TAB}
-              </Button>
-              {PLAYABLE_CREST_CATALOG.map(g => {
-                const active = g.league === openLeague;
-                return (
-                  <Button key={g.league} onClick={() => setOpenLeague(g.league)} intent="ghost"
-                    className="whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                    style={{
-                      background: active ? `${GOLD}22` : '#0F0F1A',
-                      border: `1px solid ${active ? GOLD : '#1A1A2A'}`,
-                      color: active ? GOLD : '#8A8A9A',
-                      fontFamily: 'var(--font-game), sans-serif',
-                    }}>
-                    {g.league}
-                  </Button>
-                );
-              })}
+              </Chip>
+              {PLAYABLE_CREST_CATALOG.map(g => (
+                <Chip key={g.league} selected={g.league === openLeague} onClick={() => setOpenLeague(g.league)}>
+                  {g.league}
+                </Chip>
+              ))}
             </div>
           )}
 
@@ -157,7 +151,7 @@ export default function CrestPage() {
               O escudo do Brasil é desbloqueado no evento Brasil em Campo.
             </p>
           ) : null}
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+          <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 sm:gap-3 md:grid-cols-6 xl:grid-cols-8">
             {shownCrests.map((c, i) => {
               const isSel = selected === c.id;
               const isUnlocked = c.teamType !== 'national-team' || unlockedCrests.includes(c.id);
@@ -191,20 +185,18 @@ export default function CrestPage() {
                     className={`h-12 w-12 object-contain ${isUnlocked ? '' : 'grayscale'}`}
                     style={{ borderRadius: c.clipToCircle ? '50%' : undefined }} />
                   {!isUnlocked ? <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full border border-white/10 bg-black/75 text-white/80"><Lock size={11} aria-hidden="true" /></span> : null}
-                  <span className="text-[12px] font-semibold text-center leading-tight truncate w-full"
-                    style={{ color: isSel ? GOLD : '#C9C9D9', fontFamily: 'var(--font-game), sans-serif' }}>
+                  <span className="w-full truncate text-center text-label font-semibold leading-ui-tight"
+                    style={{ color: isSel ? GOLD : 'var(--ui-text-soft)' }}>
                     {c.name}
                   </span>
-                  {!isUnlocked ? <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--ui-text-faint)]">Evento</span> : null}
+                  {!isUnlocked ? <span className="text-micro font-semibold uppercase tracking-caps text-[var(--ui-text-muted)]">Evento</span> : null}
                 </motion.button>
               );
             })}
           </div>
           </Panel>
           {search && shownCrests.length === 0 && (
-            <div className="text-center py-8 text-sm" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
-              Nenhum clube encontrado para “{query}”.
-            </div>
+            <EmptyState className="mt-3" title="Nenhum clube encontrado" description={`Não achamos “${query}”. Confira a grafia ou procure pelo nome curto do clube.`} />
           )}
 
         </motion.div>
@@ -222,7 +214,7 @@ export default function CrestPage() {
           disabled={!nameValid}
           className={state.mode === 'online' ? 'w-full' : 'flex-1'}
         >
-          {selected ? 'ESCOLHER TREINADOR →' : 'PULAR / ESCOLHER TREINADOR →'}
+          ESCOLHER TREINADOR →
         </Button>
       </FixedActionBar>
     </AppShell>

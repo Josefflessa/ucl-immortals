@@ -8,6 +8,7 @@ import {
   ChevronDown, ChevronRight, ChevronUp, CircleCheck, ClipboardList, Compass, Crown, Flag, Flame, Gamepad2, Gem, Globe, Goal, Hand, Handshake, Heart, HeartHandshake,
   Lock, Medal, Mountain, Pencil, Repeat, Shield, ShieldCheck, ShieldPlus, Shirt, Skull, Sparkles, Star, Sword, Swords,
   Target, Timer, TrendingUp, Trophy, Users, Wifi, Zap, RotateCcw, FlaskConical, Leaf, Vault, CircleDot, Coins, ListChecks, Eye, Crosshair, Package, X, type LucideIcon,
+  Pin,
 } from 'lucide-react';
 import {
   ACHIEVEMENT_BY_ID,
@@ -38,7 +39,7 @@ import { useAccount } from '../../contexts/AccountContext';
 import AlbumFilterToolbar from '../album/AlbumFilterToolbar';
 import { LevelStars } from '../album/AlbumPieces';
 import type { AchievementRarity, AchievementState, AchievementsPayload, ProfileRecordEntry } from '../../contexts/AccountContext';
-import { Button, GameModal, SectionHeader, StatusBanner, Tab, TabList, TabPanel, Tabs } from '../../design-system';
+import { Button, EmptyState, GameModal, SectionHeader, StatusBanner, Tab, TabList, TabPanel, Tabs } from '../../design-system';
 import { cn } from '../../lib/utils';
 
 const ACHIEVEMENT_ICONS: Record<string, LucideIcon> = {
@@ -217,12 +218,15 @@ export function AchievementTile({ state, rarity, className }: { state: Achieveme
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <strong className="min-w-0 break-words text-sm leading-tight text-[var(--ui-text)]">{definition.name}</strong>
-          <span
-            className="rounded px-1.5 py-0.5 text-[11px] font-black uppercase leading-none tracking-wider"
-            style={{ color: tier ? color : 'var(--ui-text-faint)', background: tier ? `color-mix(in srgb, ${color} 14%, transparent)` : 'var(--ui-surface-2)' }}
-          >
-            {tier ? ACHIEVEMENT_TIER_LABELS[tier] : 'Bloqueada'}
-          </span>
+          {/* Locked ones already show a padlock on the emblem; a "Bloqueada" tag on every card was noise. */}
+          {tier ? (
+            <span
+              className="rounded px-1.5 py-0.5 text-caption font-black uppercase leading-none tracking-wider"
+              style={{ color, background: `color-mix(in srgb, ${color} 14%, transparent)` }}
+            >
+              {ACHIEVEMENT_TIER_LABELS[tier]}
+            </span>
+          ) : <span className="sr-only">Bloqueada</span>}
         </div>
         <p className="mt-1 text-xs leading-snug text-[var(--ui-text-muted)]">
           {maxed ? `Nível máximo · ${achievementGoalText(definition, 4)}` : achievementGoalText(definition, state.level)}
@@ -232,13 +236,13 @@ export function AchievementTile({ state, rarity, className }: { state: Achieveme
           <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--ui-surface-3)]" role="progressbar" aria-valuemin={0} aria-valuemax={nextThreshold} aria-valuenow={maxed ? nextThreshold : Math.min(state.progress, nextThreshold)}>
             <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: barColor }} />
           </div>
-          <span className="shrink-0 text-[11px] font-bold tabular-nums" style={{ color: maxed ? color : 'var(--ui-text-soft)' }}>
+          <span className="shrink-0 text-caption font-bold tabular-nums" style={{ color: maxed ? color : 'var(--ui-text-soft)' }}>
             {maxed ? 'MÁX' : `${Math.min(state.progress, nextThreshold).toLocaleString('pt-BR')}/${nextThreshold.toLocaleString('pt-BR')}`}
           </span>
         </div>
-        {detail ? <p className="mt-1 truncate text-[11px] font-bold text-[var(--ui-text-soft)]">{detail}</p> : null}
-        {!maxed ? <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-[var(--ui-brand-strong)]"><Package size={12} aria-hidden="true" /> Próxima recompensa: Pacote {ACHIEVEMENT_TIER_LABELS[ACHIEVEMENT_TIERS[Math.min(state.level, 4)]]}</p> : null}
-        {rarityText ? <p className="mt-1.5 text-[11px] text-[var(--ui-text-faint)]">{rarityText}</p> : null}
+        {detail ? <p className="mt-1 truncate text-caption font-bold text-[var(--ui-text-soft)]">{detail}</p> : null}
+        {!maxed ? <p className="mt-1.5 flex items-center gap-1 text-caption font-semibold text-[var(--ui-brand-strong)]"><Package size={12} aria-hidden="true" /> Próxima recompensa: Pacote {ACHIEVEMENT_TIER_LABELS[ACHIEVEMENT_TIERS[Math.min(state.level, 4)]]}</p> : null}
+        {rarityText ? <p className="mt-1.5 text-caption text-[var(--ui-text-faint)]">{rarityText}</p> : null}
       </div>
     </article>
   );
@@ -257,8 +261,8 @@ function AchievementShowcaseTile({ state, rarity }: { state: AchievementState; r
     <article className={SHOWCASE_TILE} style={{ borderColor: `color-mix(in srgb, ${color} 45%, var(--ui-line-subtle))` }} aria-label={`${definition.name}, nível ${ACHIEVEMENT_TIER_LABELS[tier]}`}>
       <AchievementMedal id={state.id} level={state.level} size={64} />
       <strong className="mt-1 line-clamp-2 text-sm leading-tight text-[var(--ui-text)]">{definition.name}</strong>
-      <span className="text-[11px] font-black uppercase tracking-wider" style={{ color }}>{ACHIEVEMENT_TIER_LABELS[tier]}</span>
-      {percent !== undefined ? <span className="text-[11px] leading-tight text-[var(--ui-text-faint)]">{formatPercent(percent)} dos jogadores chegaram ao nível {ACHIEVEMENT_TIER_LABELS[tier]}</span> : null}
+      <span className="text-caption font-black uppercase tracking-wider" style={{ color }}>{ACHIEVEMENT_TIER_LABELS[tier]}</span>
+      {percent !== undefined ? <span className="text-caption leading-tight text-[var(--ui-text-faint)]">{formatPercent(percent)} dos jogadores chegaram ao nível {ACHIEVEMENT_TIER_LABELS[tier]}</span> : null}
     </article>
   );
 }
@@ -270,16 +274,16 @@ function RecordShowcaseTile({ record }: { record: ProfileRecordEntry }) {
   const color = isRankedDifficulty(record.difficulty_id) ? getRarityColor(record.difficulty_id as Rarity) : 'var(--ui-brand-strong)';
   return (
     <article className={SHOWCASE_TILE} style={{ borderColor: `color-mix(in srgb, ${color} 45%, var(--ui-line-subtle))` }} aria-label={`${meta.label}: ${record.value} ${meta.suffix} no ${difficultyName(record.difficulty_id)}`}>
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--ui-text-soft)]">
+      <span className="inline-flex items-center gap-1.5 text-caption font-bold uppercase tracking-wider text-[var(--ui-text-soft)]">
         <Icon size={13} aria-hidden="true" style={{ color }} /> {meta.label}
       </span>
       <span className="font-display text-4xl leading-none tabular-nums" style={{ color }}>{record.value.toLocaleString('pt-BR')}</span>
       <span className="w-full truncate text-xs text-[var(--ui-text-muted)]">{record.player_name}</span>
-      <span className="inline-flex items-center gap-0.5 text-[11px] font-black uppercase tracking-wider" style={{ color }}>
+      <span className="inline-flex items-center gap-0.5 text-caption font-black uppercase tracking-wider" style={{ color }}>
         <DifficultyEmblem difficulty={record.difficulty_id} size={18} />
         {difficultyName(record.difficulty_id)}{record.rank_position ? ` · #${record.rank_position}` : ''}
       </span>
-      <span className="text-[11px] font-semibold text-[var(--ui-text-muted)]">{seasonLabel(record.season ?? seasonAt(record.completed_at))}</span>
+      <span className="text-caption font-semibold text-[var(--ui-text-muted)]">{seasonLabel(record.season ?? seasonAt(record.completed_at))}</span>
     </article>
   );
 }
@@ -291,7 +295,7 @@ function AlbumCardShowcaseTile({ item }: { item: Extract<ShowcaseItem, { type: '
   const level = item.albumLevel ?? 1;
   return (
     <article className={cn(SHOWCASE_TILE, 'gap-2.5 px-3 py-4 sm:py-5')} style={{ borderColor: `color-mix(in srgb, ${color} 58%, var(--ui-line-subtle))` }} aria-label={`${player.shortName}, carta do Álbum, nível do Álbum ${level} de 5, ${RARITY_LABEL[player.rarity]}`}>
-      <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em]" style={{ borderColor: `color-mix(in srgb, ${color} 40%, transparent)`, color, background: `color-mix(in srgb, ${color} 10%, transparent)` }}>
+      <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-micro font-black uppercase tracking-wide-caps" style={{ borderColor: `color-mix(in srgb, ${color} 40%, transparent)`, color, background: `color-mix(in srgb, ${color} 10%, transparent)` }}>
         <BookOpen size={13} aria-hidden="true" /> DO ÁLBUM
       </span>
       <PlayerCard player={player} lite flat scale={0.5} albumLevel={level as AlbumLevel} />
@@ -299,12 +303,12 @@ function AlbumCardShowcaseTile({ item }: { item: Extract<ShowcaseItem, { type: '
         <strong className="block truncate text-base font-black text-[var(--ui-text)]">{player.shortName}</strong>
         <span className="block truncate text-xs text-[var(--ui-text-muted)]">{player.club}</span>
       </div>
-      <span className="rounded-md px-2 py-0.5 text-[11px] font-black uppercase tracking-wider" style={{ color, background: `color-mix(in srgb, ${color} 11%, transparent)` }}>{RARITY_LABEL[player.rarity]}</span>
+      <span className="rounded-md px-2 py-0.5 text-caption font-black uppercase tracking-wider" style={{ color, background: `color-mix(in srgb, ${color} 11%, transparent)` }}>{RARITY_LABEL[player.rarity]}</span>
       <span className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs font-bold text-[var(--ui-text-soft)]">
         <LevelStars level={level} size={13} />
         <span>Nível do Álbum {level}/5</span>
       </span>
-      <span className="text-[11px] font-semibold text-[var(--ui-text-faint)]">Nº {CATALOG.stickers.get(item.cardId)?.number ?? '—'} do Álbum</span>
+      <span className="text-caption font-semibold text-[var(--ui-text-faint)]">Nº {CATALOG.stickers.get(item.cardId)?.number ?? '—'} do Álbum</span>
     </article>
   );
 }
@@ -340,20 +344,26 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
     return [wrapper(<AlbumCardShowcaseTile item={item} />)];
   });
   return (
-    <section aria-label="Mural" className="flex flex-col gap-10 sm:gap-12">
+    <section aria-label="Mural" className="flex flex-col gap-4">
       <SectionHeader
+        level="section"
         title="Mural"
         className="mb-0 items-center"
         actions={onEdit ? (
           <Button type="button" intent="ghost" onClick={onEdit} className="min-h-9 gap-1.5 border border-[var(--ui-line-subtle)] px-3 text-xs">
-            <Pencil size={14} aria-hidden="true" /> EDITAR
+            <Pencil size={14} aria-hidden="true" /> EDITAR MURAL
           </Button>
         ) : undefined}
       />
       {tiles.length > 0 ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-6 sm:gap-4">{tiles}</div> : null}
       {tiles.length > 0
         ? null
-        : <div className="rounded-xl border border-dashed border-[var(--ui-line-strong)] p-4 text-center text-xs text-[var(--ui-text-muted)]">{emptyText}</div>}
+        : <EmptyState
+            icon={<Pin size={20} aria-hidden="true" />}
+            title={onEdit ? 'Seu mural está vazio' : 'Mural vazio'}
+            description={emptyText}
+            action={onEdit ? <Button type="button" intent="secondary" size="small" onClick={onEdit}>Escolher destaques</Button> : undefined}
+          />}
     </section>
   );
 }
@@ -686,7 +696,7 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border text-xs font-black tabular-nums" style={{ borderColor: `color-mix(in srgb, ${presentation.color} 40%, var(--ui-line-subtle))`, color: presentation.color, background: `color-mix(in srgb, ${presentation.color} 10%, transparent)` }}>{index + 1}</span>
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--ui-surface-2)]" style={{ color: presentation.color }}><ItemIcon size={17} aria-hidden="true" /></span>
                   <span className="min-w-0">
-                    <span className="block text-[10px] font-black uppercase text-[var(--ui-text-faint)]">{presentation.kind}</span>
+                    <span className="block text-micro font-black uppercase text-[var(--ui-text-faint)]">{presentation.kind}</span>
                     <strong className="block whitespace-normal break-words text-sm leading-snug text-[var(--ui-text)]">{presentation.label}</strong>
                     <span className="mt-0.5 block whitespace-normal break-words text-xs leading-snug text-[var(--ui-text-muted)]">{presentation.detail}</span>
                   </span>
@@ -700,7 +710,7 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
                 </li>
               );
             })}
-          </ol> : <div className="mt-3 rounded-lg border border-dashed border-[var(--ui-line-subtle)] px-3 py-3 text-center"><p className="text-xs font-semibold text-[var(--ui-text-soft)]">Nenhum destaque escolhido</p><p className="mt-1 text-[11px] text-[var(--ui-text-faint)]">Seu mural continuará automático. Escolha itens abaixo para personalizá-lo.</p></div>}
+          </ol> : <div className="mt-3 rounded-lg border border-dashed border-[var(--ui-line-subtle)] px-3 py-3 text-center"><p className="text-xs font-semibold text-[var(--ui-text-soft)]">Nenhum destaque escolhido</p><p className="mt-1 text-caption text-[var(--ui-text-faint)]">Seu mural continuará automático. Escolha itens abaixo para personalizá-lo.</p></div>}
         </section>
         <Tabs value={section} onValueChange={value => setSection(value as typeof section)}>
           <TabList aria-label="Tipo de destaque" className="grid w-full grid-cols-3">
@@ -751,7 +761,7 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
                   <span className="min-w-0">
                     <strong className="block truncate text-sm text-[var(--ui-text)]">{meta.label}: {record.value.toLocaleString('pt-BR')} {meta.suffix}</strong>
                     <span className="block truncate text-xs" style={{ color }}>{difficultyName(record.difficulty_id)} · {seasonLabel(record.season ?? seasonAt(record.completed_at))}</span>
-                    <span className="block truncate text-[11px] text-[var(--ui-text-muted)]">{record.player_name}</span>
+                    <span className="block truncate text-caption text-[var(--ui-text-muted)]">{record.player_name}</span>
                   </span>
                 </>
               ), () => toggle({ type: 'record', difficultyId: record.difficulty_id, category }));
@@ -761,9 +771,9 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <div className="ui-kicker">Cartas do seu Álbum</div>
-              <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">Escolha cartas que você já conquistou. Busca, ordem e filtros seguem o padrão de Minhas cartas.</p>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">Escolha cartas que você já conquistou.</p>
             </div>
-            <span className="rounded-md bg-[var(--ui-surface-2)] px-2 py-1 text-[11px] font-bold tabular-nums text-[var(--ui-text-soft)]">{shownAlbumCards.length} de {ownedAlbumCards.length}</span>
+            <span className="rounded-md bg-[var(--ui-surface-2)] px-2 py-1 text-caption font-bold tabular-nums text-[var(--ui-text-soft)]">{shownAlbumCards.length} de {ownedAlbumCards.length}</span>
           </div>
           <AlbumFilterToolbar
             className="mb-2"
@@ -806,12 +816,12 @@ export function ShowcaseEditor({ open, onOpenChange, payload, records, onSave }:
                       <strong className="block whitespace-normal break-words text-sm font-black leading-snug text-[var(--ui-text)]">{player.shortName}</strong>
                       <span className="mt-0.5 block whitespace-normal break-words text-xs leading-snug text-[var(--ui-text-muted)]">{player.club}</span>
                       <span className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase" style={{ color: getRarityColor(player.rarity), background: `color-mix(in srgb, ${getRarityColor(player.rarity)} 12%, transparent)` }}>{RARITY_LABEL[player.rarity]}</span>
-                        <span className="rounded-md bg-[var(--ui-surface-2)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--ui-text-soft)]">Nº {number} · {POS_PT[player.position] ?? player.position}</span>
+                        <span className="rounded-md px-1.5 py-0.5 text-micro font-black uppercase" style={{ color: getRarityColor(player.rarity), background: `color-mix(in srgb, ${getRarityColor(player.rarity)} 12%, transparent)` }}>{RARITY_LABEL[player.rarity]}</span>
+                        <span className="rounded-md bg-[var(--ui-surface-2)] px-1.5 py-0.5 text-micro font-semibold text-[var(--ui-text-soft)]">Nº {number} · {POS_PT[player.position] ?? player.position}</span>
                       </span>
-                      <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold text-[var(--ui-text-soft)]">
+                      <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption font-semibold text-[var(--ui-text-soft)]">
                         <span className="inline-flex flex-wrap items-center gap-1"><LevelStars level={Math.max(1, level)} size={11} /><span>Nível do Álbum {level}/5</span></span>
-                        {spares > 0 ? <span className="rounded-md bg-[var(--ui-surface-2)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]">+{spares} repetidas</span> : null}
+                        {spares > 0 ? <span className="rounded-md bg-[var(--ui-surface-2)] px-1.5 py-0.5 text-micro text-[var(--ui-text-muted)]">+{spares} repetidas</span> : null}
                       </span>
                     </span>
                   </>
@@ -867,7 +877,7 @@ export function UnlockedAchievements({ unlocks }: { unlocks: Array<{ id: string;
                 <div className="min-w-0">
                   <strong className="block text-sm text-[var(--ui-text)]">{definition.name}</strong>
                   <span className="text-xs font-bold uppercase tracking-wide" style={{ color: achievementLevelColor(unlock.level) }}>Nível {ACHIEVEMENT_TIER_LABELS[tier]}</span>
-                    <span className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-[var(--ui-brand-strong)]"><Package size={12} aria-hidden="true" /> Recompensa: Pacote {ACHIEVEMENT_TIER_LABELS[tier]}</span>
+                    <span className="mt-0.5 flex items-center gap-1 text-caption font-semibold text-[var(--ui-brand-strong)]"><Package size={12} aria-hidden="true" /> Recompensa: Pacote {ACHIEVEMENT_TIER_LABELS[tier]}</span>
                 </div>
               </div>
             );

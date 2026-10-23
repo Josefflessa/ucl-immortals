@@ -19,10 +19,7 @@ function StoreCategoryTab({ value, title, description, children }: {
 }) {
   return (
     <TabPanel value={value} className="space-y-4 pt-4">
-      <header className="border-b border-[var(--ui-line-subtle)] pb-4">
-        <h2 className="font-display text-2xl text-[var(--ui-text)]">{title}</h2>
-        <p className="mt-1 max-w-2xl text-sm text-[var(--ui-text-muted)]">{description}</p>
-      </header>
+      <SectionHeader level="section" title={title} description={description} className="mb-0 border-b border-[var(--ui-line-subtle)] pb-4" />
       {children}
     </TabPanel>
   );
@@ -54,7 +51,7 @@ export default function StorePage() {
         ) : albumError && !album ? (
           <StatusBanner tone="danger" title="Não foi possível carregar o saldo da conta">
             {albumError}{' '}
-            <Button type="button" intent="ghost" onClick={() => void refresh()} className="ml-1 min-h-8 px-2 text-xs">TENTAR NOVAMENTE</Button>
+            <Button type="button" intent="secondary" size="small" onClick={() => void refresh()} className="ml-1">Tentar novamente</Button>
           </StatusBanner>
         ) : !album ? (
           <Skeleton className="h-72 w-full rounded-2xl" aria-label="Carregando loja" />
@@ -62,7 +59,7 @@ export default function StorePage() {
           <>
           {albumError ? <StatusBanner tone="warning" title="Exibindo os últimos dados salvos">
             {albumError}{' '}
-            <Button type="button" intent="ghost" onClick={() => void refresh()} className="ml-1 min-h-8 px-2 text-xs">TENTAR NOVAMENTE</Button>
+            <Button type="button" intent="secondary" size="small" onClick={() => void refresh()} className="ml-1">Tentar novamente</Button>
           </StatusBanner> : null}
           <Tabs value={category} onValueChange={value => setCategory(value as StoreCategory)} className="ui-tabs-root--side">
             <TabList aria-label="Categorias da loja" className="ui-tabs--equal ui-tabs--side">
@@ -71,7 +68,7 @@ export default function StorePage() {
               <Tab value="customization" className="inline-flex items-center gap-2"><Palette size={15} aria-hidden="true" /><span>Aparência</span></Tab>
             </TabList>
 
-            <StoreCategoryTab value="packs" title="Pacotes de cartas" description="Confira o conteúdo e as chances de cada pacote. Guarde para abrir quando quiser e venda cartas repetidas por moedas.">
+            <StoreCategoryTab value="packs" title="Pacotes de cartas" description="Confira o conteúdo e as chances de cada pacote. Os pacotes comprados ficam no inventário do Álbum.">
               <AlbumPackShop />
             </StoreCategoryTab>
 

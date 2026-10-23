@@ -67,11 +67,11 @@ export default function MarketTab() {
       {view === 'sell' && (
         <>
           <div className="text-sm leading-relaxed text-[var(--ui-text-muted)]">
-            Venda reservas pra banca por um valor fixo. Pra vender um titular, mande-o pro banco em MEU CLUBE.
+            Venda reservas por um valor fixo. Para vender um titular, mande-o para o banco em MEU CLUBE.
           </div>
           {bench.length === 0 ? (
             <div className="ui-empty">
-              Sem reservas pra vender — suas contratações e picks de banco aparecem aqui.
+              Sem reservas para vender. Suas contratações e as reservas do draft aparecem aqui.
             </div>
           ) : (
             <div className="market-player-row flex flex-wrap gap-3">
@@ -249,7 +249,7 @@ export default function MarketTab() {
           <div className="text-center">
             <Store size={32} strokeWidth={2.2} className="mx-auto mb-1" aria-hidden="true" />
             <p className="mb-1 text-sm text-[var(--ui-text-soft)]">
-              Vender <b className="text-[var(--ui-text)]">{confirmPlayer.shortName}</b> pra banca por <b className="text-[var(--ui-brand-strong)]"><CoinIcon />{sellValue(confirmPlayer.rarity)}</b>?
+              Vender <b className="text-[var(--ui-text)]">{confirmPlayer.shortName}</b> por <b className="text-[var(--ui-brand-strong)]"><CoinIcon />{sellValue(confirmPlayer.rarity)}</b>?
             </p>
             <p className="text-xs text-[var(--ui-text-muted)]">Essa ação é permanente.</p>
           </div>

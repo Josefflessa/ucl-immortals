@@ -94,7 +94,7 @@ export default function TradeNegotiationModal() {
             <span className="text-[var(--ui-text-muted)]">{myPlayerIds.length} selecionado{myPlayerIds.length === 1 ? '' : 's'}</span>
             {mySide.ready && <span className="text-[var(--ui-success)]">✓ pronto</span>}
           </div>
-          <p className="mb-2 text-xs text-[var(--ui-text-muted)]">Selecione um ou mais reservas para oferecer.</p>
+          <p className="mb-2 text-xs text-[var(--ui-text-muted)]">Selecione reservas para oferecer. As duas ofertas precisam ter o mesmo número de jogadores.</p>
           <div className="market-player-row flex flex-wrap gap-3">
             {bench.length === 0 ? (
               <div className="ui-empty">Sem reservas pra oferecer.</div>
@@ -131,7 +131,7 @@ export default function TradeNegotiationModal() {
               // The other side's cards show what travels with them, not their team bonuses.
               theirCards.map(player => <TradePlayerCard key={player.id} player={player} effectiveStats={getCardIntrinsicStats(player, { isKnockout: state.phase === 'knockout' })} />)
             ) : (
-              <div className="ui-empty">Ainda escolhendo...</div>
+              <div className="ui-empty">Ainda escolhendo…</div>
             )}
           </div>
           {theirSide.creditsDelta > 0 && (

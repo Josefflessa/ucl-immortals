@@ -75,7 +75,7 @@ export default function AlbumPackShop() {
                     <ItemArt itemKey={`pack:${tier}`} height={90} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Conteúdo</p>
+                    <p className="text-micro font-bold uppercase tracking-wide-caps text-[var(--ui-text-muted)]">Conteúdo</p>
                     <p className="mt-1 text-sm font-semibold leading-snug text-[var(--ui-text-soft)]">{PACK_SIZE} cartas por pacote</p>
                     {guarantee ? (
                       <p className="mt-2 inline-flex items-start gap-1.5 text-xs leading-snug text-[var(--ui-success)]"><Check size={14} className="mt-0.5 shrink-0" aria-hidden="true" />1 carta {RARITY_LABEL[guarantee].toLowerCase()} ou melhor garantida</p>
@@ -89,7 +89,7 @@ export default function AlbumPackShop() {
                   <Button intent="primary" disabled={busy !== null || coins < price} onClick={() => { setPurchaseQuantity(1); setConfirming(tier); }} className="w-full">
                     <span className="flex w-full items-center justify-between gap-3"><span>Comprar pacote</span><CoinAmount value={price} size={14} className="text-inherit" /></span>
                   </Button>
-                  {coins < price ? <p className="mt-2 text-center text-[11px] text-[var(--ui-text-muted)]">Faltam <strong className="tabular-nums text-[var(--ui-text-soft)]">{(price - coins).toLocaleString('pt-BR')}</strong> moedas para este pacote.</p> : null}
+                  {coins < price ? <p className="mt-2 text-center text-label text-[var(--ui-text-muted)]">Faltam <strong className="tabular-nums text-[var(--ui-text-soft)]">{(price - coins).toLocaleString('pt-BR')}</strong> moedas</p> : null}
                 </div>
               </div>
             </article>
@@ -107,11 +107,11 @@ export default function AlbumPackShop() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)] px-3 py-2.5">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Conteúdo</p>
+                <p className="text-micro font-bold uppercase tracking-wide-caps text-[var(--ui-text-muted)]">Conteúdo</p>
                 <p className="mt-1 text-sm font-semibold text-[var(--ui-text)]">{PACK_SIZE} cartas</p>
               </div>
               <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)] px-3 py-2.5">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Garantia</p>
+                <p className="text-micro font-bold uppercase tracking-wide-caps text-[var(--ui-text-muted)]">Garantia</p>
                 <p className="mt-1 text-sm font-semibold leading-snug text-[var(--ui-text)]">
                   {guarantee ? `1 ${RARITY_LABEL[guarantee]} ou melhor` : 'Sem raridade mínima'}
                 </p>
@@ -120,7 +120,7 @@ export default function AlbumPackShop() {
 
             <section className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-2)] p-3.5">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h4 className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Chances por carta</h4>
+                <h4 className="text-micro font-bold uppercase tracking-wide-caps text-[var(--ui-text-soft)]">Chances por carta</h4>
               </div>
               <dl className="space-y-3" aria-label={`Chances por carta do Pacote ${ALBUM_TIER_META[oddsTier].label}`}>
                 {probabilities.map(([rarity, chance]) => (

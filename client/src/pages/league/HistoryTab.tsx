@@ -95,7 +95,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
               SEUS RESULTADOS ({playerResults.length} jogos disputados)
             </div>
             {playerResults.length === 0 ? (
-              <div className="py-8 text-center text-xs text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+              <div className="py-8 text-center text-xs text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 Nenhum jogo disputado ainda.
               </div>
             ) : (
@@ -134,7 +134,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                         <div className="text-[12px] font-bold uppercase tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                           {isHome ? <><House {...INLINE_ICON} />Em casa</> : <><Plane {...INLINE_ICON} />Fora</>}
                         </div>
-                        <div className="whitespace-normal break-words text-sm font-black leading-tight" style={{ color: '#FFFFFF', fontFamily: 'var(--font-game), sans-serif' }}>
+                        <div className="whitespace-normal break-words text-sm font-black leading-tight" style={{ color: 'var(--ui-text)', fontFamily: 'var(--font-game), sans-serif' }}>
                           {oppName}
                         </div>
                       </div>
@@ -169,7 +169,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
             /* ─── RODADAS ANTERIORES: escolha a rodada e veja TODOS os resultados ─── */
             <div className="space-y-3">
               {historyPeriods.length === 0 ? (
-                <div className="py-8 text-center text-xs text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                <div className="py-8 text-center text-xs text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   Nenhuma rodada disputada ainda.
                 </div>
               ) : (
@@ -184,7 +184,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                           style={{ fontFamily: 'var(--font-display), sans-serif', minWidth: 36, letterSpacing: '.03em',
                             background: isActive ? '#C9A84C' : '#0F0F1A',
                             color: isActive ? '#080810' : (p.kind === 'ko' ? '#818CF8' : '#C9A84C'),
-                            border: `1px solid ${isActive ? '#C9A84C' : (p.kind === 'ko' ? '#6366f133' : '#1A1A2A')}` }}>
+                            border: `1px solid ${isActive ? '#C9A84C' : (p.kind === 'ko' ? '#6366f133' : 'var(--ui-surface-3)')}` }}>
                           {p.label}
                         </button>
                       );
@@ -204,7 +204,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                         const isPlayer = fixture.homeTeamId === playerTeam?.id || fixture.awayTeamId === playerTeam?.id;
                         return (
                           <div key={idx} className="rounded-xl p-3"
-                            style={{ background: isPlayer ? 'linear-gradient(135deg,#14142a,#0b0b14)' : '#0F0F1A', border: `1px solid ${isPlayer ? '#c9a84c55' : '#1A1A2A'}` }}>
+                            style={{ background: isPlayer ? 'linear-gradient(135deg,#14142a,#0b0b14)' : '#0F0F1A', border: `1px solid ${isPlayer ? '#c9a84c55' : 'var(--ui-surface-3)'}` }}>
                             <div className="mb-2 text-center text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                               RODADA {fixture.round}
                             </div>
@@ -262,7 +262,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                         const detStyle = { background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'var(--font-game), sans-serif' } as const;
                         return (
                           <div key={tie.id ?? tieIndex} className="space-y-2 rounded-xl p-3"
-                            style={{ background: isPlayer ? 'linear-gradient(135deg,#14142a,#0b0b14)' : '#0F0F1A', border: `1px solid ${isPlayer ? '#c9a84c55' : '#1A1A2A'}` }}>
+                            style={{ background: isPlayer ? 'linear-gradient(135deg,#14142a,#0b0b14)' : '#0F0F1A', border: `1px solid ${isPlayer ? '#c9a84c55' : 'var(--ui-surface-3)'}` }}>
                             <div className="flex items-center justify-between gap-2">
                               <div className="text-[11px] font-black tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                                 {phase}

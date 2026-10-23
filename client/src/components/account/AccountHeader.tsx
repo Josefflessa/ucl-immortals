@@ -269,7 +269,7 @@ export default function AccountHeader() {
               className="relative size-10 min-h-10 w-10 justify-center rounded-full border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] p-0 sm:size-11 sm:min-h-11 sm:w-11"
             >
               <Bell size={18} aria-hidden="true" />
-              {incomingRequests.length > 0 ? <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-bg)] bg-[var(--ui-danger)] px-1 text-[10px] font-bold leading-none tabular-nums text-white">{incomingRequests.length > 9 ? '9+' : incomingRequests.length}</span> : null}
+              {incomingRequests.length > 0 ? <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-bg)] bg-[var(--ui-danger)] px-1 text-micro font-bold leading-none tabular-nums text-white">{incomingRequests.length > 9 ? '9+' : incomingRequests.length}</span> : null}
             </Button>
             <EventsHomeButton pending={pendingEvents} onOpen={() => dispatch({ type: 'SET_PHASE', phase: 'events' })} />
             <DailyRewardsHomeButton />
@@ -327,15 +327,15 @@ export default function AccountHeader() {
               <Coins size={20} aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="mb-1 flex items-center gap-1 text-[9px] font-extrabold uppercase leading-none tracking-[0.16em] text-[var(--ui-brand-strong)] sm:text-[10px]">
+              <span className="mb-1 flex items-center gap-1 text-micro font-extrabold uppercase leading-none tracking-[0.16em] text-[var(--ui-brand-strong)] sm:text-micro">
                 <Sparkles size={11} aria-hidden="true" /> Bônus de fim de semana
               </span>
               <span className="block text-sm font-extrabold leading-tight text-[var(--ui-text)] sm:text-base">Moedas em dobro!</span>
-              <span className="mt-0.5 block text-[11px] leading-snug text-[var(--ui-text-muted)] sm:text-xs">Conclua competições e ganhe o dobro.</span>
+              <span className="mt-0.5 block text-caption leading-snug text-[var(--ui-text-muted)] sm:text-xs">Conclua competições e ganhe o dobro.</span>
             </span>
             <span className="inline-flex h-12 w-14 shrink-0 flex-col items-center justify-center rounded-xl border border-[var(--ui-brand-strong)] bg-[var(--ui-brand-strong)] px-1 text-[var(--ui-bg)] shadow-[0_3px_12px_rgba(232,200,74,0.22)] sm:h-14 sm:w-16">
               <span className="font-display text-2xl font-black leading-none sm:text-[1.7rem]">×2</span>
-              <span className="mt-1 text-[9px] font-black uppercase leading-none tracking-[0.1em] sm:text-[10px]">moedas</span>
+              <span className="mt-1 text-micro font-black uppercase leading-none tracking-[0.1em] sm:text-micro">moedas</span>
             </span>
           </section>
         </div>
@@ -354,7 +354,7 @@ export default function AccountHeader() {
                   {pushStatus === 'enabled' ? 'Ativadas. Você receberá avisos de amizade, mensagens, convites para partidas e propostas de troca.'
                     : pushStatus === 'disabled' ? 'Desativadas. Ative para receber avisos mesmo com o jogo fechado.'
                       : pushStatus === 'blocked' ? 'A permissão foi bloqueada no navegador. Altere a permissão do site nas configurações do navegador.'
-                        : pushStatus === 'unconfigured' ? 'O envio de push ainda não foi configurado no servidor.'
+                        : pushStatus === 'unconfigured' ? 'Notificações indisponíveis no momento. Tente mais tarde.'
                           : pushStatus === 'unsupported' ? 'Este navegador ou dispositivo não oferece suporte a notificações push neste contexto.'
                             : pushStatus === 'error' ? 'Não foi possível carregar a configuração de notificações.'
                               : 'Você escolhe se quer receber avisos fora do jogo. A permissão só será solicitada ao ativar.'}

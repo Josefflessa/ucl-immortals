@@ -21,7 +21,7 @@ export default function BannerPityMeter({ misses, limit, guarantee, missLabel }:
           <ShieldCheck size={18} strokeWidth={2.2} />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.14em] text-[#f0d45d]">Pity do banner</h3>
+          <h3 className="text-micro font-black uppercase tracking-kicker text-[#f0d45d]">Garantia do banner</h3>
           <p className="mt-1 text-xs font-semibold leading-snug text-[var(--ui-text)]">{guarantee}</p>
         </div>
       </div>
@@ -35,7 +35,7 @@ export default function BannerPityMeter({ misses, limit, guarantee, missLabel }:
       >
         <div className="h-full rounded-full bg-gradient-to-r from-[#c8a932] via-[#f0d45d] to-[#fff0a3] shadow-[0_0_12px_rgba(233,201,75,0.35)] transition-[width] duration-500" style={{ width: `${progress}%` }} />
       </div>
-      <div className="relative mt-2 flex items-center justify-between gap-2 text-[10px]">
+      <div className="relative mt-2 flex items-center justify-between gap-2 text-micro">
         <p className={safeMisses >= limit - 1 ? 'font-bold text-[#f0d45d]' : 'text-[var(--ui-text-faint)]'}>
           {safeMisses >= limit - 1 ? 'Próximo sorteio garantido' : `Garantia em até ${remainingDraws} sorteios`}
         </p>

@@ -4,7 +4,15 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowUpCircle, Minus, Plus } from 'lucide-react';
-import { copiesToNextLevel, LEVEL_COPIES, levelForCopies, MAX_COPIES, SELL_VALUE } from '@shared/game/album';
+import { ALBUM_TIER_META, copiesToNextLevel, LEVEL_COPIES, levelForCopies, MAX_COPIES, SELL_VALUE, TIER_ODDS, type AlbumPackTier } from '@shared/game/album';
+
+/** Pack tiers whose odds can draw this rarity, e.g. "Prata, Ouro e Lendário". */
+function packTiersFor(rarity: string): string {
+  const labels = (Object.keys(TIER_ODDS) as AlbumPackTier[])
+    .filter(tier => ((TIER_ODDS[tier] as Record<string, number | undefined>)[rarity] ?? 0) > 0)
+    .map(tier => ALBUM_TIER_META[tier].label);
+  return labels.length > 1 ? `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}` : labels[0] ?? '';
+}
 import { canonicalClubName } from '@shared/game/crests';
 import { EVENT_UNIQUE_CARDS, STORE_UNIQUE_CARDS } from '@shared/game/gameData';
 import { Button, GameModal } from '../../design-system';
@@ -33,9 +41,9 @@ function preloadAlbumLevelFrames() {
 }
 
 function exclusiveAvailability(cardId: string): string {
-  if (EVENT_UNIQUE_CARD_IDS.has(cardId)) return 'Esta carta exclusiva é conquistada em eventos e não sai no banner nem em pacotes.';
-  if (STORE_UNIQUE_CARD_IDS.has(cardId)) return 'Esta carta exclusiva pode ser conquistada no banner diário da Loja.';
-  return 'Esta carta exclusiva pode ser conquistada em eventos ou no banner diário da Loja.';
+  if (EVENT_UNIQUE_CARD_IDS.has(cardId)) return 'Esta carta exclusiva é conquistada em eventos e não sai nos banners nem nos pacotes do Álbum.';
+  if (STORE_UNIQUE_CARD_IDS.has(cardId)) return 'Esta carta exclusiva pode sair no Banner 2 da Loja.';
+  return 'Esta carta exclusiva pode sair em eventos ou no Banner 2 da Loja.';
 }
 
 function LevelTrack({ copies }: { copies: number }) {
@@ -47,7 +55,7 @@ function LevelTrack({ copies }: { copies: number }) {
         return (
           <li key={needed} className={cn('rounded-lg border px-1 py-1.5 text-center', reached ? 'border-[#E9C46A]/60 bg-[#E9C46A]/10' : 'border-[var(--ui-line-subtle)]')}>
             <div className={cn('text-xs font-bold', reached ? 'text-[#E9C46A]' : 'text-[var(--ui-text-muted)]')}>★{i + 1}</div>
-            <div className="text-[11px] tabular-nums text-[var(--ui-text-faint)]">{needed} {needed === 1 ? 'cópia' : 'cópias'}</div>
+            <div className="text-caption tabular-nums text-[var(--ui-text-faint)]">{needed} {needed === 1 ? 'cópia' : 'cópias'}</div>
           </li>
         );
       })}
@@ -105,7 +113,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
               <section className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--ui-text-faint)]">Nível do álbum</div>
+                    <div className="text-caption font-bold uppercase tracking-kicker text-[var(--ui-text-faint)]">Nível do álbum</div>
                     <div className="mt-1 flex items-center gap-2">
                       <span className="shrink-0 rounded-md bg-[#E9C46A]/10 px-2 py-0.5 text-sm font-black tabular-nums text-[#E9C46A]">★{level}</span>
                       <LevelStars level={level} size={15} />
@@ -117,14 +125,14 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
                   </div>
                 </div>
                 <div className="mt-3"><LevelTrack copies={owned.copies} /></div>
-                <p className="mt-2 text-[11px] leading-relaxed text-[var(--ui-text-muted)]">O overall da carta já inclui +{level} do Álbum ({card.overall} base → {card.overall + level}). Nas competições, cada estrela também dá +1 em todos os atributos.</p>
+                <p className="mt-2 text-caption leading-relaxed text-[var(--ui-text-muted)]">Cada estrela dá +1 em todos os atributos nas competições (geral {card.overall} → {card.overall + level}).</p>
               </section>
 
               <section className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] p-3.5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-bold text-[var(--ui-text)]">Cópias repetidas</div>
-                    <div className="mt-0.5 text-[11px] text-[var(--ui-text-muted)]">Aplique para evoluir ou venda por moedas.</div>
+                    <div className="mt-0.5 text-caption text-[var(--ui-text-muted)]">Aplique para evoluir ou venda por moedas.</div>
                   </div>
                   <div className="rounded-lg bg-[var(--ui-surface-3)] px-2.5 py-1 text-sm font-bold tabular-nums text-[var(--ui-text)]">{spare}</div>
                 </div>
@@ -150,7 +158,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-1 text-xs text-[var(--ui-text-faint)]">As cópias extras que saírem nos pacotes aparecem aqui.</p>
+                  <p className="mt-1 text-xs text-[var(--ui-text-faint)]">Suas cópias extras aparecem aqui.</p>
                 )}
               </section>
             </>
@@ -162,7 +170,7 @@ export default function StickerSheet({ cardId, onClose }: { cardId: string | nul
           ) : (
             <section className="rounded-xl border border-[var(--ui-line-subtle)] p-4">
               <div className="text-sm font-bold text-[var(--ui-text)]">Carta faltando</div>
-                <p className="mt-1 text-xs text-[var(--ui-text-muted)]">{sticker.pageId === null ? exclusiveAvailability(card.id) : `Ela pode sair em qualquer pacote ou envelope${card.rarity === 'bronze' || card.rarity === 'silver' ? '' : ' (as mais raras saem mais nos pacotes de dificuldades maiores)'}.`}</p>
+                <p className="mt-1 text-xs text-[var(--ui-text-muted)]">{sticker.pageId === null ? exclusiveAvailability(card.id) : `Pode sair nos pacotes e envelopes ${packTiersFor(card.rarity)}.`}</p>
             </section>
           )}
         </div>

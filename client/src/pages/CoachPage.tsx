@@ -1,13 +1,13 @@
 // UCL Immortals — Coach Selection Page
 
 import { motion } from 'framer-motion';
-import { Brain, Check, Flame, Heart, Scale, Shield, Sparkles, Star, Zap, type LucideIcon } from 'lucide-react';
+import { Brain, Flame, Heart, Scale, Shield, Sparkles, Star, Zap, type LucideIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
 import { COACHES } from '@shared/game/gameData';
 import { PREFERRED_FORMATION_CHEM_BONUS } from '@shared/game/gameEngine';
 import { coachBaseDescription, coachPrimeDefinition } from '../lib/coachPrime';
-import { AppShell, Button, ChoiceCard, FixedActionBar, PageContainer, SectionHeader, TopBar } from '../design-system';
+import { AppShell, Button, ChoiceCard, ChoiceCheck, FixedActionBar, PageContainer, SectionHeader, TopBar } from '../design-system';
 
 /** Shown when a coach has no photo: his style, as a line icon. */
 const COACH_ICONS: Record<string, LucideIcon> = {
@@ -60,17 +60,17 @@ export default function CoachPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mx-auto w-full max-w-4xl"
+          className="w-full"
         >
           {/* Title */}
           <SectionHeader
             title="Escolha seu treinador"
-            description="Cada técnico reforça dois atributos do elenco e traz uma habilidade própria."
+            description="Cada treinador reforça dois atributos do elenco e traz uma habilidade própria."
             className="mb-8"
           />
 
           {/* Coach grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {COACHES.map((coach) => {
               const isSelected = state.selectedCoachId === coach.id;
               const color = COACH_COLORS[coach.id] || '#C9A84C';
@@ -86,23 +86,9 @@ export default function CoachPage() {
                   onClick={() => handleSelect(coach.id)}
                   onDoubleClick={() => handleDoubleClick(coach.id)}
                   title="Clique duas vezes para escolher e continuar"
-                  className="ui-choice relative text-left p-6"
-                  style={{
-                    background: isSelected ? 'var(--ui-surface-2)' : undefined,
-                    border: `1px solid ${isSelected ? 'var(--ui-brand-strong)' : 'var(--ui-line-subtle)'}`,
-                    boxShadow: isSelected ? '0 0 0 1px var(--ui-brand-soft)' : 'none',
-                  }}
+                  className="relative flex h-full flex-col p-5 text-left sm:p-6"
                 >
-                  {/* Selected badge */}
-                  {isSelected && (
-                    <span
-                      className="absolute right-4 top-4 inline-flex size-8 items-center justify-center rounded-full"
-                      style={{ background: 'var(--ui-brand-strong)', color: '#0A0A12' }}
-                      aria-hidden="true"
-                    >
-                      <Check size={18} strokeWidth={3.2} />
-                    </span>
-                  )}
+                  {isSelected && <ChoiceCheck className="absolute right-4 top-4" />}
 
                   {/* Photo + name + philosophy */}
                   <div className="flex items-center gap-4 pr-10">
@@ -126,15 +112,8 @@ export default function CoachPage() {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <div
-                        className="text-[22px] font-black leading-none"
-                        style={{
-                          fontFamily: 'var(--font-display), sans-serif',
-                          color: isSelected ? 'var(--ui-brand-strong)' : '#FFFFFF',
-                          letterSpacing: '0.04em',
-                        }}
-                      >
-                        {coach.name.toUpperCase()}
+                      <div className={`font-display text-title-lg uppercase leading-none tracking-display ${isSelected ? 'text-[var(--ui-brand-strong)]' : 'text-[var(--ui-text)]'}`}>
+                        {coach.name}
                       </div>
                       <div className="mt-1 text-sm font-bold leading-snug" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
                         {coach.philosophy}
@@ -144,27 +123,27 @@ export default function CoachPage() {
 
                   {/* Bonus */}
                   <div className="mt-5">
-                    <div className="mb-1.5 flex items-center gap-2 text-[13px] font-black tracking-[0.14em]" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
+                    <div className="mb-1.5 flex items-center gap-2 text-body-sm font-black tracking-kicker" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
                       <Zap size={14} strokeWidth={2.6} aria-hidden="true" />BÔNUS BASE
                     </div>
-                    <div className="space-y-1 text-base font-semibold leading-snug" style={{ color: '#ECECF4', fontFamily: 'var(--font-game), sans-serif' }}>
+                    <div className="space-y-1 text-base font-semibold leading-snug" style={{ color: 'var(--ui-text)', fontFamily: 'var(--font-game), sans-serif' }}>
                       {baseDescription.map((line, index) => <p key={index}>{line}</p>)}
                     </div>
                   </div>
 
                   {/* Ability */}
-                  <div className="mt-4 rounded-xl p-3.5" style={{ background: `${color}12`, border: `1px solid ${color}2E` }}>
-                    <div className="mb-1 flex items-center gap-2 text-[13px] font-black tracking-[0.14em]" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
+                  <div className="mb-4 mt-4 rounded-xl p-3.5" style={{ background: `${color}12`, border: `1px solid ${color}2E` }}>
+                    <div className="mb-1 flex items-center gap-2 text-body-sm font-black tracking-kicker" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>
                       <Sparkles size={14} strokeWidth={2.6} aria-hidden="true" />HABILIDADE · {coach.specialAbilityName.toUpperCase()}
                     </div>
-                    <p className="text-base leading-snug" style={{ color: '#D6D6E2', fontFamily: 'var(--font-game), sans-serif' }}>
+                    <p className="text-base leading-snug" style={{ color: 'var(--ui-text-soft)', fontFamily: 'var(--font-game), sans-serif' }}>
                       {abilityDescription}
                     </p>
                   </div>
 
                   {/* Preferred formation */}
-                  <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t pt-4" style={{ borderColor: 'var(--ui-line-subtle)' }}>
-                    <span className="text-sm font-bold tracking-wide" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                  <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t pt-4" style={{ borderColor: 'var(--ui-line-subtle)' }}>
+                    <span className="text-sm font-bold tracking-wide" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                       FORMAÇÃO PREFERIDA
                     </span>
                     <span
@@ -174,7 +153,7 @@ export default function CoachPage() {
                       {coach.preferredFormation}
                     </span>
                     <span className="basis-full text-[15px] leading-snug" style={{ color: 'var(--ui-success)', fontFamily: 'var(--font-game), sans-serif' }}>
-                      Nessa formação, o time recebe <b>+{PREFERRED_FORMATION_CHEM_BONUS} de Química Geral</b>.
+                      Nessa formação, o time recebe <b>+{PREFERRED_FORMATION_CHEM_BONUS} de química geral</b>.
                     </span>
                   </div>
                 </ChoiceCard>
@@ -184,7 +163,7 @@ export default function CoachPage() {
 
         </motion.div>
       </PageContainer>
-      <FixedActionBar contentClassName="max-w-4xl">
+      <FixedActionBar>
         <Button onClick={handleBack} intent="ghost" className="border border-[var(--ui-line-subtle)]">
           ← VOLTAR
         </Button>

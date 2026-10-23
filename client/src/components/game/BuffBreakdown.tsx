@@ -19,10 +19,11 @@ import {
 import { getTacticById, POS_PT, type Player } from '@shared/game/gameData';
 import { getCardVariants } from './PlayerCard';
 import { ATTR_SHORT, SHEET_ATTRS, type PlayerSheetModel } from './player-sheet/playerSheetModel';
+import { traitLabel } from '@shared/game/traits';
 
 const GREEN = '#22C55E';
 const RED = '#EF4444';
-const MUTED = '#6A6A7A';
+const MUTED = 'var(--ui-text-faint)';
 const FONT = { fontFamily: 'var(--font-game), sans-serif' } as const;
 
 type Chip = { text: string; color: string; dim?: boolean };
@@ -86,7 +87,7 @@ function variantState(variant: Variant, model: PlayerSheetModel): { active: bool
     case 'decimoHomem': return model.isStarter ? { active: false, inactiveReason: 'precisa estar no banco' } : { active: true };
     case 'noe': return sources.some(s => s.type === 'noe') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular sem característica' : 'só ativa se for titular' };
     case 'poliglota': return sources.some(s => s.type === 'poliglota') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'nenhum titular ou reserva de outra nacionalidade' : 'só ativa se for titular' };
-    case 'desenfreado': return sources.some(s => s.type === 'desenfreado') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'química geral até 100' : 'só ativa se for titular' };
+    case 'desenfreado': return sources.some(s => s.type === 'desenfreado') ? { active: true } : { active: false, inactiveReason: model.isStarter ? 'precisa de química geral 103+' : 'só ativa se for titular' };
     case 'martir': return !model.isStarter
       ? { active: false, inactiveReason: 'só funciona se for titular' }
       : sources.some(s => s.type === 'martir' && s.fromId === model.player.id)
@@ -203,7 +204,7 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
     case 'capitaoNato':
       return { chips: [{ text: 'BÔNUS DE CAPITÃO TRIPLICADO', color: GREEN }], description: 'Vale quando ele é o capitão: o bônus que o capitão dá ao time inteiro é triplicado.' };
     case 'magnata':
-      return { chips: [{ text: `CRÉDITOS DA PARTIDA ×${String(MAGNATA_POINT_MULT).replace('.', ',')}`, color: GREEN }, { text: `−${MAGNATA_STAT_PENALTY} EM TUDO`, color: RED }], description: `Se for titular, aumenta os créditos ganhos na partida. A perda própria já está nos valores da carta.` };
+      return { chips: [{ text: `+${Math.round((MAGNATA_POINT_MULT - 1) * 100)}% NOS CRÉDITOS-BASE`, color: GREEN }, { text: `−${MAGNATA_STAT_PENALTY} EM TUDO`, color: RED }], description: `Se for titular, aumenta os créditos ganhos na partida. A perda própria já está nos valores da carta.` };
     case 'fragil': {
       const recoveries = Math.max(0, Math.floor(p.fragilRecoveries ?? (p.fragilRecovered ? 1 : 0)));
       const boost = fragilStatBoost(recoveries);
@@ -360,7 +361,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
             <div key={t.id} className="flex items-start gap-1.5">
               <PlaystyleIcon trait={t.id} fallback={t.icon} size={14} color="#A78BFA" className="mt-px flex-shrink-0" />
               <div className="min-w-0 text-[12px]" style={FONT}>
-                <span className="font-black text-white">{t.id}</span>
+                <span className="font-black text-white">{traitLabel(t.id)}</span>
                 {t.effect && <span className="font-bold text-[#A78BFA]"> — {t.effect}</span>}
                 {t.keeperOnly && <span className="text-[var(--ui-text-muted)]"> (vale na defesa de chutes, não muda o atributo DEF)</span>}
                 {t.flavor && <div className="text-[var(--ui-text-muted)]">{t.flavor}</div>}
@@ -440,7 +441,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       <Row key="captain" icon={<img src="/roles/captain.webp" alt="" className="h-4 w-4 object-contain" />} name={`CAPITÃO: ${model.captain.name.toUpperCase()}${model.captain.auto ? ' (AUTOMÁTICO)' : ''}`} color="#F5B731">
         <Chips items={attrChips(captain, '#F5B731')} />
         <Note>
-          {model.captain.isThisPlayer ? 'Ele é o capitão: ' : ''}a melhor estatística do capitão ({model.captain.stat}) vale +{model.captain.amount} para todo o time.
+          {model.captain.isThisPlayer ? 'Ele é o capitão: ' : ''}todo o time ganha +{model.captain.amount} em {model.captain.stat}, o melhor atributo do capitão.
           {model.captain.auto ? ' Nenhum capitão foi escolhido, então o jogo usa o titular de maior geral. Escolha em Funções de jogo.' : ''}
         </Note>
       </Row>

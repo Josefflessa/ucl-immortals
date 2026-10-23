@@ -98,7 +98,7 @@ export default function SoundControl({ className }: { className?: string }) {
             onMuted={soundSettings.setMusicMuted}
             onVolume={soundSettings.setMusicVolume}
           />
-          <p className="flex items-center gap-2 text-[12px] text-[var(--ui-text-faint)]"><Music size={13} aria-hidden="true" /> A música só começa depois do seu primeiro toque na tela.</p>
+          <p className="flex items-center gap-2 text-label text-[var(--ui-text-faint)]"><Music size={13} aria-hidden="true" /> A música começa depois da sua primeira interação.</p>
         </div>
       </GameModal>
     </>

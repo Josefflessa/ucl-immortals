@@ -147,7 +147,7 @@ export default function RoomInvitationPrompt() {
     <GameModal
       open
       onOpenChange={open => { if (!open && !busy) dismiss(invitation); }}
-      title="CONVITE PARA PARTIDA"
+      title="CONVITE PARA SALA"
       subtitle="Convite válido por 5 minutos."
       size="default"
       stacked

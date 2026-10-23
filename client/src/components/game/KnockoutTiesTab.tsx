@@ -143,7 +143,8 @@ export default function KnockoutTiesTab() {
   const wasEliminated = !!playerTeam
     && !competitionFinalCompleted
     && !isKnockoutTeamAlive(knockoutBracket, playerTeam.id);
-  const isFinalSingleLeg = isFinal && matches.every(m => m.isSingleLeg === true);
+  const allSingleLeg = matches.length > 0 && matches.every(m => m.isSingleLeg === true);
+  const isFinalSingleLeg = isFinal && allSingleLeg;
   // After the IDA is played the bracket bumps currentLeg to 2, but the ties aren't
   // resolved yet (allPlayed=false). This in-between state must ALSO gate on everyone
   // watching the ida before the host can fire the volta — otherwise the ida spoils.
@@ -158,7 +159,8 @@ export default function KnockoutTiesTab() {
   const allPlayersWatched = state.mode !== 'online' || humanPlayersInBracket.length === 0 ||
     humanPlayersInBracket.every(p => state.onlineWatchedPlayers.includes(p.id));
   const knockoutWaitingCount = humanPlayersInBracket.filter(p => !state.onlineWatchedPlayers.includes(p.id)).length;
-  const playLabel = isFinalSingleLeg
+  // Single-leg rounds (knockout-only formats) have no "ida": the label is just the stage.
+  const playLabel = allSingleLeg
     ? `JOGAR ${label}`
     : currentLeg === 1
       ? `JOGAR IDA — ${label}`
@@ -168,9 +170,9 @@ export default function KnockoutTiesTab() {
   const waitingBlock = (
     <div className="py-3">
       <div className="text-sm font-bold animate-pulse" style={{ fontFamily: 'var(--font-game), sans-serif', color: 'var(--ui-brand)' }}>
-        <Hourglass {...INLINE_ICON} />AGUARDANDO {knockoutWaitingCount} JOGADOR{knockoutWaitingCount !== 1 ? 'ES' : ''} ASSISTIREM {waitingLegLabel}...
+        <Hourglass {...INLINE_ICON} />AGUARDANDO {knockoutWaitingCount} JOGADOR{knockoutWaitingCount !== 1 ? 'ES' : ''} {knockoutWaitingCount !== 1 ? 'ASSISTIREM' : 'ASSISTIR'} {waitingLegLabel}...
       </div>
-      <div className="mt-1 text-[13px] text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+      <div className="mt-1 text-[13px] text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
         ({humanPlayersInBracket.length - knockoutWaitingCount}/{humanPlayersInBracket.length} concluídos)
       </div>
     </div>
@@ -254,8 +256,8 @@ export default function KnockoutTiesTab() {
                 transition={{ delay: i * 0.1 }}
                 className={hasPlayer ? "rounded-2xl overflow-hidden lg:col-span-2" : "rounded-2xl overflow-hidden"}
                 style={{
-                  background: '#0F0F1A',
-                  border: `1px solid ${hasPlayer ? '#C9A84C44' : hasHumanMatch ? '#6366F155' : '#1A1A2A'}`,
+                  background: 'var(--ui-surface-1)',
+                  border: `1px solid ${hasPlayer ? '#C9A84C44' : hasHumanMatch ? '#6366F155' : 'var(--ui-surface-3)'}`,
                   boxShadow: hasPlayer
                     ? '0 0 20px rgba(201,168,76,0.1)'
                     : hasHumanMatch ? '0 0 20px rgba(99,102,241,0.1)' : 'none',
@@ -279,7 +281,7 @@ export default function KnockoutTiesTab() {
                       <div className="whitespace-normal break-words text-sm font-black leading-tight sm:text-lg"
                         style={{
                           fontFamily: 'var(--font-display), sans-serif',
-                          color: homeIsPlayer ? 'var(--ui-brand)' : homeIsHuman ? '#A5B4FC' : '#FFFFFF',
+                          color: homeIsPlayer ? 'var(--ui-brand)' : homeIsHuman ? '#A5B4FC' : 'var(--ui-text)',
                         }}>
                         {homeName}
                       </div>
@@ -305,7 +307,7 @@ export default function KnockoutTiesTab() {
                           </div>
                         ) : (
                           <div>
-                            <div className="text-[12px] font-black tracking-[0.2em] text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>AGREGADO</div>
+                            <div className="text-[12px] font-black tracking-[0.2em] text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>AGREGADO</div>
                             <div className="text-3xl sm:text-4xl font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: 'var(--ui-brand)' }}>
                               {match.result.homeGoals} - {match.result.awayGoals}
                             </div>
@@ -317,7 +319,7 @@ export default function KnockoutTiesTab() {
                             {match.result.homeGoals} - {match.result.awayGoals}
                           </div>
                           {match.result.penaltyWinner && (
-                            <div className="text-[12px] sm:text-xs" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
+                            <div className="text-[12px] sm:text-xs" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
                               ({match.result.homePenalties}-{match.result.awayPenalties} pen)
                             </div>
                           )}
@@ -338,7 +340,7 @@ export default function KnockoutTiesTab() {
                       <div className="whitespace-normal break-words text-sm font-black leading-tight sm:text-lg"
                         style={{
                           fontFamily: 'var(--font-display), sans-serif',
-                          color: awayIsPlayer ? 'var(--ui-brand)' : awayIsHuman ? '#A5B4FC' : '#FFFFFF',
+                          color: awayIsPlayer ? 'var(--ui-brand)' : awayIsHuman ? '#A5B4FC' : 'var(--ui-text)',
                         }}>
                         {awayName}
                       </div>
@@ -350,7 +352,7 @@ export default function KnockoutTiesTab() {
                       { key: 'ida', label: 'IDA', home: { crestId: homeCrestId, name: homeName }, away: { crestId: awayCrestId, name: awayName }, h: l1.homeGoals, a: l1.awayGoals, color: '#A5B4FC', bg: '#4338CA1F', border: '#4338CA55' },
                       { key: 'volta', label: 'VOLTA', home: { crestId: awayCrestId, name: awayName }, away: { crestId: homeCrestId, name: homeName }, h: l2.homeGoals, a: l2.awayGoals, color: '#5EEAD4', bg: '#0D94881F', border: '#14B8A655' },
                     ];
-                    const scoreStyle = (mine: number, theirs: number) => ({ fontFamily: 'var(--font-display), sans-serif', color: mine > theirs ? '#FFFFFF' : '#8A8A9A' });
+                    const scoreStyle = (mine: number, theirs: number) => ({ fontFamily: 'var(--font-display), sans-serif', color: mine > theirs ? 'var(--ui-text)' : 'var(--ui-text-muted)' });
                     return (
                       <div className="mx-auto mt-3 w-full max-w-[280px] space-y-1.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                         {legs.map(leg => (
@@ -406,7 +408,7 @@ export default function KnockoutTiesTab() {
                       })()
                     ) : hideScore ? (
                       <span className="px-4 py-2 text-xs font-bold animate-pulse" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
-                        {hideMyScore ? '⚽ ABRINDO SEU CONFRONTO...' : <><Hourglass {...INLINE_ICON} />AGUARDANDO TODOS ASSISTIREM...</>}
+                        {hideMyScore ? '⚽ ABRINDO SEU CONFRONTO…' : <><Hourglass {...INLINE_ICON} />AGUARDANDO TODOS ASSISTIREM…</>}
                       </span>
                     ) : match.played && match.result ? (
                       // Confronto RESOLVIDO. Em ida/volta dá pra ver as DUAS pernas; jogo único, uma só.
@@ -418,7 +420,7 @@ export default function KnockoutTiesTab() {
                         const penSuffix = match.result!.penaltyWinner ? ` · Pên ${match.result!.homePenalties}-${match.result!.awayPenalties}` : '';
                         const winnerLabel = isFinal ? `${advancer} é campeão` : `${advancer} avança`;
                         const detBtn = 'px-3 sm:px-4 py-2 rounded-lg text-xs font-bold';
-                        const detStyle = { background: '#1A1A2A', color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif', border: '1px solid #333' };
+                        const detStyle = { background: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif', border: '1px solid #333' };
                         return (
                           <>
                             <button onClick={() => setViewingResult({ result: l1, homeTeam: teamA, awayTeam: teamB, homeName, awayName, subtitle: `Jogo de IDA · ${label}` })} className={detBtn} style={detStyle}><Eye {...INLINE_ICON} />VER IDA</button>
@@ -434,7 +436,7 @@ export default function KnockoutTiesTab() {
                             setViewingResult({ result: match.result!, homeTeam: teamA, awayTeam: teamB, homeName, awayName });
                           }}
                           className="px-4 py-2 rounded-lg text-xs font-bold"
-                          style={{ background: 'var(--ui-surface-3)', color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif', border: '1px solid #333' }}
+                          style={{ background: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif', border: '1px solid #333' }}
                         >
                           VER DETALHES
                         </button>
@@ -448,7 +450,7 @@ export default function KnockoutTiesTab() {
                           setViewingResult({ result: l1, homeTeam: teamA, awayTeam: teamB, homeName, awayName, subtitle: `Jogo de IDA · ${label} — aguardando volta` });
                         }}
                         className="px-4 py-2 rounded-lg text-xs font-bold"
-                        style={{ background: 'var(--ui-surface-3)', color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif', border: '1px solid #333' }}
+                        style={{ background: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif', border: '1px solid #333' }}
                       >
                         VER DETALHES DA IDA
                       </button>
@@ -477,10 +479,10 @@ export default function KnockoutTiesTab() {
                       // revealed (the result pop-up already showed it); the room-wide spoiler
                       // lock only hides the scoreboard, not a ticket the owner already knows.
                       if (!b.revealed || (state.mode !== 'online' && hideScore)) return <div key={word} className="text-[12px] font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}><Target {...INLINE_ICON} />palpite {word} em andamento</div>;
-                      const txt = b.tier === 'exact' ? `Palpite ${word}: placar exato (+${b.payout})`
-                        : b.tier === 'outcome' ? `Palpite ${word}: resultado certo (+${b.payout})`
+                      const txt = b.tier === 'exact' ? `Aposta ${word}: placar exato (+${b.payout})`
+                        : b.tier === 'outcome' ? `Aposta ${word}: resultado certo (+${b.payout})`
                         : b.tier === 'builder' ? `Aposta ${word}: certa (+${b.payout})`
-                          : `Palpite ${word} perdido (−${b.stake})${(b.protectionRefund ?? 0) > 0 ? ` · devolução +${b.protectionRefund}` : ''}`;
+                          : `Aposta ${word} perdida (−${b.stake})${(b.protectionRefund ?? 0) > 0 ? ` · devolução +${b.protectionRefund}` : ''}`;
                       return <div key={word} className="text-[13px] font-black" style={{ color: b.won ? 'var(--ui-success)' : 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>{b.won ? <CircleCheck {...INLINE_ICON} /> : <CircleX {...INLINE_ICON} />}{txt}</div>;
                     };
                     return (
@@ -495,7 +497,7 @@ export default function KnockoutTiesTab() {
                           })}
                             className="px-3 py-1 rounded-lg text-[13px] font-black tracking-wider transition-transform hover:scale-[1.03]"
                             style={{ fontFamily: 'var(--font-game), sans-serif', background: myActiveBet ? '#C9A84C22' : 'var(--ui-surface-1)', color: 'var(--ui-brand-strong)', border: '1px solid #C9A84C55' }}>
-                            <Target {...INLINE_ICON} />{myActiveBet ? `${myActiveBet.market === 'builder' ? 'Aposta' : 'Palpite'} ${legWord}: ${describeBet(myActiveBet)} · ${myActiveBet.stake} (editar)` : `Palpitar ${legWord}`}
+                            <Target {...INLINE_ICON} />{myActiveBet ? `Aposta ${legWord}: ${describeBet(myActiveBet)} · ${myActiveBet.stake} (editar)` : `Apostar ${legWord}`}
                           </button>
                         )}
                         {isSingleLegTie
@@ -565,12 +567,12 @@ export default function KnockoutTiesTab() {
                 >
                   <Play {...INLINE_ICON} fill="currentColor" />{playLabel}
                 </button>
-                <div className="mt-2 text-[13px] font-bold text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                <div className="mt-2 text-[13px] font-bold text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   {state.mode === 'online' && !allReadyKO
                     ? 'Todos os participantes do confronto precisam confirmar que estão prontos.'
                     : isFinalSingleLeg ? 'A grande final é em jogo único, em campo neutro.'
                       : isFinal ? 'A grande final será decidida em ida e volta, pelo placar agregado.'
-                      : `Mata-mata em ida e volta — quem avança é decidido no placar agregado.${state.mode === 'online' ? ' Todos jogam ao mesmo tempo.' : ''}`}
+                      : `${allSingleLeg ? 'Mata-mata em jogo único: quem vencer avança.' : 'Mata-mata em ida e volta: quem avança é decidido no placar agregado.'}${state.mode === 'online' ? ' Todos jogam ao mesmo tempo.' : ''}`}
                 </div>
               </>
             ) : !allPlayersWatched ? (
@@ -614,13 +616,13 @@ export default function KnockoutTiesTab() {
                       <CircleCheck {...INLINE_ICON} />ESTOU PRONTO
                     </button>
                   )}
-                  <div className="mt-2 text-[13px] font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#8A8A9A' }}>
+                  <div className="mt-2 text-[13px] font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: 'var(--ui-text-muted)' }}>
                     {readyCountKO}/{totalReadyKO} pronto{totalReadyKO !== 1 ? 's' : ''} · o anfitrião inicia quando todos confirmarem.
                   </div>
                 </>
               ) : (
                 <div className="py-2 text-sm font-bold text-yellow-500/80 animate-pulse" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                  <Hourglass {...INLINE_ICON} />AGUARDANDO O ANFITRIÃO INICIAR: {isFinal ? label : currentLeg === 1 ? `IDA — ${label}` : `VOLTA — ${label}`}...
+                  <Hourglass {...INLINE_ICON} />AGUARDANDO O ANFITRIÃO INICIAR: {isFinal || allSingleLeg ? label : currentLeg === 1 ? `IDA — ${label}` : `VOLTA — ${label}`}...
                 </div>
               )
             ) : (
@@ -721,7 +723,7 @@ export default function KnockoutTiesTab() {
             {lineupWarning.kind === 'reserve' ? (
               <p className="text-[13px] leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'var(--font-game), sans-serif' }}>
                 Seu banco tem <b style={{ color: '#FCA5A5' }}>{reserveCountKO} reservas</b>, mas o limite para iniciar uma partida é de <b style={{ color: '#FFF' }}>{MAX_RESERVE_PLAYERS}</b>.<br />
-                Venda ou remova reservas na aba <b style={{ color: 'var(--ui-brand)' }}>MERCADO</b> antes de jogar.
+                Venda reservas na aba <b style={{ color: 'var(--ui-brand)' }}>MERCADO</b> antes de jogar.
               </p>
             ) : (
               <p className="text-[13px] leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'var(--font-game), sans-serif' }}>

@@ -139,6 +139,11 @@ export function traitEffectLabel(id: string): string {
   return parts.join(' · ');
 }
 
+/** Name shown to the player. Ids are persisted in saves and card data, so spelling fixes live here. */
+export function traitLabel(id: string): string {
+  return id.replace(/^Dribblador/, 'Driblador');
+}
+
 export function getTraitInfo(id: string): TraitDef | undefined {
   return TRAIT_MAP[id];
 }

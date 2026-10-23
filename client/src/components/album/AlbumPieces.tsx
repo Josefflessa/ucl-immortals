@@ -90,7 +90,7 @@ export function AlbumSlot({ card, number, owned, level, spare, scale, onClick }:
         <div className="relative">
           <PlayerCard player={card} lite flat scale={scale} albumLevel={level as AlbumLevel} />
           {spare > 0 ? (
-            <span className="absolute -right-1 top-1 z-[5] rounded-full border border-black/40 bg-[#E9C46A] px-1.5 py-0.5 text-[11px] font-bold leading-none text-[#171208] shadow" aria-label={`${spare} ${spare === 1 ? 'cópia extra desta carta' : 'cópias extras desta carta'}`}>
+            <span className="absolute -right-1 top-1 z-[5] rounded-full border border-black/40 bg-[#E9C46A] px-1.5 py-0.5 text-caption font-bold leading-none text-[#171208] shadow" aria-label={`${spare} ${spare === 1 ? 'cópia extra desta carta' : 'cópias extras desta carta'}`}>
               +{spare}
             </span>
           ) : null}
@@ -104,8 +104,8 @@ export function AlbumSlot({ card, number, owned, level, spare, scale, onClick }:
         </div>
       )}
       <div className="mt-1.5 flex w-full min-w-0 flex-col items-center" style={{ maxWidth: Math.max(width, 96) }}>
-        <span className={cn('line-clamp-2 w-full text-center text-[12px] font-bold leading-tight [overflow-wrap:anywhere]', owned ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text-faint)]')}>{card.shortName}</span>
-        {owned ? level > 0 ? <LevelStars level={level} size={10} className="mt-0.5" /> : <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#55CBA0]">Conquistada</span> : <span className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--ui-text-faint)]">Nº {number}</span>}
+        <span className={cn('line-clamp-2 w-full text-center text-label font-bold leading-tight [overflow-wrap:anywhere]', owned ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text-faint)]')}>{card.shortName}</span>
+        {owned ? level > 0 ? <LevelStars level={level} size={10} className="mt-0.5" /> : <span className="mt-0.5 text-micro font-semibold uppercase tracking-caps text-[#55CBA0]">Conquistada</span> : <span className="mt-0.5 text-caption font-semibold uppercase tracking-[0.1em] text-[var(--ui-text-faint)]">Nº {number}</span>}
       </div>
     </button>
   );

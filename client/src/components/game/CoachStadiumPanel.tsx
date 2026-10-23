@@ -74,13 +74,13 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
     return (
       <div className="ui-panel overflow-hidden">
         <div className="ui-panel__header justify-center text-center">
-          <span className="ui-panel__title">{showStadium ? 'Técnico & estádio' : 'Técnico'}</span>
+          <span className="ui-panel__title">{showStadium ? 'Treinador e estádio' : 'Treinador'}</span>
         </div>
         <div className={showStadium ? 'grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0' : ''} style={{ borderColor: 'var(--ui-surface-3)' }}>
           <div className="flex min-h-[164px] flex-col items-center justify-center px-5 py-6 text-center">
             {showStadium && (
               <div className="text-[12px] font-black tracking-[0.18em]" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
-                TÉCNICO
+                TREINADOR
               </div>
             )}
             {reportCoachPhoto && (
@@ -137,7 +137,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
       {showButton && (
         <div className="px-4 pb-4 -mt-1">
           <Button intent="primary" className="w-full" onClick={() => setShowModal(true)}>
-            <Star {...INLINE_ICON} fill="currentColor" />EVOLUIR TÉCNICO → PRIME
+            <Star {...INLINE_ICON} fill="currentColor" />EVOLUIR TREINADOR → PRIME
           </Button>
         </div>
       )}
@@ -153,7 +153,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
           <div className="flex items-center gap-3">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/40 bg-primary/9 text-xl text-brand-strong" aria-hidden="true"><Star size={20} strokeWidth={2.2} fill="currentColor" /></span>
             <div className="min-w-0">
-              <div className="text-[12px] font-black tracking-[0.16em] text-[#8A8A9A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>EVOLUÇÃO DO TÉCNICO</div>
+              <div className="text-[12px] font-black tracking-[0.16em] text-[#8A8A9A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>EVOLUÇÃO DO TREINADOR</div>
               <div className="mt-0.5 text-2xl leading-none tracking-wide text-brand-strong" style={{ fontFamily: 'var(--font-display), sans-serif' }}>EVOLUÇÃO PRIME</div>
               <div className="mt-1 whitespace-normal break-words text-xs font-bold leading-tight text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{coach.name} · {primeDefinition?.name ?? 'Assinatura Prime'}</div>
             </div>
@@ -202,7 +202,7 @@ export default function CoachStadiumPanel({ coach, formation, coachPrime, stadiu
               <section className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[12px] font-black tracking-[0.16em] text-[#7E7E92]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>REQUISITOS PARA DESBLOQUEAR</div>
-                  <span className="text-[12px] font-bold text-[#6A6A7A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>PRIME</span>
+                  <span className="text-[12px] font-bold text-[var(--ui-text-faint)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>PRIME</span>
                 </div>
                 <ProgressRequirement label="Vitórias na campanha" current={wins} target={PRIME_WINS_REQUIRED} />
                 <ProgressRequirement label="Créditos disponíveis" current={points} target={PRIME_COST} />

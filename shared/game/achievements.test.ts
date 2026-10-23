@@ -91,7 +91,7 @@ describe('career evaluation', () => {
     // Prata needs titles on Prata or above: the Bronze title does not count there.
     expect(levelOf(career, 'trophy_collector')).toMatchObject({ level: 1, progress: 4 });
     expect(levelOf(career, 'dynasty')).toMatchObject({ level: 1, progress: 2 });
-    expect(levelOf(career, 'ladder')).toMatchObject({ level: 2, progress: 3 });
+    expect(levelOf(career, 'ladder')).toMatchObject({ level: 3, progress: 3 });
   });
 
   it('only campaign facts count: unbeaten, perfect and tight titles, best single campaign', () => {

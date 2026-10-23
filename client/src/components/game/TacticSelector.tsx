@@ -37,7 +37,7 @@ function disciplineEffect(playStyle: string): { label: string; detail: string; c
   if (factor >= 1.2) return { label: 'Risco maior de cartões', detail: 'marcação mais intensa', color: '#F08A5D' };
   if (factor > 1.05) return { label: 'Risco acima da média', detail: 'mais disputas e faltas táticas', color: '#F5B84B' };
   if (factor < 0.9) return { label: 'Risco menor de cartões', detail: 'postura menos agressiva', color: '#7FCF6A' };
-  return { label: 'Risco padrão de cartões', detail: 'comportamento normal do motor', color: '#9A9AAF' };
+  return { label: 'Risco padrão de cartões', detail: 'sem ajuste na agressividade', color: '#9A9AAF' };
 }
 
 interface TacticSelectorProps {
@@ -55,7 +55,7 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1 }: T
       <div className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Mentalidade atual</div>
+            <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-faint)]">Tática atual</div>
             <div className="mt-1 flex items-center gap-2 font-display text-xl leading-none tracking-wide text-[var(--ui-brand-strong)]">
               <TacticIcon tactic={active.id} fallback={active.icon} size={30} />{active.name}
             </div>
@@ -67,7 +67,7 @@ export default function TacticSelector({ value, onChange, analysisLevel = 1 }: T
       </div>
 
       <div>
-        <div className="mb-1.5 px-0.5 text-[13px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Escolha a mentalidade</div>
+        <div className="mb-1.5 px-0.5 text-[13px] font-black uppercase tracking-[0.12em] text-[var(--ui-text-soft)]">Escolha a tática</div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {TACTICS.map(tactic => {
           const isActive = active.id === tactic.id;

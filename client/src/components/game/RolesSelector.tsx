@@ -174,7 +174,7 @@ export default function RolesSelector({
   const info: Record<GameRole, { title: string; description: string; metric: string }> = {
     captain: {
       title: 'CAPITÃO',
-      description: `A maior estatística do capitão vira +${CAPTAIN_BOOST} para todo o time. O jogador com Capitão Nato triplica esse bônus.`,
+      description: `Todo o time ganha +${CAPTAIN_BOOST} no melhor atributo do capitão. Com Capitão Nato, o bônus triplica.`,
       metric: 'Compare o melhor atributo entre Ritmo, Finalização, Passe, Drible, Defesa e Físico.',
     },
     penalty: {

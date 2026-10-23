@@ -335,10 +335,10 @@ interface Tactic {
 
 export const TACTICS: Tactic[] = [
   { id: 'balanced',       name: 'Equilibrado',     icon: '⚖️', short: '+2 nos atributos principais', desc: 'Postura neutra e segura, sem uma fraqueza tática dominante.' },
-  { id: 'possession',     name: 'Posse de Bola',   icon: '🎯', short: '+Passe/Visão/Drible · domina o meio', desc: 'Domina a bola e cria com paciência. Aumenta o volume de sequências e usa o meio-campo para construir melhor as jogadas — mas pode ter dificuldade contra blocos baixos.' },
-  { id: 'counter',        name: 'Contra-ataque',   icon: '⚡', short: '+Ritmo/Finalização · sai rápido', desc: 'Defende firme e explode na velocidade. Cria menos sequências, mas aumenta o perigo de cada saída rápida. Ótima como azarão.' },
+  { id: 'possession',     name: 'Posse de Bola',   icon: '🎯', short: '+Passe/Visão/Drible · domina o meio', desc: 'Domina a bola e cria com paciência. Aumenta o volume de sequências e usa o meio-campo para construir melhor as jogadas.' },
+  { id: 'counter',        name: 'Contra-ataque',   icon: '⚡', short: '+Ritmo/Finalização · sai rápido', desc: 'Sai rápido na velocidade. Cria menos sequências, mas cada saída rápida é mais perigosa.' },
   { id: 'high_press',     name: 'Pressão Alta',    icon: '🔥', short: '+Físico/Defesa/Ritmo · intenso', desc: 'Sufoca a saída de bola lá na frente. Recupera a bola com frequência e cria jogadas perigosas, mas deixa espaço nas costas.' },
-  { id: 'defensive',      name: 'Defensivo',       icon: '🛡️', short: '+Defesa/Físico · bloco baixo', desc: 'Fecha os espaços e segura o resultado. No bloco baixo, sofre menos, mas cria pouco — a escolha clássica de quem quer controlar o jogo.' },
+  { id: 'defensive',      name: 'Defensivo',       icon: '🛡️', short: '+Defesa/Físico · bloco baixo', desc: 'Fecha os espaços e segura o resultado. No bloco baixo, sofre menos, mas cria pouco.' },
   { id: 'all_out_attack', name: 'Tudo pro Ataque', icon: '⚔️', short: '+Finalização/Ritmo/Drible · arriscado', desc: 'Joga com tudo no ataque. Torna as chances muito mais perigosas, mas fica aberto atrás e sofre bem mais. Para quando você precisa do gol.' },
 ];
 
@@ -371,13 +371,13 @@ export const DIFFICULTY_LEVELS: DifficultyLevel[] = [
   {
     id: 'legendary',
     name: 'Lendário',
-    description: 'Os melhores times históricos. Apenas para os mais experientes.',
+    description: 'Bots com elencos muito fortes. Para quem já domina o jogo.',
     botStrength: 0.88,
   },
   {
     id: 'immortal',
     name: 'Imortal',
-    description: 'Modo extremo. Times perfeitos com química máxima. Quase impossível.',
+    description: 'Modo extremo. Bots com elencos de elite e química alta.',
     botStrength: 0.97,
   },
 ];
@@ -392,7 +392,7 @@ export const COACHES: Coach[] = [
   {
     id: 'guardiola',
     name: 'Pep Guardiola',
-    philosophy: 'Posse e Pressão Alta',
+    philosophy: 'Posse e Controle',
     description: 'Posse controlada e circulação curta, com foco em passe e visão.',
     specialAbilityName: 'Domínio de Jogo',
     baseEffects: [
@@ -427,7 +427,7 @@ export const COACHES: Coach[] = [
     id: 'mourinho',
     name: 'José Mourinho',
     philosophy: 'Organização Defensiva',
-    description: 'Bloco defensivo organizado que recompensa um time bem entrosado.',
+    description: 'Bloco defensivo organizado que cresce no mata-mata.',
     specialAbilityName: 'Fortaleza',
     baseEffects: [{ name: 'Organização defensiva', target: 'ALL', bonuses: { defending: 5, physical: 5 }, primeBonuses: { defending: 8, physical: 8 }, description: 'Em todas as partidas, todo o elenco recebe +5 em Defesa e Físico.', primeDescription: 'Em todas as partidas, todo o elenco recebe +8 em Defesa e Físico.' }],
     specialEffects: [{
@@ -443,7 +443,7 @@ export const COACHES: Coach[] = [
     id: 'ancelotti',
     name: 'Carlo Ancelotti',
     philosophy: 'Equilíbrio e Gestão',
-    description: 'Equilibra o time e acelera o ritmo na final.',
+    description: 'Equilibra o time e cresce no mata-mata, ainda mais na final.',
     specialAbilityName: 'Maestro da Final',
     baseEffects: [{ name: 'Equilíbrio', target: 'ALL', bonuses: { passing: 5, defending: 5 }, primeBonuses: { passing: 8, defending: 8 }, description: 'Em todas as partidas, todo o elenco recebe +5 em Passe e Defesa.', primeDescription: 'Em todas as partidas, todo o elenco recebe +8 em Passe e Defesa.' }],
     specialEffects: [{

@@ -48,7 +48,7 @@ export function PageRewardCard({ reward }: { reward: PageReward }) {
               {reward.frameKey ? <ClubFrameRing clubId={clubId} className="absolute" style={{ left: '-20%', top: '-20%', width: '140%', height: '140%' }} /> : null}
             </span>
             <div className="min-w-0">
-              <div className="text-[11px] font-bold tracking-[0.2em] text-[#E9C46A]" style={FONT}>PÁGINA COMPLETA</div>
+              <div className="text-caption font-bold tracking-[0.2em] text-[#E9C46A]" style={FONT}>PÁGINA COMPLETA</div>
               <div className="font-display text-2xl leading-[1.05] text-white [overflow-wrap:anywhere]">{title}</div>
             </div>
           </div>
@@ -57,7 +57,7 @@ export function PageRewardCard({ reward }: { reward: PageReward }) {
         <div className="flex items-center gap-3 px-5 pt-4">
           {clubId && getCrest(clubId) ? <img src={getCrest(clubId)!.url} alt="" referrerPolicy="no-referrer" className="size-9 object-contain" /> : <BookOpen size={22} className="text-[#E9C46A]" aria-hidden="true" />}
           <div className="min-w-0">
-            <div className="text-[11px] font-bold tracking-[0.2em] text-[#E9C46A]" style={FONT}>{reward.recompleted ? 'PÁGINA COMPLETA DE NOVO' : 'PÁGINA COMPLETA'}</div>
+            <div className="text-caption font-bold tracking-[0.2em] text-[#E9C46A]" style={FONT}>{reward.recompleted ? 'PÁGINA COMPLETA DE NOVO' : 'PÁGINA COMPLETA'}</div>
             <div className="font-display text-2xl leading-[1.05] text-white [overflow-wrap:anywhere]">{title}</div>
           </div>
         </div>
@@ -72,7 +72,7 @@ export function PageRewardCard({ reward }: { reward: PageReward }) {
           </span>
         ))}
       </div>
-      {reward.frameKey || reward.coverKey ? <p className="px-5 pb-4 text-xs text-white/55">Use no seu perfil em Conta → Aparência.</p> : null}
+      {reward.frameKey || reward.coverKey ? <p className="px-5 pb-4 text-xs text-white/55">Use no seu perfil, em Personalizar.</p> : null}
     </motion.div>
   );
 }
@@ -126,7 +126,7 @@ function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: {
           <div className="flex min-w-0 items-center gap-3">
             <ItemArt itemKey={itemKey} height={58} />
             <div className="min-w-0">
-              <div className="text-[11px] font-black tracking-[0.18em] text-[#E9C46A]" style={FONT}>ABERTURA EM LOTE</div>
+              <div className="text-caption font-black tracking-[0.18em] text-[#E9C46A]" style={FONT}>ABERTURA EM LOTE</div>
               <h2 className="mt-1 truncate text-lg font-black text-white sm:text-xl" style={FONT}>{quantity}× {itemLabel(itemKey)}</h2>
             </div>
           </div>
@@ -143,7 +143,7 @@ function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: {
             ].map(metric => (
               <div key={metric.label} className="min-w-0 rounded-xl border border-white/10 bg-white/[.04] px-2 py-3 text-center sm:px-4 sm:py-4">
                 <div className="font-display text-2xl leading-none tabular-nums sm:text-3xl" style={{ color: metric.color }}>{metric.value.toLocaleString('pt-BR')}</div>
-                <div className="mt-1.5 text-[9px] font-black tracking-[0.12em] text-white/55 sm:text-[11px]">{metric.label}</div>
+                <div className="mt-1.5 text-micro font-black tracking-wide-caps text-white/55 sm:text-caption">{metric.label}</div>
               </div>
             ))}
           </section>
@@ -157,13 +157,13 @@ function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: {
                   <article key={id} className="flex min-w-0 flex-col items-center rounded-xl border border-white/10 bg-white/[.035] px-1.5 pb-2.5 pt-2" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 280px' }}>
                     <div className="relative">
                       <PlayerCard player={player} lite flat scale={0.62} albumLevel={level > 0 ? level as AlbumLevel : undefined} />
-                      {total > 1 ? <span className="absolute -right-1 -top-1 z-10 rounded-full border border-black/50 bg-[#E9C46A] px-2 py-1 text-[10px] font-black tabular-nums text-[#171208] shadow">×{total}</span> : null}
+                      {total > 1 ? <span className="absolute -right-1 -top-1 z-10 rounded-full border border-black/50 bg-[#E9C46A] px-2 py-1 text-micro font-black tabular-nums text-[#171208] shadow">×{total}</span> : null}
                     </div>
                     <div className="mt-2 flex min-h-5 flex-wrap justify-center gap-1">
-                      {newCopies > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-[#7BD88F]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#7BD88F]"><Sparkles size={9} aria-hidden="true" />{newCopies} {newCopies === 1 ? 'nova' : 'novas'}</span> : null}
-                      {repeatCopies > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-[#E9C46A]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#E9C46A]"><Copy size={9} aria-hidden="true" />{repeatCopies} {repeatCopies === 1 ? 'repetida' : 'repetidas'}</span> : null}
+                      {newCopies > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-[#7BD88F]/10 px-1.5 py-0.5 text-micro font-bold text-[#7BD88F]"><Sparkles size={9} aria-hidden="true" />{newCopies} {newCopies === 1 ? 'nova' : 'novas'}</span> : null}
+                      {repeatCopies > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-[#E9C46A]/10 px-1.5 py-0.5 text-micro font-bold text-[#E9C46A]"><Copy size={9} aria-hidden="true" />{repeatCopies} {repeatCopies === 1 ? 'repetida' : 'repetidas'}</span> : null}
                     </div>
-                    <span className="mt-1 text-[9px] text-white/45">Nº {number} · {player.club}</span>
+                    <span className="mt-1 text-micro text-white/45">Nº {number} · {player.club}</span>
                   </article>
                 );
               })}
@@ -185,7 +185,7 @@ function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: {
                     <BookOpen size={16} className="mt-0.5 shrink-0 text-[#E9C46A]" aria-hidden="true" />
                     <div className="min-w-0">
                       <strong className="block break-words text-xs text-white">{page?.title ?? 'Página do Álbum'}</strong>
-                      <span className="mt-0.5 block break-words text-[11px] text-white/55">Recompensas: {rewards.length > 0 ? rewards.join(' · ') : 'página completada'}</span>
+                      <span className="mt-0.5 block break-words text-caption text-white/55">Recompensas: {rewards.length > 0 ? rewards.join(' · ') : 'página completada'}</span>
                     </div>
                   </div>
                 );
@@ -318,7 +318,7 @@ export default function AlbumPackOpening({ items, onClose, bulk = false, remaini
       style={{ background: 'radial-gradient(circle at 50% 40%, #181827 0%, #090A12 50%, #05060B 100%)' }}
     >
       <header className="flex shrink-0 items-center gap-2 px-4 py-3 sm:gap-3 sm:px-8 sm:py-5">
-        <div className="min-w-0 whitespace-nowrap text-sm font-bold tracking-[0.12em] sm:text-base sm:tracking-[0.2em]" style={{ color: accent, ...FONT }}>
+        <div className="min-w-0 whitespace-nowrap text-sm font-bold tracking-wide-caps sm:text-base sm:tracking-[0.2em]" style={{ color: accent, ...FONT }}>
           {isBulk ? `${items.length}× ${itemLabel(itemKey).toUpperCase()}` : itemLabel(itemKey).toUpperCase()}
           {!isBulk && items.length > 1 ? <span className="ml-2 text-white/45">{index + 1}/{items.length}</span> : null}
         </div>
@@ -350,14 +350,14 @@ export default function AlbumPackOpening({ items, onClose, bulk = false, remaini
                   >
                     <PackFront rarity={parsed.tier} art={<AlbumPackArt tier={parsed.tier} className="block h-full w-full" />} tearAt={ALBUM_PACK_TEAR_AT} tearDuration={TEAR_MS} cutProgress={cutProgress} isTearing={stage === 'tearing'} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} />
                   </motion.div>
-                  <button type="button" onClick={startOpening} disabled={stage === 'tearing'} className="mt-5 text-[12px] font-bold tracking-[0.14em] text-[#7D7A8C] transition-colors hover:text-white disabled:opacity-40" style={FONT}>
+                  <button type="button" onClick={startOpening} disabled={stage === 'tearing'} className="mt-5 text-label font-bold tracking-kicker text-[#7D7A8C] transition-colors hover:text-white disabled:opacity-40" style={FONT}>
                     ABRIR SEM ANIMAÇÃO
                   </button>
                 </>
               ) : (
                 <>
                   <EnvelopeFront itemKey={itemKey} opening={stage === 'tearing'} onOpen={startOpening} />
-                  <p className="mt-6 text-[12px] font-bold tracking-[0.16em] text-[#7D7A8C]" style={FONT}>TOQUE NO ENVELOPE PARA ABRIR</p>
+                  <p className="mt-6 text-label font-bold tracking-[0.16em] text-[#7D7A8C]" style={FONT}>TOQUE NO ENVELOPE PARA ABRIR</p>
                 </>
               )}
               {error ? <p role="alert" className="mt-4 max-w-sm text-center text-sm text-[#FF8A8A]">{error}</p> : null}

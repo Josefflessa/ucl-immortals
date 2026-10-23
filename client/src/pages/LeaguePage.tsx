@@ -31,7 +31,7 @@ export default function LeaguePage() {
     <AppShell className="flex flex-col">
       <HubHeader hub={hub} />
 
-      <PageContainer className="max-w-4xl lg:max-w-7xl">
+      <PageContainer className="pt-5 sm:pt-6">
         <HubSummary hub={hub} />
 
         {/* Desktop: on the round tab, the matches on the left and the league table on the right.

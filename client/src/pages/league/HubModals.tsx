@@ -123,7 +123,7 @@ export default function HubModals({ hub }: { hub: LeagueHub }) {
                   ESCOLHA GRATUITA · PRATA OU BRONZE
                 </div>
                 <div className="text-[13px] mt-1" style={{ color: '#A9A9B8', fontFamily: 'var(--font-game), sans-serif' }}>
-                  O escolhido entra direto no time titular, substitui o indisponível e mantém o valor de venda normal da sua raridade.
+                  O escolhido entra como titular e o indisponível vai para o banco.
                 </div>
               </div>
 
@@ -197,7 +197,7 @@ export default function HubModals({ hub }: { hub: LeagueHub }) {
                     <Button intent="secondary" className="text-[#f472b6] border-[#f472b6]/40"
                       onClick={() => online ? rerollReinforcementOnline() : dispatch({ type: 'REROLL_REINFORCEMENT' })}
                     >
-                      <RefreshCw {...INLINE_ICON} />Re-sortear opções · grátis
+                      <RefreshCw {...INLINE_ICON} />Sortear novas opções · grátis
                     </Button>
                   )}
                   <Button intent="ghost"
@@ -284,7 +284,7 @@ export default function HubModals({ hub }: { hub: LeagueHub }) {
               {lineupWarning.kind === 'reserve' ? (
                 <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'var(--font-game), sans-serif' }}>
                   Seu banco tem <b style={{ color: '#FCA5A5' }}>{reserveCount} reservas</b>, mas o limite para iniciar uma partida é de <b style={{ color: '#FFF' }}>{MAX_RESERVE_PLAYERS}</b>.<br />
-                  Venda ou remova reservas na aba <b style={{ color: 'var(--ui-brand)' }}>MERCADO</b> antes de jogar.
+                  Venda reservas na aba <b style={{ color: 'var(--ui-brand)' }}>MERCADO</b> antes de jogar.
                 </p>
               ) : (
                 <p className="text-[13px] mt-2 leading-relaxed" style={{ color: '#C9B3B3', fontFamily: 'var(--font-game), sans-serif' }}>

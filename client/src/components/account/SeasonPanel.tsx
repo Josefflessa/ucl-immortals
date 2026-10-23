@@ -62,7 +62,7 @@ function PackRow({ prize, art = 56 }: { prize: SeasonPrize; art?: number }) {
       {packEntries(prize).map(([tier, quantity]) => (
         <div key={tier} className="flex flex-col items-center gap-1">
           <ItemArt itemKey={`pack:${tier}`} height={art} />
-          <span className="text-[11px] font-bold leading-none" style={{ color: ALBUM_TIER_META[tier].color }}>
+          <span className="text-caption font-bold leading-none" style={{ color: ALBUM_TIER_META[tier].color }}>
             {quantity}× {ALBUM_TIER_META[tier].label}
           </span>
         </div>
@@ -76,7 +76,7 @@ function ExclusiveTile({ label, name, children }: { label: string; name: string;
     <figure className="flex w-[200px] min-w-0 flex-col items-center gap-1.5 text-center">
       <div className="grid min-h-[140px] place-items-center">{children}</div>
       <figcaption className="leading-tight">
-        <span className="block text-[10px] font-black uppercase tracking-widest text-[var(--ui-text-faint)]">{label}</span>
+        <span className="block text-micro font-black uppercase tracking-widest text-[var(--ui-text-faint)]">{label}</span>
         <span className="block text-xs font-bold text-[var(--ui-text)]">{name}</span>
       </figcaption>
     </figure>
@@ -187,14 +187,14 @@ function SeasonPrizesModal({ season, open, onOpenChange, reward, onClaimed }: {
       <div className="space-y-5">
         {reward ? <ClaimPanel season={season} reward={reward} onClaimed={onClaimed} /> : null}
         <section className="space-y-3">
-          <h3 className="flex items-center gap-1.5 text-[12px] font-black uppercase tracking-widest text-[var(--ui-text-soft)]"><Trophy size={14} aria-hidden="true" />Pódio</h3>
+          <h3 className="flex items-center gap-1.5 text-label font-black uppercase tracking-widest text-[var(--ui-text-soft)]"><Trophy size={14} aria-hidden="true" />Pódio</h3>
           <ol className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {[1, 2, 3].map(position => <PodiumCard key={position} season={season} position={position} />)}
           </ol>
         </section>
 
         <section className="space-y-2">
-          <h3 className="text-[12px] font-black uppercase tracking-widest text-[var(--ui-text-soft)]">Do 4º ao 10º</h3>
+          <h3 className="text-label font-black uppercase tracking-widest text-[var(--ui-text-soft)]">Do 4º ao 10º</h3>
           <ul className="divide-y divide-[var(--ui-line-subtle)] overflow-hidden rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)]">
             {lowerRows.map(row => {
               const prize = seasonPrize(row.position)!;
@@ -210,11 +210,11 @@ function SeasonPrizesModal({ season, open, onOpenChange, reward, onClaimed }: {
         </section>
 
         <section className="space-y-2">
-          <h3 className="text-[12px] font-black uppercase tracking-widest text-[var(--ui-text-soft)]">Como funciona</h3>
+          <h3 className="text-label font-black uppercase tracking-widest text-[var(--ui-text-soft)]">Como funciona</h3>
           <ul className="list-disc space-y-1 pl-5 text-xs leading-relaxed text-[var(--ui-text-muted)]">
             <li>Vale só o ranking geral de pontos: cada competição concluída na temporada soma pontos pela fase alcançada e pela dificuldade.</li>
-            <li>{season === 0 ? 'A Temporada 0 conta todas as competições concluídas até o fim dela.' : 'Cada temporada dura um mês, do dia 17 ao dia 17 seguinte (horário de Brasília).'}</li>
-            <li>Quando a temporada termina, o Top 10 é congelado e cada um resgata os próprios prêmios aqui, quando quiser. Só perfis públicos disputam.</li>
+            <li>{season === 0 ? 'A Temporada 0 conta todas as competições concluídas até o fim dela.' : 'Cada temporada vai do dia 17 até o dia 16 do mês seguinte, às 23h59 (horário de Brasília).'}</li>
+            <li>No fim, o Top 10 é fixado e você resgata seus prêmios aqui. Só perfis públicos concorrem.</li>
             <li>Em caso de empate nos pontos, fica à frente quem tem mais títulos e depois mais competições pontuadas.</li>
             <li>A moldura, o fundo e a Carta Única de cada temporada são exclusivos: não voltam em outras temporadas nem são vendidos na loja.</li>
           </ul>

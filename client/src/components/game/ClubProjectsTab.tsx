@@ -421,7 +421,7 @@ export default function ClubProjectsTab() {
                   <div className="text-[12px] font-black tracking-widest text-[#7E7E92]">NÍVEL ATUAL</div>
                   <div className="mt-0.5 text-xl font-black text-white">{selectedLevel}</div>
                 </div>
-                <span className="text-xl text-[#6A6A7A]" aria-hidden="true">→</span>
+                <span className="text-xl text-[var(--ui-text-faint)]" aria-hidden="true">→</span>
                 <div className="min-w-0 text-right">
                   <div className="text-[12px] font-black tracking-widest text-[#7E7E92]">PRÓXIMO NÍVEL</div>
                   <div className="mt-0.5 text-xl font-black" style={{ color: selectedProject.color }}>{selectedNextLevel}</div>

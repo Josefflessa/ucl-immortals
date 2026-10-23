@@ -52,16 +52,16 @@ export default function AlbumCollection({ catalog }: { catalog: ReactNode }) {
             {/* Same composition: a short label, a plain number, and an explanation. */}
             <Metric label="Progresso" className="min-w-0" value={<span className="tabular-nums">{percent}%</span>} detail={<span className="block">das cartas do álbum já conquistadas</span>} />
             <Metric label="Páginas" className="min-w-0" value={<span className="tabular-nums">{progress.pages}<span className="text-base text-[var(--ui-text-faint)]">/{CATALOG.pages.length}</span></span>} detail={<span className="block">com todas as cartas conquistadas</span>} />
-            <Metric label="Inventário" className="min-w-0" value={<span className="tabular-nums">{itemCount}</span>} detail={<span className="block">pacotes e envelopes que você pode abrir</span>} />
+            <Metric label="Inventário" className="col-span-2 min-w-0 sm:col-span-1" value={<span className="tabular-nums">{itemCount}</span>} detail={<span className="block">pacotes e envelopes que você pode abrir</span>} />
           </div>
 
           <Tabs value={tab} onValueChange={value => setTab(value as AlbumTab)}>
-            <TabList aria-label="Seções do álbum" className="ui-tabs--equal [&>.ui-tab]:!overflow-visible [&>.ui-tab]:![text-overflow:clip] max-sm:[&>.ui-tab]:!px-0 max-sm:[&>.ui-tab]:!tracking-normal max-[359px]:[&>.ui-tab]:!text-[9px]">
+            <TabList aria-label="Seções do álbum" className="ui-tabs--equal [&>.ui-tab]:!overflow-visible [&>.ui-tab]:![text-overflow:clip] max-sm:[&>.ui-tab]:!px-0 max-sm:[&>.ui-tab]:!tracking-normal max-[359px]:[&>.ui-tab]:!text-micro">
               <Tab value="album">Álbum</Tab>
               <Tab value="inventory" aria-label={itemCount > 0 ? `Inventário, ${itemCount} pacotes e envelopes para abrir` : 'Inventário'}>
                 Inventário
                 {/* The count where there is room (on phones the three equal tabs have none). */}
-                {itemCount > 0 ? <span aria-hidden="true" className="ml-1.5 hidden rounded-full bg-[var(--ui-brand)] px-1.5 text-[11px] font-bold tabular-nums text-[var(--ui-brand-ink)] sm:inline">{itemCount}</span> : null}
+                {itemCount > 0 ? <span aria-hidden="true" className="ml-1.5 hidden rounded-full bg-[var(--ui-brand)] px-1.5 text-caption font-bold tabular-nums text-[var(--ui-brand-ink)] sm:inline">{itemCount}</span> : null}
               </Tab>
               <Tab value="catalog">Catálogo</Tab>
             </TabList>

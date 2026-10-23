@@ -318,7 +318,7 @@ export function describeBet(bet: Pick<Bet, 'market' | 'selections' | 'homeGoals'
     const selections = normalizeBuilderSelections(bet.selections);
     if (selections) return selections.map(selection => {
       if (selection.type === 'exact_score') return `Placar ${selection.homeGoals}-${selection.awayGoals}`;
-      if (selection.type === 'outcome') return selection.value === 'home' ? 'Casa' : selection.value === 'away' ? 'Fora' : 'Empate';
+      if (selection.type === 'outcome') return selection.value === 'home' ? 'Mandante' : selection.value === 'away' ? 'Visitante' : 'Empate';
       if (selection.type === 'total_goals') return `${selection.operator === 'over' ? '+' : '-'}${selection.line.toString().replace('.', ',')} gols`;
       if (selection.type === 'total_cards') return `${selection.operator === 'over' ? '+' : '-'}${selection.line.toString().replace('.', ',')} cartões`;
       return selection.value ? 'Ambas' : 'Não ambas';

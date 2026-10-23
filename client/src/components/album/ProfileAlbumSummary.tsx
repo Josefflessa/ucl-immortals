@@ -12,7 +12,7 @@ export default function ProfileAlbumSummary({ album }: { album: AlbumSummary }) 
       <PanelBody className="p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <BookOpen size={16} className="text-[var(--ui-brand-strong)]" aria-hidden="true" />
-          <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-[var(--ui-text)]">Álbum de cartas</h2>
+          <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-[var(--ui-text)]">Álbum</h2>
         </div>
         <div className="mt-3 flex items-center gap-3">
           <Progress value={album.owned} max={album.total} className="h-2 flex-1" />
@@ -26,7 +26,7 @@ export default function ProfileAlbumSummary({ album }: { album: AlbumSummary }) 
             {album.clubsCompleted.map(clubId => {
               const crest = getCrest(clubId);
               return (
-                <li key={clubId} title={crest?.name ?? clubId} className="flex items-center gap-1.5 rounded-full border border-[#E9C46A]/40 bg-[#E9C46A]/[.07] py-1 pl-1 pr-2.5 text-[11px] font-bold text-[var(--ui-text)]">
+                <li key={clubId} title={crest?.name ?? clubId} className="flex items-center gap-1.5 rounded-full border border-[#E9C46A]/40 bg-[#E9C46A]/[.07] py-1 pl-1 pr-2.5 text-caption font-bold text-[var(--ui-text)]">
                   {crest ? <img src={crest.url} alt="" referrerPolicy="no-referrer" className="size-5 object-contain" /> : null}
                   {crest?.name ?? clubId}
                 </li>

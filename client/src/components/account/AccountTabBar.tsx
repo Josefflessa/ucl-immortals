@@ -20,7 +20,7 @@ interface AccountTabBarProps {
 
 const NAV_ITEMS: Array<{ id: AccountNavigationTab; label: string; ariaLabel: string; icon: typeof House }> = [
   { id: 'home', label: 'INÍCIO', ariaLabel: 'Ir para o início', icon: House },
-  { id: 'store', label: 'LOJA', ariaLabel: 'Abrir loja geral', icon: ShoppingBag },
+  { id: 'store', label: 'LOJA', ariaLabel: 'Abrir loja', icon: ShoppingBag },
   { id: 'records', label: 'RANKINGS', ariaLabel: 'Abrir rankings', icon: Trophy },
   { id: 'friends', label: 'AMIGOS', ariaLabel: 'Abrir amigos', icon: Users },
 ];
@@ -69,14 +69,14 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
               aria-current={selected ? 'page' : undefined}
               onClick={() => onNavigate(id)}
               className={cn(
-                'flex h-14 flex-col gap-1 rounded-lg px-0 text-[12px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] xl:h-10 xl:flex-row xl:gap-2 xl:rounded-full xl:px-5 xl:text-[13px]',
+                'flex h-14 flex-col gap-1 rounded-lg px-0 text-label text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] xl:h-10 xl:flex-row xl:gap-2 xl:rounded-full xl:px-5 xl:text-body-sm',
                 selected && 'bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)] hover:text-[var(--ui-brand-strong)] xl:bg-[var(--ui-brand)]/15 xl:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--ui-brand)_35%,transparent)]',
               )}
             >
               <span className="relative inline-flex size-4 items-center justify-center">
                 <Icon size={16} aria-hidden="true" />
                 {id === 'friends' && friendsBadgeCount > 0 ? (
-                  <span aria-hidden="true" className="absolute -right-2 -top-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-surface)] bg-[var(--ui-danger)] px-1 text-[12px] font-bold leading-none tabular-nums text-white">
+                  <span aria-hidden="true" className="absolute -right-2 -top-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-surface)] bg-[var(--ui-danger)] px-1 text-label font-bold leading-none tabular-nums text-white">
                     {friendsBadgeCount > 9 ? '9+' : friendsBadgeCount}
                   </span>
                 ) : null}

@@ -99,7 +99,7 @@ function socialError(cause: unknown, fallback: string): string {
     invalid_message: 'A mensagem precisa ter entre 1 e 500 caracteres.',
     invalid_card: 'Essa carta não está disponível para troca.',
     invalid_quantity: 'Confira a quantidade de cópias.',
-    no_spare_copy: 'Uma das cartas selecionadas não tem mais cópias extras suficientes. Confiram as ofertas e tentem novamente.',
+    no_spare_copy: 'Uma das cartas selecionadas não tem mais cópias extras suficientes. Confira as ofertas e tente de novo.',
     trade_cards_unavailable: 'As cópias dessa oferta não estão mais disponíveis.',
     trade_changed: 'A oferta mudou. Confira a carta do seu amigo antes de confirmar.',
     friend_unavailable: 'Seu amigo precisa estar online e disponível para iniciar uma troca.',
@@ -117,7 +117,7 @@ function nameInitials(name: string): string {
 
 function ProfilePhoto({ profile, sizeClassName = 'size-8' }: { profile: ProfilePhotoData; sizeClassName?: string }) {
   const image = profile.avatarUrl || resolveProfileAvatarImage(profile.avatarKey);
-  return <FramedAvatar frameKey={profile.avatarFrameKey} compact><span role="img" aria-label={`Foto de ${profile.name}`} className={`relative flex ${sizeClassName} shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-line-strong)] text-[11px] font-bold text-white`} style={{ backgroundColor: getProfileAvatarBackground(profile.avatarBackgroundKey || DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY).color }}>
+  return <FramedAvatar frameKey={profile.avatarFrameKey} compact><span role="img" aria-label={`Foto de ${profile.name}`} className={`relative flex ${sizeClassName} shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--ui-line-strong)] text-caption font-bold text-white`} style={{ backgroundColor: getProfileAvatarBackground(profile.avatarBackgroundKey || DEFAULT_PROFILE_AVATAR_BACKGROUND_KEY).color }}>
     <span aria-hidden="true" hidden={!!image}>{nameInitials(profile.name)}</span>
     {image ? <img src={image} alt="" className={`absolute inset-0 ${sizeClassName} rounded-full object-cover`} onError={event => { event.currentTarget.style.display = 'none'; const fallback = event.currentTarget.previousElementSibling as HTMLElement | null; if (fallback) fallback.hidden = false; }} /> : null}
   </span></FramedAvatar>;
@@ -190,15 +190,15 @@ export default function FriendActions({ friendshipId, friendName, friendNameStyl
     <>
       <div ref={rootRef} className="shrink-0">
         <Button type="button" intent="ghost" aria-haspopup="menu" aria-expanded={menuOpen} aria-label={unreadMessageCount > 0 ? `Mais opções para ${friendName}, ${unreadMessageDescription}` : `Mais opções para ${friendName}`} title="Mais opções" onClick={() => setMenuOpen(value => !value)} className="size-9 min-h-9 rounded-lg border border-[var(--ui-line-subtle)] px-0 text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]">
-          <span className="relative inline-flex items-center justify-center"><MoreHorizontal size={19} aria-hidden="true" />{unreadMessageCount > 0 ? <span aria-hidden="true" className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-surface)] bg-[var(--ui-danger)] px-1 text-[10px] font-bold leading-none text-white">{unreadMessageCount > 9 ? '9+' : unreadMessageCount}</span> : null}</span>
+          <span className="relative inline-flex items-center justify-center"><MoreHorizontal size={19} aria-hidden="true" />{unreadMessageCount > 0 ? <span aria-hidden="true" className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-surface)] bg-[var(--ui-danger)] px-1 text-micro font-bold leading-none text-white">{unreadMessageCount > 9 ? '9+' : unreadMessageCount}</span> : null}</span>
         </Button>
         {menuOpen && menuPosition ? createPortal(
           <div ref={menuRef} role="menu" aria-label={`Opções para ${friendName}`} className="fixed z-[10000] w-48 overflow-hidden rounded-xl border border-[var(--ui-line-strong)] bg-[var(--ui-surface-1)] p-1 shadow-2xl" style={{ top: menuPosition.top, left: menuPosition.left, maxHeight: 'calc(100dvh - 16px)' }}>
             <button type="button" role="menuitem" aria-label={unreadMessageCount > 0 ? `Conversar com ${friendName}, ${unreadMessageDescription}` : `Conversar com ${friendName}`} onClick={() => { closeMenu(); setChatOpen(true); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--ui-text)] transition hover:bg-[var(--ui-surface-2)]">
-              <MessageCircle size={16} aria-hidden="true" className="text-[var(--ui-text-muted)]" /> <span className="flex-1">Conversar</span>{unreadMessageCount > 0 ? <span aria-hidden="true" className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--ui-danger)] px-1 text-[10px] font-bold leading-none text-white">{unreadMessageCount > 9 ? '9+' : unreadMessageCount}</span> : null}
+              <MessageCircle size={16} aria-hidden="true" className="text-[var(--ui-text-muted)]" /> <span className="flex-1">Conversar</span>{unreadMessageCount > 0 ? <span aria-hidden="true" className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--ui-danger)] px-1 text-micro font-bold leading-none text-white">{unreadMessageCount > 9 ? '9+' : unreadMessageCount}</span> : null}
             </button>
             <button type="button" role="menuitem" title={!friendAvailable ? `Você pode consultar negociações; para iniciar uma nova, ${friendOnline ? 'seu amigo precisa estar disponível' : 'seu amigo precisa ficar online e disponível'}.` : undefined} onClick={() => { closeMenu(); setTradeOpen(true); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--ui-text)] transition hover:bg-[var(--ui-surface-2)]">
-              <ArrowLeftRight size={16} aria-hidden="true" className="text-[var(--ui-text-muted)]" /> <span className="flex-1">Trocar cartas</span>{!friendAvailable ? <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-faint)]">{friendOnline ? 'Ocupado' : 'Offline'}</span> : null}
+              <ArrowLeftRight size={16} aria-hidden="true" className="text-[var(--ui-text-muted)]" /> <span className="flex-1">Trocar cartas</span>{!friendAvailable ? <span className="text-micro font-semibold uppercase tracking-wide text-[var(--ui-text-faint)]">{friendOnline ? 'Ocupado' : 'Offline'}</span> : null}
             </button>
             <div aria-hidden="true" className="my-1 border-t border-[var(--ui-line-subtle)]" />
             <button type="button" role="menuitem" disabled={removeDisabled} onClick={() => { closeMenu(); onRemove(); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--ui-danger)] transition hover:bg-[var(--ui-danger-soft)] disabled:cursor-not-allowed disabled:opacity-50">
@@ -289,17 +289,17 @@ function FriendChatDialog({ open, onOpenChange, friendshipId, friendName, friend
     <GameModal
       open={open}
       onOpenChange={onOpenChange}
-      title={<span className="flex min-w-0 items-center gap-3 normal-case tracking-normal"><ProfilePhoto profile={friendProfile} sizeClassName="size-10" /><span className="min-w-0"><StyledName name={friendName} styleKey={friendNameStyleKey} size="sm" className="block max-w-full truncate font-sans text-base font-semibold leading-tight tracking-normal text-[var(--ui-text)]" /><span className="mt-0.5 block font-sans text-[11px] font-normal tracking-normal text-[var(--ui-text-muted)]">Conversa</span><span className="mt-1.5 block max-w-[48ch] whitespace-normal font-sans text-[11px] font-normal leading-snug tracking-normal text-[var(--ui-text-muted)]">As mensagens desaparecem após 24 horas.</span></span></span>}
+      title={<span className="flex min-w-0 items-center gap-3 normal-case tracking-normal"><ProfilePhoto profile={friendProfile} sizeClassName="size-10" /><span className="min-w-0"><StyledName name={friendName} styleKey={friendNameStyleKey} size="sm" className="block max-w-full truncate font-sans text-base font-semibold leading-tight tracking-normal text-[var(--ui-text)]" /><span className="mt-0.5 block font-sans text-caption font-normal tracking-normal text-[var(--ui-text-muted)]">Conversa</span><span className="mt-1.5 block max-w-[48ch] whitespace-normal font-sans text-caption font-normal leading-snug tracking-normal text-[var(--ui-text-muted)]">As mensagens desaparecem após 24 horas.</span></span></span>}
       bodyClassName="flex min-h-[min(62dvh,520px)] flex-col gap-3 p-3 sm:p-4"
       footer={<form onSubmit={sendMessage} className="flex items-center gap-2">
         <label className="sr-only" htmlFor={`friend-message-${friendshipId}`}>Mensagem para {friendName}</label>
-        <Input id={`friend-message-${friendshipId}`} value={draft} maxLength={500} onChange={event => setDraft(event.target.value)} placeholder="Escreva uma mensagem..." disabled={sending} />
+        <Input id={`friend-message-${friendshipId}`} value={draft} maxLength={500} onChange={event => setDraft(event.target.value)} placeholder="Escreva uma mensagem…" disabled={sending} />
         <Button type="submit" intent="primary" aria-label="Enviar mensagem" disabled={!draft.trim() || sending} className="size-10 min-h-10 shrink-0 px-0"><Send size={16} aria-hidden="true" /></Button>
       </form>}
     >
       {error ? <StatusBanner tone="danger">{error}</StatusBanner> : null}
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:p-4" aria-live="polite" aria-label="Mensagens">
-        {loading ? <p className="m-auto text-sm text-[var(--ui-text-muted)]">Carregando conversa...</p>
+        {loading ? <p className="m-auto text-sm text-[var(--ui-text-muted)]">Carregando conversa…</p>
           : messages.length === 0 ? <div className="m-auto max-w-xs px-4 text-center"><MessageCircle size={22} aria-hidden="true" className="mx-auto mb-2 text-[var(--ui-text-faint)]" /><p className="text-sm font-semibold text-[var(--ui-text)]">A conversa começa aqui</p><p className="mt-1 text-xs leading-relaxed text-[var(--ui-text-muted)]">Envie uma mensagem para {friendName}. As mensagens ficam disponíveis por 24 horas.</p></div>
             : messages.map((message, index) => {
               const mine = message.sender_id === accountId;
@@ -308,7 +308,7 @@ function FriendChatDialog({ open, onOpenChange, friendshipId, friendName, friend
                 {!mine ? <span className="w-7 shrink-0">{groupStart ? <ProfilePhoto profile={friendProfile} sizeClassName="size-7" /> : null}</span> : null}
                 <div className={`max-w-[80%] rounded-2xl px-3 py-2 ${mine ? 'rounded-br-sm bg-[var(--ui-brand)]/15 text-[var(--ui-text)]' : 'rounded-bl-sm bg-white/[.06] text-[var(--ui-text)]'}`}>
                   <p className="whitespace-pre-wrap break-words text-sm">{message.body}</p>
-                  <time dateTime={new Date(message.created_at).toISOString()} title={`Expira às ${new Date(message.expires_at).toLocaleString('pt-BR')}`} className="mt-1 block text-right text-[10px] text-[var(--ui-text-faint)]">{timeLabel(message.created_at)}</time>
+                  <time dateTime={new Date(message.created_at).toISOString()} title={`Expira às ${new Date(message.expires_at).toLocaleString('pt-BR')}`} className="mt-1 block text-right text-micro text-[var(--ui-text-faint)]">{timeLabel(message.created_at)}</time>
                 </div>
                 {mine ? <span className="w-7 shrink-0">{groupStart ? <ProfilePhoto profile={viewerProfile} sizeClassName="size-7" /> : null}</span> : null}
               </article>;
@@ -504,8 +504,8 @@ function FriendTradeDialog({ open, onOpenChange, friendshipId, friendName, frien
               const active = selectedCardId === card.id;
               return <button key={card.id} type="button" aria-pressed={active} onClick={() => { setSelectedCardId(card.id); setQuantity(1); }} className={`flex min-h-12 w-full items-center gap-2 rounded-lg border px-2 py-1 text-left ${active ? 'border-[var(--ui-brand)] bg-[var(--ui-brand-soft)]' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface)] hover:border-[var(--ui-line-strong)]'}`}>
                 <PlayerCard player={player} lite flat scale={0.17} />
-                <span className="min-w-0 flex-1"><strong className="block truncate text-xs text-[var(--ui-text)]">{player.shortName}</strong><span className="block truncate text-[11px] text-[var(--ui-text-muted)]">Nº {card.number} · {player.club}</span></span>
-                <span className="shrink-0 rounded-md bg-[var(--ui-surface-2)] px-2 py-1 text-[11px] font-semibold tabular-nums text-[var(--ui-text-soft)]">×{card.spare}</span>
+                <span className="min-w-0 flex-1"><strong className="block truncate text-xs text-[var(--ui-text)]">{player.shortName}</strong><span className="block truncate text-caption text-[var(--ui-text-muted)]">Nº {card.number} · {player.club}</span></span>
+                <span className="shrink-0 rounded-md bg-[var(--ui-surface-2)] px-2 py-1 text-caption font-semibold tabular-nums text-[var(--ui-text-soft)]">×{card.spare}</span>
               </button>;
             })}
             {filteredCards.length === 0 ? <p className="rounded-lg border border-dashed border-[var(--ui-line-subtle)] p-3 text-center text-xs text-[var(--ui-text-muted)]">Nenhuma repetida encontrada.</p> : null}
@@ -513,22 +513,22 @@ function FriendTradeDialog({ open, onOpenChange, friendshipId, friendName, frien
           {selectedCard ? <div className="flex items-center gap-3 rounded-lg border border-[var(--ui-line-subtle)] bg-black/10 p-2">
             <PlayerCard player={albumCard(selectedCard.id)!} lite scale={0.22} />
             <div className="min-w-0 flex-1"><strong className="block truncate text-sm text-[var(--ui-text)]">{selectedCard.name}</strong><span className="text-xs text-[var(--ui-text-muted)]">Nº {selectedCard.number} · {selectedCard.spare} cópia(s) extra(s)</span></div>
-            <label className="w-20 shrink-0 space-y-1 text-[11px] font-semibold text-[var(--ui-text-muted)]">Quantidade<Input type="number" min={1} max={selectedCard.spare} value={quantity} onChange={event => setQuantity(Math.max(1, Math.min(selectedCard.spare, Number(event.target.value) || 1)))} /></label>
+            <label className="w-20 shrink-0 space-y-1 text-caption font-semibold text-[var(--ui-text-muted)]">Quantidade<Input type="number" min={1} max={selectedCard.spare} value={quantity} onChange={event => setQuantity(Math.max(1, Math.min(selectedCard.spare, Number(event.target.value) || 1)))} /></label>
           </div> : null}
           <Button type="submit" intent="primary" loading={creating} disabled={!friendAvailable || hasActiveTrade || !selectedCard || quantity < 1 || quantity > (selectedCard?.spare ?? 0)} className="w-full sm:w-auto">{hasActiveTrade ? 'NEGOCIAÇÃO EM ANDAMENTO' : 'INICIAR NEGOCIAÇÃO'}</Button>
         </>}
-        <p className="text-[11px] text-[var(--ui-text-faint)]">A negociação expira após 72 horas. As cartas só são trocadas quando os dois confirmam.</p>
+        <p className="text-caption text-[var(--ui-text-faint)]">A negociação expira após 72 horas. As cartas só são trocadas quando os dois confirmam.</p>
           </form>
         </TabPanel>
 
         <TabPanel value="offers" className="space-y-4 pt-3">
-          {loading ? <p className="py-8 text-center text-sm text-[var(--ui-text-muted)]">Carregando ofertas...</p>
+          {loading ? <p className="py-8 text-center text-sm text-[var(--ui-text-muted)]">Carregando ofertas…</p>
             : incoming.length === 0 && outgoing.length === 0 ? <div className="rounded-xl border border-dashed border-[var(--ui-line-subtle)] px-4 py-8 text-center"><p className="text-sm font-semibold text-[var(--ui-text)]">Nenhuma oferta em andamento</p><p className="mt-1 text-xs text-[var(--ui-text-muted)]">Ofertas suas ou de {friendName} aparecerão aqui.</p><Button type="button" intent="secondary" onClick={() => setTradeTab('new')} className="mt-3 min-h-9 px-3 text-xs">CRIAR OFERTA</Button></div>
               : <div className="space-y-5">
                 {incoming.length > 0 ? <section className="space-y-3"><h3 className="text-sm font-bold text-[var(--ui-text)]">Recebidas <span className="text-[var(--ui-text-muted)]">({incoming.length})</span></h3><div className="space-y-2">{incoming.map(trade => <FriendTradeSessionCard key={trade.id} trade={trade} isRequester={false} friendName={friendName} spareCards={spareCards} onUpdate={saveSelection} onClose={actOnTrade} />)}</div></section> : null}
                 {outgoing.length > 0 ? <section className="space-y-3"><h3 className="text-sm font-bold text-[var(--ui-text)]">Enviadas <span className="text-[var(--ui-text-muted)]">({outgoing.length})</span></h3><div className="space-y-2">{outgoing.map(trade => <FriendTradeSessionCard key={trade.id} trade={trade} isRequester friendName={friendName} spareCards={spareCards} onUpdate={saveSelection} onClose={actOnTrade} />)}</div></section> : null}
               </div>}
-          {!album ? <p className="text-xs text-[var(--ui-text-faint)]">Carregando seu álbum...</p> : null}
+          {!album ? <p className="text-xs text-[var(--ui-text-faint)]">Carregando seu álbum…</p> : null}
         </TabPanel>
       </Tabs>
     </GameModal>
@@ -621,7 +621,7 @@ function FriendTradeSessionCard({ trade, isRequester, friendName, spareCards, on
         <h4 className="text-sm font-bold text-[var(--ui-text)]">Troca em andamento</h4>
         <p className="mt-0.5 text-xs text-[var(--ui-text-muted)]">Cada pessoa oferece cartas repetidas. A troca acontece depois das duas confirmações.</p>
       </div>
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--ui-success)]/25 bg-[var(--ui-success)]/10 px-2.5 py-1 text-[10px] font-bold uppercase text-[var(--ui-success)]"><span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--ui-success)]" />Ativa</span>
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--ui-success)]/25 bg-[var(--ui-success)]/10 px-2.5 py-1 text-micro font-bold uppercase text-[var(--ui-success)]"><span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--ui-success)]" />Ativa</span>
     </header>
 
     <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start">
@@ -647,8 +647,8 @@ function FriendTradeSessionCard({ trade, isRequester, friendName, spareCards, on
             const active = card.id === myCardId;
             return <button key={card.id} type="button" disabled={busy} aria-pressed={active} onClick={() => void selectCard(card)} className={`flex min-h-12 w-full items-center gap-2 rounded-lg border px-2 py-1 text-left ${active ? 'border-[var(--ui-brand)] bg-[var(--ui-brand-soft)]' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] hover:border-[var(--ui-line-strong)]'}`}>
               <PlayerCard player={player} lite flat scale={0.17} />
-              <span className="min-w-0 flex-1"><strong className="block truncate text-xs text-[var(--ui-text)]">{player.shortName}</strong><span className="block truncate text-[11px] text-[var(--ui-text-muted)]">Nº {card.number} · {player.club}</span></span>
-              <span className="shrink-0 rounded-md bg-[var(--ui-surface-2)] px-2 py-1 text-[11px] font-semibold tabular-nums text-[var(--ui-text-soft)]">×{card.spare}</span>
+              <span className="min-w-0 flex-1"><strong className="block truncate text-xs text-[var(--ui-text)]">{player.shortName}</strong><span className="block truncate text-caption text-[var(--ui-text-muted)]">Nº {card.number} · {player.club}</span></span>
+              <span className="shrink-0 rounded-md bg-[var(--ui-surface-2)] px-2 py-1 text-caption font-semibold tabular-nums text-[var(--ui-text-soft)]">×{card.spare}</span>
               {active ? <span className="sr-only">Selecionada</span> : null}
             </button>;
           })}
@@ -680,5 +680,5 @@ function FriendTradeSessionCard({ trade, isRequester, friendName, spareCards, on
 }
 
 function OfferReadyState({ ready }: { ready: boolean }) {
-  return <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${ready ? 'bg-[var(--ui-success)]/15 text-[var(--ui-success)]' : 'bg-white/[.06] text-[var(--ui-text-muted)]'}`}>{ready ? 'Confirmada' : 'Escolhendo'}</span>;
+  return <span className={`rounded-full px-2 py-1 text-micro font-bold uppercase tracking-wide ${ready ? 'bg-[var(--ui-success)]/15 text-[var(--ui-success)]' : 'bg-white/[.06] text-[var(--ui-text-muted)]'}`}>{ready ? 'Confirmada' : 'Escolhendo'}</span>;
 }
