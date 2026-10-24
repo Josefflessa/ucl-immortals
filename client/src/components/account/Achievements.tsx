@@ -139,8 +139,8 @@ function formatPercent(percent: number): string {
 }
 
 /**
- * Medal: the tier artwork (Bronze, Prata, Ouro, Lendário) with the achievement
- * icon in its central disc. Imortal reuses the Lendário artwork with Imortal colors.
+ * Medal: each tier's artwork with the achievement icon in its central disc.
+ * The Imortal medal uses the matching winged crest from the Immortal difficulty.
  * Locked achievements show a dimmed, grey medal.
  * The artwork keeps transparent margins around the shield, so it is drawn
  * slightly larger than the box and centred on it (the disc is the exact centre).
@@ -154,7 +154,7 @@ export function AchievementMedal({ id, level, size = 48 }: { id: string; level: 
   return (
     <span aria-hidden="true" className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
       <img
-        src={`/achievements/medal-${tier === 'immortal' ? 'legendary' : tier ?? 'bronze'}.webp`}
+        src={`/achievements/medal-${tier ?? 'bronze'}.webp`}
         alt=""
         draggable={false}
         className="pointer-events-none absolute max-w-none select-none"

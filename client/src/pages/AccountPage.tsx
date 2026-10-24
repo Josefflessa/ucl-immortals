@@ -352,8 +352,16 @@ function LockedBadge({ text }: { text: string }) {
 }
 
 function ScoreCard({ entry, rank }: { entry: ScoreLeaderboardEntry; rank: number }) {
+  const rankTone = rank === 1
+    ? 'border-[var(--ui-brand-line)] bg-[var(--ui-brand-soft)]'
+    : rank === 2
+      ? 'border-[var(--rarity-silver)]/35 bg-[var(--rarity-silver)]/10'
+      : rank === 3
+        ? 'border-[var(--rarity-bronze)]/40 bg-[var(--rarity-bronze)]/10'
+        : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)]';
+
   return (
-    <article className={cn('flex min-w-0 items-center gap-2.5 rounded-(--ui-radius-lg) border p-3 sm:gap-4 sm:p-4', rank === 1 ? 'border-[var(--ui-brand-line)] bg-[var(--ui-brand-soft)]' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)]')}>
+    <article className={cn('flex min-w-0 items-center gap-2.5 rounded-(--ui-radius-lg) border p-3 sm:gap-4 sm:p-4', rankTone)}>
       <div aria-label={`Posição ${rank}`} className="flex w-9 shrink-0 items-center justify-center">
         {rank <= 3
           ? <span className="relative grid size-9 shrink-0 place-items-center">
@@ -1383,7 +1391,7 @@ export default function AccountPage() {
             <div className="mx-auto w-full max-w-3xl space-y-5 lg:max-w-5xl">
               <Panel density="compact"><PanelBody className="p-3 sm:p-4"><form className="flex flex-col gap-2 sm:flex-row" onSubmit={event => { event.preventDefault(); void addFriend(); }}><label className="relative min-w-0 flex-1"><span className="sr-only">Nome de usuário</span><Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-[var(--ui-text-faint)]" /><Input className="pl-9" value={friendUsername} placeholder="Nome de usuário do amigo" onChange={event => setFriendUsername(event.target.value)} /></label><Button type="submit" intent="primary" loading={busy} disabled={!friendUsername.trim()} className="sm:min-w-40"><UserPlus size={16} aria-hidden="true" /> ADICIONAR</Button></form></PanelBody></Panel>
               <Tabs value={friendsTab} onValueChange={value => setFriendsTab(value as FriendsTab)}>
-                <TabList aria-label="Seções de amigos" className="mx-auto w-fit max-w-full flex-wrap justify-center gap-2 sm:gap-4 lg:[&>.ui-tab]:justify-center">
+                <TabList aria-label="Seções de amigos" className="ui-tabs--friends lg:[&>.ui-tab]:justify-center">
                   <Tab value="friends" className="inline-flex items-center gap-2"><Users size={14} aria-hidden="true" /> AMIGOS <span className="tabular-nums">{acceptedFriends.length}</span></Tab>
                   <Tab value="incoming" className="inline-flex items-center gap-2"><Check size={14} aria-hidden="true" /> RECEBIDAS <span className="tabular-nums">{pendingIncoming.length}</span></Tab>
                   <Tab value="outgoing" className="inline-flex items-center gap-2"><UserPlus size={14} aria-hidden="true" /> ENVIADAS <span className="tabular-nums">{pendingOutgoing.length}</span></Tab>

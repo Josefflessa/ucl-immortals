@@ -121,16 +121,16 @@ export default function PlayerSeasonStatsPanel({ rows, title = 'ESTATÍSTICAS DO
                     <PlayerAvatar playerId={player.id} photoUrl={player.photoUrl} rarity={player.rarity} size={48} />
                   </div>
                   <div className="col-start-2 row-start-1 min-w-0 sm:flex-1">
-                    <div className="whitespace-normal break-words text-body font-black leading-tight" style={{ color: 'var(--ui-text)' }}>{player.shortName}</div>
-                    <div className="mt-1 space-y-1 text-label" style={{ color: 'var(--ui-text-faint)' }}>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="shrink-0 rounded-md px-2 py-0.5 text-xs font-black" style={{ background: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)' }}>{POS_PT[player.position] ?? player.position}</span>
-                        {isReserve && (
-                          <span className="inline-flex shrink-0 items-center text-[var(--ui-brand-strong)]" title="Reserva" aria-label="Jogador reserva">
-                            <Armchair size={15} strokeWidth={2.4} aria-hidden="true" />
-                          </span>
-                        )}
-                      </div>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span title={player.shortName} className="min-w-0 truncate text-body font-black leading-tight" style={{ color: 'var(--ui-text)' }}>{player.shortName}</span>
+                      <span className="shrink-0 rounded-md px-2 py-0.5 text-xs font-black" style={{ background: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)' }}>{POS_PT[player.position] ?? player.position}</span>
+                      {isReserve && (
+                        <span className="inline-flex shrink-0 items-center text-[var(--ui-brand-strong)]" title="Reserva" aria-label="Jogador reserva">
+                          <Armchair size={15} strokeWidth={2.4} aria-hidden="true" />
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 text-label" style={{ color: 'var(--ui-text-faint)' }}>
                       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 leading-tight">
                         {teamName && <span className="min-w-0 whitespace-normal break-words">{teamName}</span>}
                         {teamName && <span className="shrink-0" aria-hidden="true">·</span>}

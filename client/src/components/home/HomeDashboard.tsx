@@ -299,7 +299,7 @@ export default function HomeDashboard(props: HomeDashboardProps) {
               value={activeEvents ? `${activeEvents} ${activeEvents === 1 ? 'ativo' : 'ativos'}` : 'Nenhum ativo'}
               detail={activeEvents ? 'Desafios com prêmios exclusivos' : 'Veja os próximos desafios'}
             />
-            <StatusCard icon={<Medal size={16} />} label="Conquistas" value="Ver progresso" detail="Cada nível rende um pacote" onClick={props.onAchievements} />
+            <StatusCard icon={<Medal size={16} />} label="Conquistas" value="Ver progresso" detail="Acompanhe metas e níveis" onClick={props.onAchievements} />
           </div>
         </section>
       ) : (

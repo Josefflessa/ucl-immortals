@@ -11,15 +11,16 @@ import { AppShell, Button, PageContainer, SectionHeader, Skeleton, StatusBanner,
 
 type StoreCategory = 'packs' | 'banners' | 'customization';
 
-function StoreCategoryTab({ value, title, description, children }: {
+function StoreCategoryTab({ value, title, description, children, showDivider = true }: {
   value: StoreCategory;
   title: string;
   description: string;
   children: ReactNode;
+  showDivider?: boolean;
 }) {
   return (
     <TabPanel value={value} className="space-y-4 pt-4">
-      <SectionHeader level="section" title={title} description={description} className="mb-0 border-b border-[var(--ui-line-subtle)] pb-4" />
+      <SectionHeader level="section" title={title} description={description} className={`mb-0 pb-4 ${showDivider ? 'border-b border-[var(--ui-line-subtle)]' : ''}`} />
       {children}
     </TabPanel>
   );
@@ -68,7 +69,7 @@ export default function StorePage() {
               <Tab value="customization" className="inline-flex items-center gap-2"><Palette size={15} aria-hidden="true" /><span>Aparência</span></Tab>
             </TabList>
 
-            <StoreCategoryTab value="packs" title="Pacotes de cartas" description="Confira o conteúdo e as chances de cada pacote. Os pacotes comprados ficam no inventário do Álbum.">
+            <StoreCategoryTab value="packs" title="Pacotes de cartas" description="Confira o conteúdo e as chances de cada pacote. Os pacotes comprados ficam no inventário do Álbum." showDivider={false}>
               <AlbumPackShop />
             </StoreCategoryTab>
 

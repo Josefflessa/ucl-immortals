@@ -1382,7 +1382,7 @@ body.home-menu-scroll-lock {
 
 @media (max-width: 899px) {
   /* Scrolling tab bars fade at the right edge so the hidden tabs read as "more this way". */
-  .ui-tabs:not(.ui-tabs--equal):not(.ui-tabs--side):not(.ui-tabs--split-mobile) {
+  .ui-tabs:not(.ui-tabs--equal):not(.ui-tabs--side):not(.ui-tabs--split-mobile):not(.ui-tabs--friends) {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
     mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
     padding-right: 2rem;
@@ -1423,6 +1423,35 @@ body.home-menu-scroll-lock {
     white-space: normal;
     line-height: 1.15;
     min-height: 48px;
+  }
+
+  .ui-tabs--friends {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    overflow: visible;
+  }
+
+  .ui-tabs--friends > .ui-tab {
+    width: 100%;
+    min-width: 0;
+    flex: none;
+    justify-content: center;
+    overflow: visible;
+    padding-inline: 4px;
+    text-align: center;
+    text-overflow: clip;
+    white-space: normal;
+    line-height: 1.1;
+    min-height: 48px;
+  }
+}
+
+@media (min-width: 900px) {
+  .ui-tabs--friends {
+    width: fit-content !important;
+    max-width: 100%;
+    margin-inline: auto;
   }
 }
 
