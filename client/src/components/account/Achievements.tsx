@@ -151,6 +151,8 @@ export function AchievementMedal({ id, level, size = 48 }: { id: string; level: 
   const locked = !tier;
   const color = achievementLevelColor(level);
   const art = size * 1.34;
+  // The Immortal crest has a much smaller centre disc than the other medals.
+  const iconSize = Math.round(size * (tier === 'immortal' ? 0.22 : 0.34));
   return (
     <span aria-hidden="true" className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
       <img
@@ -168,7 +170,7 @@ export function AchievementMedal({ id, level, size = 48 }: { id: string; level: 
         }}
       />
       <Icon
-        size={Math.round(size * 0.34)}
+        size={iconSize}
         strokeWidth={2.3}
         className="relative"
         style={{
