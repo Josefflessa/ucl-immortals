@@ -320,7 +320,7 @@ export default function AccountHeader() {
           <section
             role="status"
             aria-label="Bônus de fim de semana: moedas em dobro ao concluir competições"
-            className="relative isolate mx-auto flex w-full max-w-[1280px] items-center gap-2.5 overflow-hidden rounded-2xl border border-[var(--ui-brand)]/45 bg-gradient-to-r from-[var(--ui-brand)]/10 via-[var(--ui-surface)] to-[var(--ui-brand)]/5 px-2.5 py-3 shadow-[0_8px_28px_rgba(234,199,68,0.08)] sm:gap-4 sm:px-4 sm:py-3.5"
+            className="relative isolate mx-auto flex w-full max-w-[1280px] items-center gap-2.5 overflow-hidden rounded-2xl border border-[var(--ui-brand)]/45 bg-gradient-to-r from-[var(--ui-brand)]/10 via-[var(--ui-surface)] to-[var(--ui-brand)]/5 px-4 py-3 shadow-[0_8px_28px_rgba(234,199,68,0.08)] sm:gap-4 sm:px-5 sm:py-3.5"
           >
             <span aria-hidden="true" className="absolute -right-8 -top-12 -z-10 size-36 rounded-full bg-[var(--ui-brand)]/10 blur-2xl" />
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-[var(--ui-brand)]/30 bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)] sm:size-11">
@@ -333,7 +333,7 @@ export default function AccountHeader() {
               <span className="block text-sm font-extrabold leading-tight text-[var(--ui-text)] sm:text-base">Moedas em dobro!</span>
               <span className="mt-0.5 block text-caption leading-snug text-[var(--ui-text-muted)] sm:text-xs">Conclua competições e ganhe o dobro.</span>
             </span>
-            <span className="inline-flex h-12 w-14 shrink-0 flex-col items-center justify-center rounded-xl border border-[var(--ui-brand-strong)] bg-[var(--ui-brand-strong)] px-1 text-[var(--ui-bg)] shadow-[0_3px_12px_rgba(232,200,74,0.22)] sm:h-14 sm:w-16">
+            <span className="inline-flex h-12 w-16 shrink-0 flex-col items-center justify-center rounded-xl border border-[var(--ui-brand-strong)] bg-[var(--ui-brand-strong)] px-2 text-[var(--ui-bg)] shadow-[0_3px_12px_rgba(232,200,74,0.22)] sm:h-14 sm:w-[4.5rem]">
               <span className="font-display text-2xl font-black leading-none sm:text-[1.7rem]">×2</span>
               <span className="mt-1 text-micro font-black uppercase leading-none tracking-[0.1em] sm:text-micro">moedas</span>
             </span>
