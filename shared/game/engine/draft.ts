@@ -42,7 +42,7 @@ export function martirDistributionLimit(wins: number | undefined): number {
   return MARTIR_INITIAL_DISTRIBUTION + Math.max(0, Math.floor(wins ?? 0)) * MARTIR_DISTRIBUTION_PER_WIN;
 }
 export const DECIMO_HOMEM_STAT_BOOST = 1; // 12º Homem: +1 em tudo para o XI quando está no banco
-export const DECIMO_HOMEM_CHEM_BONUS = 8; // 12º Homem: +8 de química geral enquanto fica no banco
+export const DECIMO_HOMEM_CHEM_BONUS = 5; // 12º Homem: +5 de química geral enquanto fica no banco
 export const CORINGA_SECONDARY_STAT_BOOST = 1; // Coringa: +1 em tudo por titular em posição secundária
 export const CORINGA_OOP_STAT_BOOST = 2; // Coringa: +2 em tudo por titular fora de posição
 export const MAGNATA_STAT_PENALTY = 7;     // 🤑 Magnata: −7 em todos os atributos (nele mesmo)
@@ -59,8 +59,8 @@ export function magnataPointMultiplier(starters: (Player | undefined)[]): number
 }
 // 🍿 Pipoqueiro — o anti-Pilar: brilha na fase de liga, "pipoca" (some) no mata-mata. Aplicado em
 // RUNTIME (depende de context.isKnockout), por isso NÃO é assado no stat base como o Em Alta/Lobo.
-export const PIPOQUEIRO_LEAGUE_BOOST = 7;   // +7 em cada atributo na FASE DE LIGA
-export const PIPOQUEIRO_KO_PENALTY = 7;     // −7 em cada atributo no MATA-MATA
+export const PIPOQUEIRO_LEAGUE_BOOST = 2;   // +2 permanente em cada atributo por jogo como titular na FASE DE LIGA
+export const PIPOQUEIRO_KO_PENALTY = 2;     // −2 permanente em cada atributo por jogo como titular no MATA-MATA
 // 🛟 Noé — se titular, +2 em tudo ao Noé e +2 na química geral por jogador titular SEM característica (ele "põe
 // todo mundo na arca"). Com 10 companheiros sem característica: +20/+20. Efeitos em
 // computeCharacteristicBoosts (atributos) e calculateChemistry (química).
@@ -128,6 +128,12 @@ export const MIDIATICO_CREDITS_PER_GOAL = 20;
 /** Returns Apostador's permanent all-attribute bonus from winning bets. */
 export function apostadorStatBoost(wins: number | undefined): number {
   return Math.max(0, Math.floor(wins ?? 0)) * APOSTADOR_STAT_BOOST_PER_WIN;
+}
+
+/** 🍿 Pipoqueiro: net all-attribute bonus from starts so far (+ per league start, − per knockout start). Can go negative. */
+export function pipoqueiroStatBoost(player: { pipoqueiroLeagueStarts?: number; pipoqueiroKoStarts?: number }): number {
+  return Math.max(0, Math.floor(player.pipoqueiroLeagueStarts ?? 0)) * PIPOQUEIRO_LEAGUE_BOOST
+    - Math.max(0, Math.floor(player.pipoqueiroKoStarts ?? 0)) * PIPOQUEIRO_KO_PENALTY;
 }
 
 /** Returns the permanent all-attribute bonus earned by Prodígio so far. */
@@ -491,6 +497,7 @@ export function applyShopVariant(
     };
   }
   if (variant === 'prodigio') return { ...player, prodigio: true, prodigioStarts: 0 };
+  if (variant === 'pipoqueiro') return { ...player, pipoqueiro: true, pipoqueiroLeagueStarts: 0, pipoqueiroKoStarts: 0 };
   if (variant === 'resiliente') return { ...player, resiliente: true, resilienteDefeats: player.resilienteDefeats ?? 0 };
   if (variant === 'goleador') return { ...player, goleador: true, goleadorGoals: Math.max(0, competitionStats.goals ?? 0), goleadorMatchIds: [] };
   if (variant === 'garcom') return { ...player, garcom: true, garcomAssists: Math.max(0, competitionStats.assists ?? 0), garcomMatchIds: [] };
@@ -548,6 +555,7 @@ export function stripVariant<T extends Player>(player: T): T {
   delete p.inForm; delete p.lobo; delete p.coringa; delete p.nomade; delete p.pilar;
   delete p.martir; delete p.martirProgressive; delete p.martirWins; delete p.martirMatchIds; delete p.martirTargets; delete p.martirDistribution; delete p.idolo; delete p.decimoHomem; delete p.pipoqueiro;
   delete p.noe; delete p.forasteiro; delete p.colecionador; delete p.estribado; delete p.todosPorUm; delete p.capitaoNato; delete p.magnata; delete p.fragil; delete p.fragilProgressive; delete p.fragilRecoveries; delete p.fragilRecovered; delete p.prodigio; delete p.prodigioStarts;
+  delete p.pipoqueiroLeagueStarts; delete p.pipoqueiroKoStarts;
   delete p.resiliente; delete p.resilienteDefeats; delete p.goleador; delete p.goleadorGoals; delete p.goleadorMatchIds;
   delete p.garcom; delete p.garcomAssists; delete p.garcomMatchIds; delete p.arrogante; delete p.arroganteGoals; delete p.arroganteMatchIds;
   delete p.mercenario; delete p.mercenarioMissions;
@@ -578,8 +586,10 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
     p.defending = clampStat(p.defending - d); p.physical = clampStat(p.physical - d);
     p.vision = clampStat(p.vision - d); p.composure = clampStat(p.composure - d);
     p.overall = clampStat(p.overall - d);
-    // baseOverall só faz sentido enquanto AINDA houver alguma variante baked ativa
-    const otherBaked = !!(p.inForm || p.lobo || (p.martir && !p.martirProgressive) || (p.fragil && !p.fragilProgressive) || p.magnata);
+    // baseOverall só faz sentido enquanto AINDA houver alguma variante baked ativa.
+    // A variante sendo removida ainda está em `p` aqui: ela não conta como "outra".
+    const has = (flag: VariantFlag) => flag !== variant && !!p[flag as keyof T];
+    const otherBaked = has('inForm') || has('lobo') || (has('martir') && !p.martirProgressive) || (has('fragil') && !p.fragilProgressive) || has('magnata');
     if (!otherBaked) delete p.baseOverall;
   }
   delete (p as unknown as Record<string, unknown>)[variant];
@@ -592,6 +602,7 @@ export function stripSpecificVariant<T extends Player>(player: T, variant: Varia
     }
   }
   if (variant === 'prodigio') delete p.prodigioStarts;
+  if (variant === 'pipoqueiro') { delete p.pipoqueiroLeagueStarts; delete p.pipoqueiroKoStarts; }
   if (variant === 'resiliente') delete p.resilienteDefeats;
   if (variant === 'goleador') { delete p.goleadorGoals; delete p.goleadorMatchIds; }
   if (variant === 'garcom') { delete p.garcomAssists; delete p.garcomMatchIds; }

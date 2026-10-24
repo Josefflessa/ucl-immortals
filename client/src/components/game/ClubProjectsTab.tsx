@@ -130,7 +130,7 @@ export default function ClubProjectsTab() {
             </p>
           </div>
         </div>
-        <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#242436] pt-3 text-xs font-bold tracking-wider text-[#77778A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#242436] pt-3 text-caption font-bold tracking-wide-caps text-[#77778A]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
           <span>{visibleProjectDefinitions.length} áreas de desenvolvimento</span>
           <span className="text-primary">{totalLevels}/{visibleProjectDefinitions.length * CLUB_PROJECT_LEVELS} níveis investidos</span>
         </div>
@@ -158,7 +158,7 @@ export default function ClubProjectsTab() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-balance text-xl font-black leading-none text-white sm:text-2xl" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{project.title}</h3>
-                    <span className="rounded-full px-2.5 py-1.5 text-[12px] font-black tracking-wider" style={{ background: `${project.color}18`, color: project.color, fontFamily: 'var(--font-game), sans-serif' }}>
+                    <span className="rounded-full px-2.5 py-1.5 text-caption font-black tracking-caps" style={{ background: `${project.color}18`, color: project.color, fontFamily: 'var(--font-game), sans-serif' }}>
                       NÍVEL {level}/{CLUB_PROJECT_LEVELS}
                     </span>
                   </div>
@@ -168,7 +168,7 @@ export default function ClubProjectsTab() {
 
               {expanded && <>
               <div id={detailsPanelId} className="mt-4 rounded-xl border border-[#242436] bg-[#0A0A14] p-3">
-                <div className="mb-2 flex items-center justify-between gap-2 text-xs font-black tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                <div className="mb-2 flex items-center justify-between gap-2 text-caption font-black tracking-wide-caps" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   <span className="text-[#77778A]">PROGRESSÃO</span>
                   <span style={{ color: project.color }}>{maxed ? 'MÁXIMO' : nextCost ? <>PRÓXIMO · <CoinIcon />{nextCost}</> : 'BASE'}</span>
                 </div>
@@ -186,7 +186,7 @@ export default function ClubProjectsTab() {
               </div>
 
               <div className="mt-auto flex min-h-[72px] flex-col gap-2 pt-3">
-                <span className="flex min-h-4 items-center text-xs font-black leading-4 tracking-wider text-[#626274]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                <span className="flex min-h-4 items-center text-caption font-black leading-4 tracking-wide-caps text-[#626274]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   {maxed ? 'PROJETO COMPLETO' : implemented ? 'PROJETO ATIVO' : 'ESTRUTURA PREPARADA'}
                 </span>
                 <div className="grid h-10 grid-cols-2 gap-2">
@@ -272,7 +272,7 @@ export default function ClubProjectsTab() {
                   </div>
                   {[{ title: 'TITULARES', color: '#22C55E', players: state.playerTeam.players.slice(0, 11) }, { title: 'BANCO / RESERVAS', color: '#818CF8', players: state.playerTeam.players.slice(11) }].map(group => group.players.length === 0 ? null : (
                     <div key={group.title}>
-                      <div className="mb-2 text-[13px] font-black tracking-widest" style={{ color: group.color }}>{group.title}</div>
+                      <div className="mb-2 text-caption font-black tracking-wide-caps" style={{ color: group.color }}>{group.title}</div>
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
                         {group.players.map(player => {
                           const cost = trainingCostForProject(trainingLevel, player.trainCount ?? 0);
@@ -342,7 +342,7 @@ export default function ClubProjectsTab() {
             <div className="flex min-w-0 items-start gap-3">
               <ProjectArt id={detailsProject.id} size={48} />
               <div className="min-w-0">
-                <div className="text-xs font-black tracking-widest text-[#9A9AAA]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                <div className="text-caption font-black tracking-wide-caps text-[#9A9AAA]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   PROGRESSÃO COMPLETA
                 </div>
                 <div className="mt-1 text-xl leading-tight sm:text-2xl font-black" style={{ color: detailsProject.color, fontFamily: 'var(--font-display), sans-serif' }}>
@@ -382,11 +382,11 @@ export default function ClubProjectsTab() {
                       }}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-sm font-black tracking-wider text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                        <span className="text-caption font-black tracking-wide-caps text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                           NÍVEL {levelNumber}
                         </span>
                         <span
-                          className="rounded-full px-2.5 py-1 text-[13px] font-black tracking-wider"
+                          className="rounded-full px-2.5 py-1 text-caption font-black tracking-caps"
                           style={{
                             color: isCurrent ? detailsProject.color : isCompleted ? '#34D399' : 'var(--ui-text-muted)',
                             background: isCurrent ? detailsProject.color + '18' : '#242436',
@@ -418,23 +418,23 @@ export default function ClubProjectsTab() {
             <div className="space-y-3" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
               <div className="flex items-center justify-between gap-2 rounded-xl border border-[#2A2A40] bg-[#0A0A14] px-3 py-2.5">
                 <div className="min-w-0">
-                  <div className="text-[12px] font-black tracking-widest text-[#7E7E92]">NÍVEL ATUAL</div>
+                  <div className="text-caption font-black tracking-wide-caps text-[#7E7E92]">NÍVEL ATUAL</div>
                   <div className="mt-0.5 text-xl font-black text-white">{selectedLevel}</div>
                 </div>
                 <span className="text-xl text-[var(--ui-text-faint)]" aria-hidden="true">→</span>
                 <div className="min-w-0 text-right">
-                  <div className="text-[12px] font-black tracking-widest text-[#7E7E92]">PRÓXIMO NÍVEL</div>
+                  <div className="text-caption font-black tracking-wide-caps text-[#7E7E92]">PRÓXIMO NÍVEL</div>
                   <div className="mt-0.5 text-xl font-black" style={{ color: selectedProject.color }}>{selectedNextLevel}</div>
                 </div>
               </div>
 
               <div className="rounded-xl border px-3 py-3" style={{ borderColor: selectedProject.color + '55', background: selectedProject.color + '0D' }}>
-                <div className="text-[12px] font-black tracking-widest" style={{ color: selectedProject.color }}>NOVO BENEFÍCIO</div>
+                <div className="text-caption font-black tracking-wide-caps" style={{ color: selectedProject.color }}>NOVO BENEFÍCIO</div>
                 <p className="mt-1.5 text-sm leading-relaxed text-[#D6D6E0]">{formatProjectCopy(selectedProject.id, selectedNextEffect)}</p>
               </div>
 
               <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/33 bg-primary/5 px-3 py-2.5">
-                <span className="text-[12px] font-black tracking-widest text-[#A7A7B8]">CUSTO DA EVOLUÇÃO</span>
+                <span className="text-caption font-black tracking-wide-caps text-[#A7A7B8]">CUSTO DA EVOLUÇÃO</span>
                 <strong className="shrink-0 text-base font-black text-brand-strong"><CoinIcon size={18} />{selectedCost}</strong>
               </div>
             </div>

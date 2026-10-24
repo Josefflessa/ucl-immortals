@@ -81,7 +81,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
             >
               <TabList className="ui-tabs--split-mobile">
               {([['mine', 'MEUS JOGOS'], ['rounds', 'RODADAS ANTERIORES']] as const).map(([id, label]) => (
-                <Tab key={id} value={id} className="text-xs">
+                <Tab key={id} value={id}>
                   {label}
                 </Tab>
               ))}
@@ -90,7 +90,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
 
             {resultsSubTab === 'mine' ? (
             <div className="space-y-2">
-            <div className="text-xs font-bold tracking-widest mb-3"
+            <div className="text-caption font-bold tracking-wide-caps mb-3"
               style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
               SEUS RESULTADOS ({playerResults.length} jogos disputados)
             </div>
@@ -119,7 +119,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                   >
                     {/* barra de resultado */}
                     <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: rc }} />
-                    <div className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                    <div className="text-caption font-black tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                       {historyMatchLabel(result, state.knockoutBracket, leagueFixtures)}
                     </div>
                     <div className="flex min-w-0 items-center gap-3">
@@ -131,7 +131,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                       <Crest crestId={oppCrest} name={oppName} size={30} />
                       {/* adversário + mando */}
                       <div className="flex-1 min-w-0">
-                        <div className="text-[12px] font-bold uppercase tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                        <div className="text-caption font-bold uppercase tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                           {isHome ? <><House {...INLINE_ICON} />Em casa</> : <><Plane {...INLINE_ICON} />Fora</>}
                         </div>
                         <div className="whitespace-normal break-words text-sm font-black leading-tight" style={{ color: 'var(--ui-text)', fontFamily: 'var(--font-game), sans-serif' }}>
@@ -190,7 +190,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                       );
                     })}
                   </div>
-                  <div className="text-xs font-bold tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                  <div className="text-caption font-bold tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                     RESULTADOS · {historyPeriod?.kind === 'league' ? `RODADA ${historyPeriod.round} DE ${leagueRounds}` : knockoutRoundLabel(historyPeriod?.koRound ?? '')}
                   </div>
 
@@ -205,7 +205,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                         return (
                           <div key={idx} className="rounded-xl p-3"
                             style={{ background: isPlayer ? 'linear-gradient(135deg,#14142a,#0b0b14)' : '#0F0F1A', border: `1px solid ${isPlayer ? '#c9a84c55' : 'var(--ui-surface-3)'}` }}>
-                            <div className="mb-2 text-center text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                            <div className="mb-2 text-center text-caption font-black tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                               RODADA {fixture.round}
                             </div>
                             <div className="flex items-center justify-between gap-2">
@@ -264,11 +264,11 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                           <div key={tie.id ?? tieIndex} className="space-y-2 rounded-xl p-3"
                             style={{ background: isPlayer ? 'linear-gradient(135deg,#14142a,#0b0b14)' : '#0F0F1A', border: `1px solid ${isPlayer ? '#c9a84c55' : 'var(--ui-surface-3)'}` }}>
                             <div className="flex items-center justify-between gap-2">
-                              <div className="text-[11px] font-black tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                              <div className="text-caption font-black tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                                 {phase}
                               </div>
                               {!singleLeg && tie.result && !koRoundHidden && (
-                                <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                                <div className="text-caption font-bold uppercase tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                                   AGREGADO
                                 </div>
                               )}
@@ -297,7 +297,7 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                                   const legAwayName = getTeamName(legAwayId);
                                   return (
                                     <div key={label} className="rounded-xl p-2.5" style={{ background: '#0B0B14', border: '1px solid #171725' }}>
-                                      <div className="mb-1.5 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                                      <div className="mb-1.5 text-center text-caption font-bold uppercase tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                                         {phase} · {label}
                                       </div>
                                       <div className="flex items-center justify-between gap-2">

@@ -6,18 +6,17 @@ import SoundControl from '../components/account/SoundControl';
 import AccountAvatar from '../components/account/AccountAvatar';
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { createPortal } from 'react-dom';
-import { Check, Gamepad2, Medal, Play, Trophy, Plus, LogIn, LibraryBig, Send, UserRound, Users } from 'lucide-react';
+import { Check, Plus, LogIn, Send, UserRound, Users } from 'lucide-react';
 import RoomOptionsMenu, { type RoomMenuAction } from '../components/game/RoomOptionsMenu';
 import AccountTabBar from '../components/account/AccountTabBar';
 import { useGame, type SavedSoloCampaign } from '../contexts/GameContext';
 import { useAccount, type FriendshipEntry } from '../contexts/AccountContext';
 import { DIFFICULTY_LEVELS } from '@shared/game/gameData';
 import { competitionFormatSummary, createCompetitionFormat } from '@shared/game/competition';
-import { isWeekendCompetitionCoinBonusActive } from '@shared/game/competitionRanking';
 import { cn } from '../lib/utils';
 import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, Input, Panel, StatusBanner } from '../design-system';
 import StyledName from '../components/account/StyledName';
+import HomeDashboard from '../components/home/HomeDashboard';
 
 const LOGO_URL = '/icons/logo_ucl.png';
 
@@ -75,20 +74,7 @@ export default function MenuPage() {
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
   const difficultyName = DIFFICULTY_LEVELS.find(level => level.id === state.difficulty)?.name ?? state.difficulty;
-  const weekendBonusActive = isWeekendCompetitionCoinBonusActive();
 
-  useEffect(() => {
-    if (menuMode !== 'selection') return;
-    const root = document.getElementById('root');
-    document.documentElement.classList.add('home-menu-scroll-lock');
-    document.body.classList.add('home-menu-scroll-lock');
-    root?.classList.add('home-menu-scroll-lock');
-    return () => {
-      document.documentElement.classList.remove('home-menu-scroll-lock');
-      document.body.classList.remove('home-menu-scroll-lock');
-      root?.classList.remove('home-menu-scroll-lock');
-    };
-  }, [menuMode]);
 
   useEffect(() => {
     // Reset only when the lobby is actually left. Including `menuMode` here
@@ -246,7 +232,7 @@ export default function MenuPage() {
             {/* Room Code Header */}
             <div className="flex items-center gap-3 pb-4 border-b" style={{ borderColor: 'var(--ui-surface-3)' }}>
               <div className="min-w-0 flex-1 text-center">
-                <span className="text-xs font-bold text-gray-500 tracking-widest block uppercase" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                <span className="text-caption font-bold text-gray-500 tracking-wide-caps block uppercase" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                   CÓDIGO DA SALA
                 </span>
                 <span className="text-4xl font-black text-yellow-500 tracking-wider block mt-1" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
@@ -288,7 +274,7 @@ export default function MenuPage() {
 
             {/* Players List */}
             <div className="my-4">
-              <span className="text-xs font-bold text-primary tracking-widest block uppercase mb-3" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+              <span className="text-caption font-bold text-primary tracking-wide-caps block uppercase mb-3" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 JOGADORES CONECTADOS ({state.onlinePlayers.length})
               </span>
               <div className="space-y-2">
@@ -326,7 +312,7 @@ export default function MenuPage() {
 
             {/* Host Options */}
             <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--ui-surface-3)' }}>
-              <span className="text-xs font-bold text-primary tracking-widest block uppercase" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+              <span className="text-caption font-bold text-primary tracking-wide-caps block uppercase" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 FORMATO DA COMPETIÇÃO
               </span>
               <p className="mt-1 text-body-sm leading-relaxed text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
@@ -334,7 +320,7 @@ export default function MenuPage() {
               </p>
               <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border px-3 py-2" style={{ background: '#08080f', borderColor: '#171725' }}>
                 <span className="text-label font-bold tracking-widest text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>DIFICULDADE DOS BOTS</span>
-                <span className="text-xs font-black uppercase tracking-wider text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{difficultyName}</span>
+                <span className="text-caption font-black uppercase tracking-wide-caps text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{difficultyName}</span>
               </div>
             </div>
 
@@ -465,15 +451,58 @@ export default function MenuPage() {
     );
   }
 
+  // Home: the dashboard (featured action, modes, progress). The room steps below keep their own layout.
+  if (menuMode === 'selection') {
+    return (
+      <AppShell>
+        {!account ? (
+          <div className="flex items-center justify-end gap-2 px-4 pt-4 sm:px-6 xl:hidden">
+            <SoundControl />
+            <Button type="button" intent="secondary" size="small" disabled={accountLoading} onClick={() => dispatch({ type: 'SET_PHASE', phase: 'account' })}>
+              <UserRound size={15} aria-hidden="true" /> Entrar
+            </Button>
+          </div>
+        ) : null}
+        <HomeDashboard
+          hasAccount={!!account}
+          busy={accountLoading || (!!account && soloCampaignSyncStatus === 'syncing')}
+          savedCampaign={savedSoloCampaign}
+          stageLabel={savedSoloCampaign ? soloCampaignStageLabel(savedSoloCampaign) : null}
+          onContinue={() => { void continueSoloCampaign(); }}
+          onNewCampaign={() => setSoloSaveConfirm('new')}
+          onPlaySolo={handlePlaySolo}
+          onOnline={() => setMenuMode('online')}
+          onAlbum={() => dispatch({ type: 'SET_PHASE', phase: 'album' })}
+          onAchievements={() => dispatch({ type: 'SET_PHASE', phase: 'achievements' })}
+          onEvents={() => dispatch({ type: 'SET_PHASE', phase: 'events' })}
+          onRankings={() => dispatch({ type: 'SET_ACCOUNT_SECTION', section: 'records' })}
+          onLogin={() => dispatch({ type: 'SET_PHASE', phase: 'account' })}
+        />
+        {account ? (
+          <AccountTabBar
+            active="home"
+            incomingFriendRequestCount={incomingFriendRequestCount}
+            onNavigate={tab => {
+              if (tab === 'home') return;
+              if (tab === 'store') { dispatch({ type: 'SET_PHASE', phase: 'store' }); return; }
+              dispatch({ type: 'SET_ACCOUNT_SECTION', section: tab });
+            }}
+          />
+        ) : null}
+        <ConfirmDialog
+          open={soloSaveConfirm === 'new'}
+          onOpenChange={open => { if (!open) setSoloSaveConfirm(null); }}
+          title="Começar nova campanha?"
+          description={`A campanha salva${savedSoloCampaign ? ` (${savedSoloCampaign.teamName})` : ''} será substituída pela nova.`}
+          confirmLabel="Começar nova"
+          onConfirm={() => { setSoloSaveConfirm(null); void discardSoloCampaign().then(handlePlaySolo); }}
+        />
+      </AppShell>
+    );
+  }
+
   return (
-    <AppShell immersive className={cn(
-      'relative overflow-hidden',
-      menuMode === 'selection' && 'home-menu-screen',
-      menuMode === 'selection' && account && 'home-menu-screen--account',
-      menuMode === 'selection' && account && state.phase === 'menu' && weekendBonusActive && 'home-menu-screen--account-weekend',
-      // Someone without an account has the guest bar on a wide screen: the screen is what is left under it.
-      menuMode === 'selection' && !account && 'xl:!h-[calc(100dvh-81px)]',
-    )}>
+    <AppShell immersive className="relative overflow-hidden">
 
       {/* Content */}
       {!account ? (
@@ -495,152 +524,19 @@ export default function MenuPage() {
 
       <div className={cn(
         'relative z-10 flex flex-col items-center px-4',
-        account && menuMode === 'selection' ? 'min-h-[calc(100dvh-72px)] pb-24 pt-6 sm:min-h-[calc(100dvh-80px)] sm:pt-8 xl:pb-8' : account ? 'min-h-dvh py-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24 xl:min-h-0 xl:pb-8 xl:pt-6',
-        menuMode === 'selection' && 'home-menu-screen__content lg:mx-auto lg:grid lg:w-full lg:max-w-[1100px] lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:grid-rows-[1fr_auto] lg:items-center lg:gap-x-14 lg:px-8',
-        menuMode === 'selection' && (account ? 'home-menu-screen__content--account' : 'home-menu-screen__content--guest'),
+        account ? 'min-h-dvh py-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24 xl:min-h-0 xl:pb-8 xl:pt-6',
       )}>
-        {/* Spacers keep the content centred and the signature in flow, so it never slides under the tab bar. */}
-        <div aria-hidden="true" className={cn('flex-1', menuMode === 'selection' && 'lg:hidden')} />
-
-        {/* The logo and title belong to the home screen; the room options stand alone. */}
-        {menuMode === 'selection' ? (
-          <div className="flex flex-col items-center lg:col-start-1 lg:row-start-1">
-          {/* Logo (herói) + título */}
-          <div className="flex flex-col items-center">
-            <div className="relative flex items-center justify-center">
-              <img src={LOGO_URL} alt="UCL Immortals" className="home-menu-screen__logo relative h-40 w-40 object-contain sm:h-52 sm:w-52 lg:h-[min(31dvh,18rem)] lg:w-[min(31dvh,18rem)]" style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))' }} />
-            </div>
-            <h1 className="home-menu-screen__heading mt-3 lg:mt-0 text-center font-display text-[clamp(2.8rem,11vw,4.6rem)] lg:text-[clamp(3rem,12dvh,6.75rem)] font-normal leading-[0.85] tracking-wider sm:mt-7">
-              <span className="block text-[var(--ui-brand-strong)]">UCL</span>
-              <span className="block text-[var(--ui-text)]">IMMORTALS</span>
-            </h1>
-          </div>
-
-          <div className="home-menu-screen__tagline mt-4 mb-7 lg:mb-0 lg:mt-5">
-            <div aria-hidden="true" className="h-px w-40 shrink-0 bg-[var(--ui-brand)] opacity-70 sm:w-56 lg:w-72" />
-          </div>
-          </div>
-        ) : null}
-
-        {/* A thin golden line between the brand and the actions (wide screens only). */}
-        {menuMode === 'selection' ? (
-          <div aria-hidden="true" className="hidden h-[min(46dvh,22rem)] w-px bg-gradient-to-b from-transparent via-[var(--ui-brand)]/40 to-transparent lg:col-start-2 lg:row-start-1 lg:block" />
-        ) : null}
+        <div aria-hidden="true" className="flex-1" />
 
         {/* Dynamic Mode Forms */}
-        <div className={cn('flex w-full justify-center', menuMode === 'selection' && 'lg:col-start-3 lg:row-start-1')}>
-          {menuMode === 'selection' && (
-            <div className="home-menu-screen__actions mb-5 flex w-full max-w-xs flex-col gap-3 sm:mb-8 lg:mb-0 lg:max-w-[30rem] lg:gap-4">
-              <Button
-                type="button"
-                intent="primary"
-                size="large"
-                onClick={() => (savedSoloCampaign ? setSoloSaveConfirm('choose') : handlePlaySolo())}
-                disabled={accountLoading || (!!account && soloCampaignSyncStatus === 'syncing')}
-                className="w-full lg:min-h-[4.75rem]"
-              >
-                <span className="flex flex-col items-center justify-center leading-tight">
-                  <span className="inline-flex items-center justify-center gap-2.5">
-                    <Gamepad2 size={22} strokeWidth={2.5} /> JOGAR SOLO
-                  </span>
-                  {savedSoloCampaign ? (
-                    <span className="mt-0.5 max-w-full truncate text-label font-semibold normal-case tracking-normal opacity-80" style={{ fontFamily: "var(--font-ui), sans-serif" }}>
-                      Campanha salva · {savedSoloCampaign.teamName || soloCampaignStageLabel(savedSoloCampaign)}
-                    </span>
-                  ) : null}
-                </span>
-              </Button>
-
-              <Button
-                type="button"
-                intent="secondary"
-                size="large"
-                onClick={() => setMenuMode('online')}
-                className="w-full lg:min-h-[4.75rem]"
-              >
-                <span className="inline-flex items-center justify-center gap-2.5">
-                  <Trophy size={22} strokeWidth={2.5} /> MULTIPLAYER ONLINE
-                </span>
-              </Button>
-
-              {/* Accounts also get their achievements next to the album. */}
-              <div className={cn('grid w-full gap-2', account ? 'grid-cols-2' : 'grid-cols-1')}>
-                <Button
-                  type="button"
-                  intent="ghost"
-                  onClick={() => dispatch({ type: 'SET_PHASE', phase: 'album' })}
-                  className="w-full min-w-0 border border-[var(--ui-line-subtle)] px-2 lg:min-h-[3.75rem] lg:text-base"
-                >
-                  <span className="inline-flex min-w-0 items-center justify-center gap-2">
-                    <LibraryBig size={16} strokeWidth={2.5} className="shrink-0" />
-                    {account ? 'ÁLBUM' : 'CATÁLOGO'}
-                  </span>
-                </Button>
-                {account ? (
-                  <Button
-                    type="button"
-                    intent="ghost"
-                    onClick={() => dispatch({ type: 'SET_PHASE', phase: 'achievements' })}
-                    className="w-full min-w-0 border border-[var(--ui-line-subtle)] px-2 lg:min-h-[3.75rem] lg:text-base"
-                  >
-                    <span className="inline-flex min-w-0 items-center justify-center gap-2">
-                      <Medal size={16} strokeWidth={2.5} className="shrink-0" /> CONQUISTAS
-                    </span>
-                  </Button>
-                ) : null}
-              </div>
-
-              {account ? <AccountTabBar
-                active="home"
-                incomingFriendRequestCount={incomingFriendRequestCount}
-                onNavigate={tab => {
-                  if (tab === 'home') return;
-                  if (tab === 'store') {
-                    dispatch({ type: 'SET_PHASE', phase: 'store' });
-                    return;
-                  }
-                  dispatch({ type: 'SET_ACCOUNT_SECTION', section: tab });
-                }}
-              /> : null}
-            </div>
-          )}
-
-          <ConfirmDialog
-            open={soloSaveConfirm === 'new'}
-            onOpenChange={open => { if (!open) setSoloSaveConfirm(null); }}
-            title="Começar nova campanha?"
-            description={`A campanha salva${savedSoloCampaign ? ` (${savedSoloCampaign.teamName})` : ''} será substituída pela nova.`}
-            confirmLabel="Começar nova"
-            onConfirm={() => { setSoloSaveConfirm(null); void discardSoloCampaign().then(handlePlaySolo); }}
-          />
-          <GameModal
-            open={soloSaveConfirm === 'choose'}
-            onOpenChange={open => { if (!open) setSoloSaveConfirm(null); }}
-            title="JOGAR SOLO"
-            subtitle={savedSoloCampaign ? `Campanha salva: ${savedSoloCampaign.teamName ? `${savedSoloCampaign.teamName} · ` : ''}${soloCampaignStageLabel(savedSoloCampaign)}` : undefined}
-            footer={(
-              <div className="flex w-full flex-col gap-1.5 sm:flex-row sm:justify-end">
-                <Button type="button" intent="secondary" onClick={() => setSoloSaveConfirm('new')}>
-                  Nova campanha
-                </Button>
-                <Button type="button" intent="primary" onClick={() => { setSoloSaveConfirm(null); void continueSoloCampaign(); }}>
-                  <span className="inline-flex items-center gap-2"><Play size={16} strokeWidth={2.5} /> Continuar campanha</span>
-                </Button>
-              </div>
-            )}
-          >
-            <p className="text-sm text-[var(--ui-text-soft)]">
-              Continue de onde parou ou comece uma campanha nova. Começar uma nova substitui a campanha salva.
-            </p>
-          </GameModal>
-
+        <div className="flex w-full justify-center">
           {menuMode === 'online' && (
             <div
               className="w-full max-w-xs space-y-4 lg:max-w-sm"
             >
               {!account ? (
                 <div>
-                  <label className="block text-xs font-bold mb-2 tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                  <label className="mb-2 block text-caption font-bold tracking-wide-caps text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                     SEU NOME
                   </label>
                   <Input
@@ -658,7 +554,7 @@ export default function MenuPage() {
               {!account ? (
                 <Panel tone="inset" className="space-y-3 p-3">
                   <div>
-                    <div className="text-xs font-bold tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                    <div className="text-caption font-bold tracking-wide-caps text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                       CONFIGURAÇÃO DA PARTIDA
                     </div>
                     <p className="mt-1 text-body-sm leading-relaxed text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
@@ -713,7 +609,7 @@ export default function MenuPage() {
             >
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold mb-1 tracking-widest text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                  <label className="mb-1 block text-caption font-bold tracking-wide-caps text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                     CÓDIGO DA SALA (4 LETRAS)
                   </label>
                   <Input
@@ -750,21 +646,7 @@ export default function MenuPage() {
           )}
         </div>
 
-        <div aria-hidden="true" className={cn('flex-1', menuMode === 'selection' && 'lg:hidden')} />
-        {/* The credit belongs to the home screen only, not to the solo/online setup steps. */}
-        {menuMode === 'selection' && (
-          <>
-            <footer className="home-menu-screen__footer pointer-events-none hidden justify-center pt-8 lg:col-span-3 lg:row-start-2 xl:flex">
-              <span className="text-label font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75" style={{ fontFamily: 'var(--font-game), sans-serif' }}>by J.Lessa</span>
-            </footer>
-            {createPortal(
-              <footer className="home-menu-screen__footer home-menu-screen__footer--mobile pointer-events-none flex justify-center xl:hidden">
-                <span className="text-label font-bold tracking-[0.18em] text-[var(--ui-text-muted)] opacity-75" style={{ fontFamily: 'var(--font-game), sans-serif' }}>by J.Lessa</span>
-              </footer>,
-              document.body,
-            )}
-          </>
-        )}
+        <div aria-hidden="true" className="flex-1" />
       </div>
 
 

@@ -22,7 +22,7 @@ import { INLINE_ICON } from './inlineIcon';
 function Stepper({ label, value, set, max }: { label: string; value: number; set: (n: number) => void; max: number }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="max-w-[110px] truncate text-[12px] font-black tracking-widest text-gray-400" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{label}</span>
+      <span className="max-w-[110px] truncate text-caption font-black tracking-wide-caps text-gray-400" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{label}</span>
       <div className="flex items-center gap-2">
         <button type="button" onClick={() => set(Math.max(0, value - 1))} className="ui-icon-btn" aria-label={`Diminuir ${label}`}>−</button>
         <span className="w-8 text-center text-2xl font-black tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#FFF' }}>{value}</span>
@@ -167,7 +167,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
       className="max-w-2xl max-h-[92dvh]"
       bodyClassName="ui-stack"
     >
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 border-b border-[var(--ui-border)] pb-3 text-center text-[12px] font-bold tracking-widest leading-tight text-[var(--ui-text-faint)]">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 border-b border-[var(--ui-border)] pb-3 text-center text-caption font-bold tracking-wide-caps leading-tight text-[var(--ui-text-faint)]">
             <div className="min-w-0">
               <span className="block">MANDANTE</span>
               <span className="mt-1 block break-words text-xs font-black tracking-normal text-[var(--ui-text-muted)]">{homeName}</span>
@@ -181,7 +181,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
 
           <section className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-3" aria-labelledby="bet-markets-title">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 id="bet-markets-title" className="text-[13px] font-black tracking-widest text-[var(--ui-text)]">MERCADOS DO BILHETE</h3>
+              <h3 id="bet-markets-title" className="text-caption font-black tracking-wide-caps text-[var(--ui-text)]">MERCADOS DO BILHETE</h3>
               <span className="text-[12px] font-bold text-[var(--ui-text-faint)]">{selections.length}/{BET_BUILDER_MAX_SELECTIONS} condições</span>
             </div>
 
@@ -189,7 +189,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
               <div className="rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div>
-                    <div className="text-[12px] font-black tracking-widest text-[var(--ui-text-faint)]">PLACAR EXATO</div>
+                    <div className="text-caption font-black tracking-wide-caps text-[var(--ui-text-faint)]">PLACAR EXATO</div>
                     <div className="mt-0.5 text-[13px] text-[var(--ui-text-muted)]">Só entra no bilhete se você ativar.</div>
                   </div>
                   <button type="button" aria-pressed={!!exactSelection} onClick={toggleExactScore}
@@ -207,7 +207,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
               </div>
 
               <div>
-                <div className="mb-1.5 text-[12px] font-black tracking-widest text-[var(--ui-text-faint)]">RESULTADO</div>
+                <div className="mb-1.5 text-caption font-black tracking-wide-caps text-[var(--ui-text-faint)]">RESULTADO</div>
                 <div className="grid grid-cols-3 gap-2">
                   <Choice label="Mandante vence" active={selections.some(selection => sameSelection(selection, { type: 'outcome', value: 'home' }))} disabled={!canAddMarket('outcome')} onClick={() => choose({ type: 'outcome', value: 'home' })} />
                   <Choice label="Empate" active={selections.some(selection => sameSelection(selection, { type: 'outcome', value: 'draw' }))} disabled={!canAddMarket('outcome')} onClick={() => choose({ type: 'outcome', value: 'draw' })} />
@@ -216,7 +216,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
               </div>
 
               <div>
-                <div className="mb-1.5 text-[12px] font-black tracking-widest text-[var(--ui-text-faint)]">TOTAL DE GOLS</div>
+                <div className="mb-1.5 text-caption font-black tracking-wide-caps text-[var(--ui-text-faint)]">TOTAL DE GOLS</div>
                 <select value={totalGoalsSelection ? `${totalGoalsSelection.operator}:${totalGoalsSelection.line}` : ''}
                   onChange={event => updateTotalGoals(event.target.value)} disabled={!canAddMarket('total_goals')}
                   className="ui-input w-full cursor-pointer text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
@@ -232,7 +232,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
               </div>
 
               <div>
-                <div className="mb-1.5 text-[12px] font-black tracking-widest text-[var(--ui-text-faint)]">TOTAL DE CARTÕES</div>
+                <div className="mb-1.5 text-caption font-black tracking-wide-caps text-[var(--ui-text-faint)]">TOTAL DE CARTÕES</div>
                 <select value={totalCardsSelection ? `${totalCardsSelection.operator}:${totalCardsSelection.line}` : ''}
                   onChange={event => updateTotalCards(event.target.value)} disabled={!canAddMarket('total_cards')}
                   className="ui-input w-full cursor-pointer text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
@@ -249,7 +249,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
               </div>
 
               <div>
-                <div className="mb-1.5 text-[12px] font-black tracking-widest text-[var(--ui-text-faint)]">AMBAS MARCAM</div>
+                <div className="mb-1.5 text-caption font-black tracking-wide-caps text-[var(--ui-text-faint)]">AMBAS MARCAM</div>
                 <div className="grid grid-cols-2 gap-2">
                   <Choice label="Sim" active={selections.some(selection => sameSelection(selection, { type: 'both_score', value: true }))} disabled={!canAddMarket('both_score')} onClick={() => choose({ type: 'both_score', value: true })} />
                   <Choice label="Não" active={selections.some(selection => sameSelection(selection, { type: 'both_score', value: false }))} disabled={!canAddMarket('both_score')} onClick={() => choose({ type: 'both_score', value: false })} />
@@ -259,7 +259,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
           </section>
 
           <div className="rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] px-3 py-2.5">
-            <div className="mb-1 flex items-center justify-between gap-2 text-[12px] font-black tracking-widest text-[var(--ui-text-faint)]">
+            <div className="mb-1 flex items-center justify-between gap-2 text-caption font-black tracking-wide-caps text-[var(--ui-text-faint)]">
               <span>SELEÇÕES</span><span>{selections.length === 1 ? '1 condição' : `${selections.length} condições`}</span>
             </div>
             <div className="text-[13px] leading-relaxed text-[var(--ui-text-muted)]">
@@ -274,7 +274,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
             )}
             {builderMultiplier != null && (
               <div className="mt-2 flex justify-center">
-                <span className="inline-flex items-center rounded-full border border-[var(--ui-success)]/35 bg-[var(--ui-success)]/10 px-3 py-1 text-[13px] font-black uppercase tracking-wider text-[var(--ui-success)]">
+                <span className="inline-flex items-center rounded-full border border-[var(--ui-success)]/35 bg-[var(--ui-success)]/10 px-3 py-1 text-caption font-black uppercase tracking-caps text-[var(--ui-success)]">
                   Multiplicador: {builderMultiplier.toFixed(2)}×
                 </span>
               </div>
@@ -282,7 +282,7 @@ export default function BetSlipModal({ homeName, awayName, existing, remainingCa
           </div>
 
           <div>
-            <div className="mb-1 flex items-center justify-between gap-3 text-[12px] font-bold tracking-widest text-[var(--ui-text-faint)]">
+            <div className="mb-1 flex items-center justify-between gap-3 text-caption font-bold tracking-wide-caps text-[var(--ui-text-faint)]">
               <span>VALOR APOSTADO</span><span className="whitespace-nowrap">limite da rodada: {remainingCap} · saldo: {points}</span>
             </div>
             <input type="number" min={1} max={maxStake} value={stake}

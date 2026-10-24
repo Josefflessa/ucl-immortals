@@ -40,7 +40,6 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                   <Tab
                     key={id}
                     value={id}
-                    className="text-xs"
                   >
                     <span className="inline-flex items-center gap-2"><Icon size={15} /> {label}</span>
                   </Tab>
@@ -59,13 +58,13 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
             <div key={statsSubTab} className="rounded-xl overflow-hidden border border-[var(--ui-surface-3)]" style={{ background: 'var(--ui-surface-1)' }}>
               {/* Header label */}
               <div className="px-5 py-4 border-b border-[var(--ui-surface-3)] bg-[var(--ui-bg-raised)] flex justify-between items-center">
-                <span className="text-sm font-black tracking-widest text-[var(--ui-text-faint)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                <span className="ui-section-label">
                   {statsSubTab === 'goals' && 'ARTILHARIA DO CAMPEONATO'}
                   {statsSubTab === 'assists' && 'LÍDERES EM ASSISTÊNCIAS'}
-                  {statsSubTab === 'ratings' && 'MELHORES NOTAS DA TEMPORADA (MÍN. 3 JOGOS)'}
+                  {statsSubTab === 'ratings' && 'MELHORES NOTAS DA COMPETIÇÃO (MÍN. 3 JOGOS)'}
                   {statsSubTab === 'keepers' && 'GOLEIROS COM MAIS DEFESAS REALIZADAS'}
                   {statsSubTab === 'tackles' && 'LÍDERES EM DESARMES DO CAMPEONATO'}
-                  {statsSubTab === 'cards' && 'DISCIPLINA — MAIS CARTÕES DA TEMPORADA'}
+                  {statsSubTab === 'cards' && 'DISCIPLINA — MAIS CARTÕES DA COMPETIÇÃO'}
                 </span>
               </div>
 
@@ -141,10 +140,10 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
 
                           {/* Player details */}
                           <div className="flex-1 min-w-0">
-                            <div className="whitespace-normal break-words text-base font-black leading-tight text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                            <div className="whitespace-normal break-words text-body font-black leading-tight text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                               {player.shortName}
                             </div>
-                            <div className="mt-1 min-w-0 space-y-1 text-sm font-semibold text-[var(--ui-text-faint)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                            <div className="mt-1 min-w-0 space-y-1 text-label font-semibold text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                               <div>
                                 <span className="inline-flex shrink-0 rounded-md px-2 py-0.5 text-xs font-black text-white" style={{ background: '#222' }}>
                                   {POS_PT[player.position] ?? player.position}
@@ -168,7 +167,7 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
                             }}>
                               {metricVal}
                             </div>
-                            <div className="max-w-[88px] whitespace-normal break-words text-xs font-black uppercase leading-tight tracking-wider text-[var(--ui-text-muted)] sm:max-w-none sm:text-sm" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                            <div className="max-w-[88px] whitespace-normal break-words text-caption font-black uppercase leading-tight tracking-wide-caps text-[var(--ui-text-muted)] sm:max-w-none" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                               {metricLabel}
                             </div>
                           </div>

@@ -24,8 +24,8 @@ export default function CoachCard({ coach, formation, isPrime = false, primePhot
     <div className={bare ? '' : 'rounded-xl overflow-hidden'} style={bare ? undefined : { background: '#0F0F1A', border: `1px solid ${isPrime ? '#C9A84C55' : '#1A1A2A'}` }}>
       {showHeader && (
         <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: 'var(--ui-surface-3)', background: '#0A0A12' }}>
-          <span className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}><GraduationCap {...INLINE_ICON} />TREINADOR</span>
-          <span className="text-[11px] font-bold tracking-wider" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>COMANDO DO TIME</span>
+          <span className="text-caption font-black tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}><GraduationCap {...INLINE_ICON} />TREINADOR</span>
+          <span className="text-caption font-bold tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>COMANDO DO TIME</span>
         </div>
       )}
       <div className="p-4 flex gap-3.5">
@@ -49,13 +49,13 @@ export default function CoachCard({ coach, formation, isPrime = false, primePhot
       </div>
       <div className="px-4 pb-4 space-y-2">
         <div className="rounded-lg px-3 py-2" style={{ background: '#0A0A12', border: '1px solid var(--ui-surface-3)' }}>
-          <div className="text-xs font-black tracking-widest mb-1" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}><Zap {...INLINE_ICON} fill="currentColor" />BÔNUS BASE</div>
+          <div className="text-caption font-black tracking-wide-caps mb-1" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}><Zap {...INLINE_ICON} fill="currentColor" />BÔNUS BASE</div>
           <div className="space-y-1 text-sm leading-snug" style={{ color: '#C9C9D5', fontFamily: 'var(--font-game), sans-serif' }}>
             {baseDescription.map((line, index) => <p key={index}>{line}</p>)}
           </div>
         </div>
         <div className="rounded-lg px-3 py-2" style={{ background: '#0A0A12', border: '1px solid #2A2A4A' }}>
-          <div className="text-xs font-black tracking-widest mb-1" style={{ color: isPrime ? 'var(--ui-brand-strong)' : '#A78BFA', fontFamily: 'var(--font-game), sans-serif' }}><Sparkles {...INLINE_ICON} />HABILIDADE{isPrime ? ' PRIME' : ''}: {abilityName?.toUpperCase()}</div>
+          <div className="text-caption font-black tracking-wide-caps mb-1" style={{ color: isPrime ? 'var(--ui-brand-strong)' : '#A78BFA', fontFamily: 'var(--font-game), sans-serif' }}><Sparkles {...INLINE_ICON} />HABILIDADE{isPrime ? ' PRIME' : ''}: {abilityName?.toUpperCase()}</div>
           <div className="text-sm leading-snug" style={{ color: '#C9C9D5', fontFamily: 'var(--font-game), sans-serif' }}>{abilityDescription}</div>
         </div>
         {coach.preferredFormation && (

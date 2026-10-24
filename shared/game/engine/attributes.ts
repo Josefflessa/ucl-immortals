@@ -8,7 +8,7 @@ import { type PlayerCard, type Team, type MatchResult, type KickoffCardState, KI
 import { samePrimaryPosition } from '../positions';
 import { getCoachModifiersForPlayer, calculateChemistry, type CharBoostMap } from './chemistry';
 import { tacticStatBonus } from './matchSim';
-import { PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, fragilStatBoost, estribadoStatBoost, ESTRIBADO_CREDITS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, mercenarioStatBoost, padrinhoStatBoost, apostadorStatBoost } from './draft';
+import { pipoqueiroStatBoost, fragilStatBoost, estribadoStatBoost, ESTRIBADO_CREDITS_PER_BOOST, RESILIENTE_DEFEAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, mercenarioStatBoost, padrinhoStatBoost, apostadorStatBoost } from './draft';
 
 // ============================================================
 // ATTRIBUTE RESOLVER
@@ -132,8 +132,8 @@ export function getEffectiveAttribute(
     base += projectBonus;
   }
 
-  // 🍿 Pipoqueiro — brilha na fase de liga (+N em tudo), some no mata-mata (−N em tudo).
-  if (player.pipoqueiro) base += context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST;
+  // 🍿 Pipoqueiro — acumulado: +N por jogo como titular na fase de liga, −N por jogo como titular no mata-mata.
+  if (player.pipoqueiro) base += pipoqueiroStatBoost(player);
 
   return Math.max(1, base);
 }
@@ -330,6 +330,9 @@ export function bumpStarterAppearances(
       ...player,
       appearances: (player.appearances ?? 0) + 1,
       ...(player.prodigio && countsAsStart ? { prodigioStarts: (player.prodigioStarts ?? 0) + 1 } : {}),
+      // 🍿 Pipoqueiro: the match key tells the phase (L… = fase de liga/grupos, K… = mata-mata).
+      ...(player.pipoqueiro && countsAsStart && appearanceMatchId?.startsWith('L') ? { pipoqueiroLeagueStarts: (player.pipoqueiroLeagueStarts ?? 0) + 1 } : {}),
+      ...(player.pipoqueiro && countsAsStart && appearanceMatchId?.startsWith('K') ? { pipoqueiroKoStarts: (player.pipoqueiroKoStarts ?? 0) + 1 } : {}),
     };
     const nextEvolutionLevel = getEvolutionLevel(next);
     const previousPointLevel = Math.min(EVOLVE_POINT_LEVELS, previousEvolutionLevel);

@@ -88,7 +88,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
               const blocking = outs.some(p => inXI.has(p.id));
               return (
                 <div className="rounded-xl px-4 py-3 mb-1" style={{ background: blocking ? '#241010' : '#1a0e0e', border: `1px solid ${blocking ? '#EF444488' : '#7f1d1d66'}` }}>
-                  <div className="text-[13px] font-black tracking-widest mb-2" style={{ color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}><TriangleAlert {...INLINE_ICON} />DESFALQUES</div>
+                  <div className="text-caption font-black tracking-wide-caps mb-2" style={{ color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}><TriangleAlert {...INLINE_ICON} />DESFALQUES</div>
                   <div className="flex flex-col gap-1.5">
                     {outs.map(p => {
                       const a = state.discipline[`${playerTeam.id}:${p.id}`];
@@ -100,12 +100,12 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                         <div key={p.id} className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm leading-none">{suspended ? <CardIcon color="red" /> : <InjuryIcon />}</span>
                           <span className="text-[12px] font-bold" style={{ color: isIn ? '#FCA5A5' : '#C8B0B0', fontFamily: 'var(--font-game), sans-serif' }}>{p.shortName}</span>
-                          <span className="text-[12px] font-black px-1.5 py-0.5 rounded tracking-wider" style={{ background: suspended ? '#EF444422' : '#3B82F622', color: suspended ? '#F87171' : '#93C5FD', fontFamily: 'var(--font-game), sans-serif' }}>
+                          <span className="text-caption font-black px-1.5 py-0.5 rounded tracking-caps" style={{ background: suspended ? '#EF444422' : '#3B82F622', color: suspended ? '#F87171' : '#93C5FD', fontFamily: 'var(--font-game), sans-serif' }}>
                             {suspended ? 'SUSPENSO' : 'LESIONADO'}
                           </span>
                           <span className="text-[13px] font-semibold" style={{ color: '#9A8080', fontFamily: 'var(--font-game), sans-serif' }}>fora por <b style={{ color: '#C8B0B0' }}>{gamesTxt}</b></span>
                           {isIn && (
-                            <span className="text-[12px] font-black px-1.5 py-0.5 rounded tracking-wider" style={{ background: 'var(--ui-danger)', color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>
+                            <span className="text-caption font-black px-1.5 py-0.5 rounded tracking-caps" style={{ background: 'var(--ui-danger)', color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>
                               <TriangleAlert {...INLINE_ICON} />ESCALADO — TROQUE
                             </span>
                           )}
@@ -122,7 +122,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
 
             {reserveLimitExceeded && (
               <div className="rounded-xl px-4 py-3 mb-1" style={{ background: '#241010', border: '1px solid #EF444488' }}>
-                <div className="text-[13px] font-black tracking-widest mb-1" style={{ color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}><Ban {...INLINE_ICON} />BANCO ACIMA DO LIMITE</div>
+                <div className="text-caption font-black tracking-wide-caps mb-1" style={{ color: '#FCA5A5', fontFamily: 'var(--font-game), sans-serif' }}><Ban {...INLINE_ICON} />BANCO ACIMA DO LIMITE</div>
                 <div className="text-[12px] font-bold" style={{ color: '#E8C4C4', fontFamily: 'var(--font-game), sans-serif' }}>
                   Seu banco tem {reserveCount}/{MAX_RESERVE_PLAYERS} reservas. Venda reservas na aba MERCADO para liberar a partida.
                 </div>
@@ -143,10 +143,10 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                   {isGroupStage && (
                     <div className="flex items-center justify-between gap-3 border-b border-[var(--ui-surface-3)] bg-[#0F0F1A] px-4 py-2.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-black tracking-widest" style={{ color: isMyGroup ? 'var(--ui-brand-strong)' : 'var(--ui-text)', fontFamily: 'var(--font-game), sans-serif' }}>
+                        <span className="text-caption font-black tracking-wide-caps" style={{ color: isMyGroup ? 'var(--ui-brand-strong)' : 'var(--ui-text)', fontFamily: 'var(--font-game), sans-serif' }}>
                           GRUPO {groupLabel}
                         </span>
-                        {isMyGroup && <span className="rounded-full border border-primary/33 bg-primary/10 px-2 py-0.5 text-[12px] font-black tracking-wider text-brand-strong">SEU GRUPO</span>}
+                        {isMyGroup && <span className="rounded-full border border-primary/33 bg-primary/10 px-2 py-0.5 text-caption font-black tracking-caps text-brand-strong">SEU GRUPO</span>}
                       </div>
                       <span className="text-[12px] font-bold text-[var(--ui-text-faint)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>{groupFixtures.length} jogos</span>
                     </div>
@@ -289,7 +289,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                         </div>
                       )}
                       {totalReady > 0 && (
-                        <div className="mb-2 text-[13px] font-black tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: allReady ? 'var(--ui-success)' : 'var(--ui-brand)' }}>
+                        <div className="mb-2 text-caption font-black tracking-wide-caps" style={{ fontFamily: 'var(--font-game), sans-serif', color: allReady ? 'var(--ui-success)' : 'var(--ui-brand)' }}>
                           {readyCount}/{totalReady} PRONTO{totalReady !== 1 ? 'S' : ''}
                         </div>
                       )}

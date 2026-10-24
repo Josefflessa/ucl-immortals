@@ -27,7 +27,7 @@ export function areHistoricalPartners(a: Player, b: Player): boolean {
 // ============================================================
 /** Card fields that grow with matches and change the card's effective numbers. */
 export const KICKOFF_CARD_FIELDS = [
-  'appearances', 'evolvePoints', 'prodigioStarts', 'resilienteDefeats', 'fragilProgressive', 'fragilRecoveries', 'fragilRecovered', 'goleadorGoals',
+  'appearances', 'evolvePoints', 'prodigioStarts', 'pipoqueiroLeagueStarts', 'pipoqueiroKoStarts', 'resilienteDefeats', 'fragilProgressive', 'fragilRecoveries', 'fragilRecovered', 'goleadorGoals',
   'garcomAssists', 'arroganteGoals', 'mercenarioMissions', 'padrinhoGoals', 'lapidadoBoost',
   'martirWins', 'martirMatchIds', 'martirTargets', 'martirDistribution',
 ] as const;

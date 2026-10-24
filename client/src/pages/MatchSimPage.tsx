@@ -914,7 +914,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
 
     return (
       <div className="bg-[#0e0e1a] border border-[#1f1f35] rounded-xl p-3 flex flex-col flex-shrink-0">
-        <span className="text-[12px] font-black text-yellow-500 tracking-widest uppercase mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+        <span className="text-caption font-black text-yellow-500 tracking-wide-caps uppercase mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
           MOMENTUM
         </span>
         <div className="relative w-full h-[60px] bg-[#07070d] rounded-lg border border-[#141426] p-1 overflow-hidden">
@@ -1037,7 +1037,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                         </p>
                         {/* Team label badge */}
                         <span
-                          className="feed-card__tag text-[12px] font-black tracking-widest uppercase mt-0.5 inline-block px-1.5 py-0.5 rounded"
+                          className="feed-card__tag text-caption font-black tracking-caps uppercase mt-0.5 inline-block px-1.5 py-0.5 rounded"
                           style={{
                             fontFamily: 'var(--font-game), sans-serif',
                             color: accentColor,
@@ -1079,7 +1079,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       {/* ── Spectator bar: watching someone else's tie → leave whenever you want ── */}
       {state.spectating && (
         <div className="ui-topbar flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-2 relative z-20">
-          <span className="inline-flex items-center gap-1.5 text-[13px] font-bold tracking-wider" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>
+          <span className="inline-flex items-center gap-1.5 text-caption font-bold tracking-wide-caps" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>
             <Eye {...INLINE_ICON} />Assistindo como espectador
           </span>
           <Button
@@ -1105,7 +1105,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                 </h2>
                 <Crest crestId={homeTeam.crestId} name={homeTeam.name} size={30} />
               </div>
-              <span className="text-[12px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: homeTeam.id === playerTeamId ? 'var(--ui-brand)' : 'var(--ui-info)' }}>
+              <span className="text-caption font-bold tracking-wide-caps" style={{ fontFamily: 'var(--font-game), sans-serif', color: homeTeam.id === playerTeamId ? 'var(--ui-brand)' : 'var(--ui-info)' }}>
                 {homeTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
               </span>
             </div>
@@ -1115,7 +1115,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               <ScoreNumber value={homeScore} />
 
               <div className="flex flex-col items-center justify-center px-2 sm:px-6 py-1 sm:py-2 rounded-xl border" style={{ background: '#0e0e1a', borderColor: isFinished ? '#c9a84c66' : '#1f1f35' }}>
-                <span className="text-[12px] sm:text-[12px] font-black tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: userPaused && !isFinished ? 'var(--ui-info)' : '#eab308' }}>
+                <span className="text-caption font-black tracking-wide-caps" style={{ fontFamily: 'var(--font-game), sans-serif', color: userPaused && !isFinished ? 'var(--ui-info)' : '#eab308' }}>
                   {isFinished ? 'FIM' : penaltyMode ? 'PÊNALTIS' : userPaused ? 'PAUSADO' : isKnockout && minute > 90 ? 'PRORRG.' : 'MIN'}
                 </span>
                 <span className="font-black text-white leading-none mt-0.5" style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 'clamp(1.5rem, 6vw, 2.5rem)' }}>
@@ -1134,7 +1134,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
                   {awayTeam.name.toUpperCase()}
                 </h2>
               </div>
-              <span className="text-[12px] sm:text-xs font-bold tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: awayTeam.id === playerTeamId ? 'var(--ui-brand)' : 'var(--ui-info)' }}>
+              <span className="text-caption font-bold tracking-wide-caps" style={{ fontFamily: 'var(--font-game), sans-serif', color: awayTeam.id === playerTeamId ? 'var(--ui-brand)' : 'var(--ui-info)' }}>
                 {awayTeam.id === playerTeamId ? 'SEU TIME' : 'ADVERSÁRIO'}
               </span>
             </div>
@@ -1189,7 +1189,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
       {/* ── 2b. SECOND-LEG AGGREGATE BANNER ── */}
       {legNumber === 2 && firstLeg && (
         <div className="flex-shrink-0 border-b border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-3 sm:px-6 py-1.5 flex items-center justify-center gap-3 relative z-10">
-          <span className="text-[12px] sm:text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>
+          <span className="text-caption font-black tracking-wide-caps" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}>
             JOGO DE VOLTA
           </span>
           <span className="text-[12px] sm:text-xs font-bold" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
@@ -1289,16 +1289,16 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           )}
 
           <div className="match-stage__feedhead px-3 sm:px-5 py-2 sm:py-2.5 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#171725', background: '#08080f' }}>
-            <span className="text-[12px] sm:text-[12px] font-black tracking-widest text-gray-400" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+            <span className="text-caption font-black tracking-wide-caps text-gray-400" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
               <span className="match-stage__feedtitle-long">TRANSMISSÃO DE LANCES</span>
               <span className="match-stage__feedtitle-short">LANCES</span>
             </span>
             {isFinished ? (
-              <span className="text-[12px] font-black tracking-widest text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>ENCERRADA</span>
+              <span className="text-caption font-black tracking-wide-caps text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>ENCERRADA</span>
             ) : (
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${userPaused ? 'bg-sky-500' : 'bg-red-600 animate-pulse'}`} />
-                <span className="text-[12px] font-black tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: userPaused ? 'var(--ui-info)' : '#ef4444' }}>{userPaused ? 'PAUSADO' : 'AO VIVO'}</span>
+                <span className="text-caption font-black tracking-wide-caps" style={{ fontFamily: 'var(--font-game), sans-serif', color: userPaused ? 'var(--ui-info)' : '#ef4444' }}>{userPaused ? 'PAUSADO' : 'AO VIVO'}</span>
               </div>
             )}
           </div>
@@ -1354,7 +1354,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
           <div className="flex-shrink-0 space-y-3">
             {renderMomentumChart()}
             <div className="bg-[#0b0b14] border border-[#171725] rounded-2xl p-3 flex flex-col">
-              <span className="text-[12px] font-black text-yellow-500 tracking-widest uppercase mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+              <span className="text-caption font-black text-yellow-500 tracking-wide-caps uppercase mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                 {isFinished ? 'ESTATÍSTICAS' : 'ESTATÍSTICAS (AO VIVO)'}
               </span>
               <div className="space-y-2">

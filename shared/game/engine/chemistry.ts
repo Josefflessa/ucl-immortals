@@ -9,7 +9,7 @@ import { historicalPlayerId, areHistoricalPartners, type PlayerCard, isExcludedP
 import { getEffectiveAttribute, SECONDARY_STAT_MULT, naturalPositionFit, specializationAttributeBonus } from './attributes';
 import { goalkeeperAptitudeDefending, tacticStatBonus } from './matchSim';
 import { captainBoostForTeam } from './strength';
-import { HUMILDE_BRONZE_BOOST, HUMILDE_SILVER_BOOST, MARTIR_TARGET_BOOST, martirDistributionLimit, DECIMO_HOMEM_STAT_BOOST, DECIMO_HOMEM_CHEM_BONUS, CORINGA_SECONDARY_STAT_BOOST, CORINGA_OOP_STAT_BOOST, fragilStatBoost, PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, FORASTEIRO_CHEM_PENALTY_PER_PLAYER, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, FOMINHA_CHEM_PENALTY_PER_GOAL, FOMINHA_STAT_BOOST_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, desenfreadoStatBoost } from './draft';
+import { pipoqueiroStatBoost, HUMILDE_BRONZE_BOOST, HUMILDE_SILVER_BOOST, MARTIR_TARGET_BOOST, martirDistributionLimit, DECIMO_HOMEM_STAT_BOOST, DECIMO_HOMEM_CHEM_BONUS, CORINGA_SECONDARY_STAT_BOOST, CORINGA_OOP_STAT_BOOST, fragilStatBoost, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, FORASTEIRO_CHEM_PENALTY_PER_PLAYER, IDOLO_STAT_BOOST, COLECIONADOR_PER_RESERVE, estribadoStatBoost, LOBO_CHEM_PENALTY, PILAR_CHEM_BONUS, RESILIENTE_DEFEAT_BOOST, TODOS_POR_UM_STAT_BOOST, prodigioStatBoost, goleadorStatBoost, garcomStatBoost, arroganteStatBoost, arroganteTeamPenalty, mercenarioStatBoost, padrinhoStatBoost, PADRINHO_AFILHADO_BOOST, hasVariant, VARIANT_FLAGS, AGREGADOR_STAT_BOOST_PER_TRAIT, apostadorStatBoost, IMPROVISADOR_SECONDARY_CHEM, IMPROVISADOR_OOP_CHEM, FOMINHA_CHEM_PENALTY_PER_GOAL, FOMINHA_STAT_BOOST_PER_GOAL, POLIGLOTA_STAT_BOOST_PER_NATION, desenfreadoStatBoost } from './draft';
 
 // The preferred formation adds chemistry for the whole team, which can move it into a
 // higher team-chemistry bonus tier.
@@ -123,7 +123,7 @@ export function calculateChemistry(
   // 🧱 Pilar lifts the team's chemistry · 🐺 Lobo Solitário drains it (per such player in the XI).
   const pilarBonus = players.filter(p => p.pilar).length * PILAR_CHEM_BONUS;
   const loboPenalty = players.filter(p => p.lobo).length * LOBO_CHEM_PENALTY;
-  // 🪑 12º Homem — each copy in the reserve adds +8 to the team's general chemistry.
+  // 🪑 12º Homem — each copy in the reserve adds +DECIMO_HOMEM_CHEM_BONUS to the team's general chemistry.
   const decimoHomemBonus = reservePlayers.filter(p => p.decimoHomem).length * DECIMO_HOMEM_CHEM_BONUS;
   // 🛟 Noé — +2 de química geral por titular SEM característica (cada Noé titular soma o seu).
   const xi = players.slice(0, 11).filter((p): p is Player => !!p);
@@ -416,9 +416,8 @@ export function getPlayerEffectiveStats(
   const charB = context?.charBoosts?.[player.id];
   const charBonus = (attr: AttrKey): number => charB ? (charB.flatAll + (charB.perStat[attr] ?? 0)) : 0;
 
-  // 🍿 Pipoqueiro — +N em tudo na fase de liga, −N no mata-mata (mesma regra do getEffectiveAttribute).
-  const pipoqBonus = (_attr: AttrKey): number =>
-    player.pipoqueiro ? (context?.isKnockout ? -PIPOQUEIRO_KO_PENALTY : PIPOQUEIRO_LEAGUE_BOOST) : 0;
+  // 🍿 Pipoqueiro — acumulado por titularidade (mesma regra do getEffectiveAttribute).
+  const pipoqBonus = (_attr: AttrKey): number => player.pipoqueiro ? pipoqueiroStatBoost(player) : 0;
 
   // All additive bonuses beyond chemistry-multiplier and the coach's per-attribute mod.
   const extra = (attr: AttrKey) => traitBonus(attr) + styleBonus(attr) + globalChem(attr) + captainBonus(attr) + trainBonus(attr) + evolveBonus(attr) + specializationBonus(attr) + prodigioBonus(attr) + resilienteBonus(attr) + goleadorBonus(attr) + garcomBonus(attr) + arroganteBonus(attr) + estribadoBonus(attr) + mercenarioBonus(attr) + padrinhoBonus(attr) + lapidadoBonus(attr) + apostadorBonus(attr) + fragilBonus(attr) + charBonus(attr) + pipoqBonus(attr);
@@ -884,11 +883,11 @@ export function getFreeKickTaker(team: Team, excludedIds?: ReadonlySet<string>):
   // A normal match always leaves an available outfielder. Keep a defensive
   // fallback for malformed/legacy lineups so this helper never returns undefined.
   const pool = availableOutfield.length > 0 ? availableOutfield : outfield.length > 0 ? outfield : starters;
-  // A designated taker wins when valid. A GK designation is accepted only for
-  // a card that explicitly carries the free-kick specialist trait.
+  // A taker chosen by the player always takes it, goalkeeper included.
+  // Only the automatic pick avoids the keeper.
   if (team.freeKickTaker) {
     const chosen = available.find(p => p.id === team.freeKickTaker);
-    if (chosen && (matchRoleForPlayer(team, chosen) !== 'GK' || isSpecialist(chosen))) return chosen;
+    if (chosen) return chosen;
   }
   const specialist = available.find(isSpecialist);
   if (specialist) return specialist;

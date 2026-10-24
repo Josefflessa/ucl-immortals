@@ -264,7 +264,7 @@ export default function RolesSelector({
           <div className="flex items-start gap-3">
             <RoleArt role={infoRole} size={48} />
             <div className="min-w-0">
-              <div className="mb-1 text-sm font-black tracking-widest" style={{ color: roleCards.find(card => card.role === infoRole)?.color ?? 'var(--ui-brand)' }}>
+              <div className="mb-1 text-caption font-black tracking-wide-caps" style={{ color: roleCards.find(card => card.role === infoRole)?.color ?? 'var(--ui-brand)' }}>
                 {info[infoRole].title}
               </div>
               <div>{info[infoRole].description}</div>

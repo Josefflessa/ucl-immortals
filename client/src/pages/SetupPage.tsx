@@ -126,7 +126,6 @@ export default function SetupPage() {
                         </span>
                         {isSelected ? <ChoiceCheck size="small" color={color} /> : null}
                       </div>
-                      <p className="mt-1 text-body-sm leading-ui-snug text-[var(--ui-text-muted)] text-pretty">{diff.description}</p>
                     </div>
                   </ChoiceCard>
                   {canViewDifficultyRewards ? (

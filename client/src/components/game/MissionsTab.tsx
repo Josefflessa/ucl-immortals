@@ -68,7 +68,7 @@ function MissionCard({
             <h3 className="text-lg font-black tracking-wide text-balance text-white sm:text-xl" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
               {definition.title}
             </h3>
-            <span className="rounded px-1.5 py-0.5 text-[13px] font-black tracking-widest" style={{ color: rarity.color, background: `${rarity.color}18`, fontFamily: 'var(--font-game), sans-serif' }}>
+            <span className="rounded px-1.5 py-0.5 text-caption font-black tracking-caps" style={{ color: rarity.color, background: `${rarity.color}18`, fontFamily: 'var(--font-game), sans-serif' }}>
               {rarity.label}
             </span>
           </div>
@@ -111,7 +111,7 @@ function MissionCard({
             <span className="font-black" style={{ color: '#F0C674' }}><CoinIcon />+{reward}</span>
           </div>
           {resolved ? (
-            <div className="flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-black tracking-widest" style={{ color: '#66667A', background: '#0B0B14', fontFamily: 'var(--font-game), sans-serif' }}>
+            <div className="flex items-center justify-center gap-1.5 rounded-md py-2 text-caption font-black tracking-caps" style={{ color: '#66667A', background: '#0B0B14', fontFamily: 'var(--font-game), sans-serif' }}>
               <LockKeyhole size={12} /> JÁ RESOLVIDA NESTE MURAL
             </div>
           ) : (
@@ -171,11 +171,11 @@ export default function MissionsTab() {
           <div className="flex flex-wrap items-center justify-center gap-2 md:ml-auto md:shrink-0">
             <div className="flex items-stretch gap-2">
               <div className="rounded-lg px-3 py-2 text-center" style={{ background: '#0B0B15', border: '1px solid #34344E' }}>
-                <div className="text-xs font-black tracking-widest" style={{ color: '#85859A', fontFamily: 'var(--font-game), sans-serif' }}>MISSÕES ATIVAS</div>
+                <div className="text-caption font-black tracking-wide-caps" style={{ color: '#85859A', fontFamily: 'var(--font-game), sans-serif' }}>MISSÕES ATIVAS</div>
                 <div className="mt-0.5 text-3xl font-black tabular-nums" style={{ color: activeCount === MAX_ACTIVE_MISSIONS ? '#F0C674' : '#FFF', fontFamily: 'var(--font-display), sans-serif' }}>{activeCount}/{MAX_ACTIVE_MISSIONS}</div>
               </div>
               <div className="rounded-lg px-3 py-2 text-center" style={{ background: '#0B0B15', border: '1px solid #34344E' }}>
-                <div className="text-xs font-black tracking-widest" style={{ color: '#85859A', fontFamily: 'var(--font-game), sans-serif' }}>CONCLUÍDAS</div>
+                <div className="text-caption font-black tracking-wide-caps" style={{ color: '#85859A', fontFamily: 'var(--font-game), sans-serif' }}>CONCLUÍDAS</div>
                 <div className="mt-0.5 text-3xl font-black tabular-nums" style={{ color: '#8FE3B0', fontFamily: 'var(--font-display), sans-serif' }}>{completedCount}</div>
               </div>
             </div>

@@ -55,7 +55,7 @@ function VariantPagination({ page, pageCount, onPageChange }: { page: number; pa
         style={{ color: '#C9C9D5', border: '1px solid #343449', fontFamily: 'var(--font-game), sans-serif' }}>
         ← ANTERIOR
       </button>
-      <span className="text-[12px] font-black tracking-widest text-center" style={{ color: '#A9A9BA', fontFamily: 'var(--font-game), sans-serif' }}>
+      <span className="text-caption font-black tracking-wide-caps text-center" style={{ color: '#A9A9BA', fontFamily: 'var(--font-game), sans-serif' }}>
         PÁGINA {page + 1}/{pageCount}
       </span>
       <button
@@ -430,7 +430,7 @@ export default function ShopTab() {
                                     <div className={owned ? 'opacity-55' : ''}>
                                       <PlayerCard player={card} lite scale={0.82} />
                                     </div>
-                                    <span className="text-center text-xs font-black px-2.5 py-1 rounded-full tracking-wider" style={{ fontFamily: 'var(--font-game), sans-serif', background: owned ? '#22C55E22' : '#1A1A2A', color: owned ? '#86EFAC' : '#CFCFE0', border: `1px solid ${owned ? '#22C55E55' : '#2A2A3A'}` }}>
+                                    <span className="text-center text-caption font-black px-2.5 py-1 rounded-full tracking-caps" style={{ fontFamily: 'var(--font-game), sans-serif', background: owned ? '#22C55E22' : '#1A1A2A', color: owned ? '#86EFAC' : '#CFCFE0', border: `1px solid ${owned ? '#22C55E55' : '#2A2A3A'}` }}>
                                       {owned ? 'JÁ POSSUI' : 'DISPONÍVEL'}
                                     </span>
                                   </div>
@@ -561,7 +561,7 @@ export default function ShopTab() {
                       <div className="space-y-3">
                         {[{ t: 'TITULARES', c: '#22C55E', list: team.players.slice(0, 11) }, { t: 'BANCO / RESERVAS', c: '#818CF8', bench: true, list: team.players.slice(11) }].map(g => g.list.length === 0 ? null : (
                           <div key={g.t}>
-                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'var(--font-game), sans-serif' }}>{'bench' in g && <Armchair {...INLINE_ICON} />}{g.t}</div>
+                            <div className="text-caption font-black tracking-wide-caps mb-2" style={{ color: g.c, fontFamily: 'var(--font-game), sans-serif' }}>{'bench' in g && <Armchair {...INLINE_ICON} />}{g.t}</div>
                             <div className="flex flex-wrap gap-2">
                               {g.list.map(p => (
                                 <button key={p.id} onClick={() => { if (canAddVariant(p)) { setSelPlayerId(p.id); setVariantPage(0); } }} disabled={!canAddVariant(p)}
@@ -622,7 +622,7 @@ export default function ShopTab() {
                       <div className="space-y-3">
                         {groups.map(g => g.list.length === 0 ? null : (
                           <div key={g.t}>
-                            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: g.c, fontFamily: 'var(--font-game), sans-serif' }}>{'bench' in g && <Armchair {...INLINE_ICON} />}{g.t}</div>
+                            <div className="text-caption font-black tracking-wide-caps mb-2" style={{ color: g.c, fontFamily: 'var(--font-game), sans-serif' }}>{'bench' in g && <Armchair {...INLINE_ICON} />}{g.t}</div>
                             <div className="flex flex-wrap justify-center gap-x-3 gap-y-5 py-1">
                               {g.list.map(p => {
                                 const vs = getCardVariants(p);

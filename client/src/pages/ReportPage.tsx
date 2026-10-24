@@ -121,7 +121,7 @@ function LegacyHistoryReport({ entry, onBack, hideTopBar = false }: { entry: Com
         <section aria-label="Resumo da competição" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {summary.map(([label, value]) => <div key={label} className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-4 text-center">
             <div className="font-display text-3xl leading-none text-[var(--ui-brand-strong)]">{value ?? '—'}</div>
-            <div className="mt-1 text-[12px] font-bold tracking-widest text-[var(--ui-text-faint)]">{label}</div>
+            <div className="mt-1 text-caption font-bold tracking-wide-caps text-[var(--ui-text-faint)]">{label}</div>
           </div>)}
         </section>
         <p className="rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] px-4 py-3 text-sm text-[var(--ui-text-muted)]">
@@ -712,7 +712,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                     <span>{playerTeam?.name}</span>
                   </div>
                   <p
-                    className="text-sm mt-1 font-bold tracking-widest"
+                    className="text-caption mt-1 font-bold tracking-wide-caps"
                     style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}
                   >
                     CONQUISTOU A ULTIMATE CHAMPIONS LEAGUE!
@@ -807,7 +807,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                   style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
                 >
                   <div className="text-2xl font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: s.color }}>{s.value}</div>
-                  <div className="text-[12px] font-bold tracking-widest mt-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{s.label}</div>
+                  <div className="text-caption font-bold tracking-wide-caps mt-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{s.label}</div>
                 </div>
               ))}
         </div>
@@ -817,7 +817,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             className="rounded-xl px-5 py-4"
             style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
           >
-            <div className="text-[12px] font-black tracking-widest mb-3" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>DESEMPENHO GERAL</div>
+            <div className="text-caption font-black tracking-wide-caps mb-3" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>DESEMPENHO GERAL</div>
             <div className="h-2.5 rounded-full overflow-hidden flex gap-0.5">
               {wins > 0 && <div className="h-full rounded-full" style={{ width: `${(wins / Math.max(playerResults.length, 1)) * 100}%`, background: 'var(--ui-success)' }} />}
               {draws > 0 && <div className="h-full rounded-full" style={{ width: `${(draws / Math.max(playerResults.length, 1)) * 100}%`, background: 'var(--ui-warning)' }} />}
@@ -840,7 +840,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
           >
             <div className="px-5 py-3 border-b" style={{ borderColor: 'var(--ui-surface-3)' }}>
-              <span className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>FICHA DA CAMPANHA</span>
+              <span className="text-caption font-black tracking-wide-caps" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>FICHA DA CAMPANHA</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 border-t" style={{ borderColor: 'var(--ui-surface-3)' }}>
               {[
@@ -851,7 +851,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
               ].map(m => (
                 <div key={m.l} className="px-4 py-3 border-r" style={{ borderColor: 'var(--ui-surface-3)' }}>
                   <div className="text-lg font-black leading-none" style={{ color: m.c, fontFamily: 'var(--font-display), sans-serif' }}>{m.v}</div>
-                  <div className="text-[12px] font-bold tracking-widest mt-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{m.l}</div>
+                  <div className="text-caption font-bold tracking-wide-caps mt-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{m.l}</div>
                 </div>
               ))}
             </div>
@@ -865,14 +865,14 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}
           >
             <div className="px-5 py-3 border-b" style={{ borderColor: 'var(--ui-surface-3)' }}>
-              <span className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>DESTAQUES DA COMPETIÇÃO</span>
+              <span className="text-caption font-black tracking-wide-caps" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>DESTAQUES DA COMPETIÇÃO</span>
             </div>
             <div className="divide-y" style={{ borderColor: 'var(--ui-surface-3)' }}>
               {seasonHighlights.map(highlight => (
                 <div key={highlight.key} className="flex items-center gap-4 px-5 py-4">
                   <HighlightPortrait player={highlight.player} color={highlight.color} />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[12px] font-bold tracking-widest" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{highlight.label}</div>
+                    <div className="text-caption font-bold tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>{highlight.label}</div>
                     <div className="whitespace-normal break-words text-base font-black leading-tight" style={{ color: '#fff', fontFamily: 'var(--font-game), sans-serif' }}>{highlight.player.shortName}</div>
                     <div className="whitespace-normal break-words text-xs leading-tight" style={{ color: '#8A8A9A', fontFamily: 'var(--font-game), sans-serif' }}>
                       {highlight.teamName}{highlight.detail ? ` · ${highlight.detail}` : ''}
@@ -888,7 +888,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
                 <div className="flex items-start gap-4 px-5 py-4">
                   <Zap size={24} strokeWidth={2.2} color="var(--ui-brand)" className="mt-0.5 flex-shrink-0" aria-hidden="true" />
                   <div>
-                    <div className="text-[12px] font-bold tracking-widest mb-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>PARCERIAS HISTÓRICAS RECRIADAS</div>
+                    <div className="text-caption font-bold tracking-wide-caps mb-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>PARCERIAS HISTÓRICAS RECRIADAS</div>
                     {report.historicalRecreations.map(trio => (
                       <div key={trio} className="text-sm font-bold" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>{trio}</div>
                     ))}
@@ -937,11 +937,11 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
               </div>
               <div className="mt-4 grid w-full grid-cols-2 border-t pt-3" style={{ borderColor: 'var(--ui-surface-3)' }}>
                 <div className="flex flex-col items-center justify-center gap-1 px-2 text-center">
-                  <span className="text-[12px] font-black tracking-widest" style={{ color: '#7A8A7F', fontFamily: 'var(--font-game), sans-serif' }}>QUÍMICA</span>
+                  <span className="text-caption font-black tracking-wide-caps" style={{ color: '#7A8A7F', fontFamily: 'var(--font-game), sans-serif' }}>QUÍMICA</span>
                   <strong className="text-2xl leading-none" style={{ color: 'var(--ui-success)', fontFamily: 'var(--font-display), sans-serif' }}>{chemData?.total ?? '—'}</strong>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 border-l px-2 text-center" style={{ borderColor: 'var(--ui-surface-3)' }}>
-                  <span className="text-[12px] font-black tracking-widest" style={{ color: '#8A8290', fontFamily: 'var(--font-game), sans-serif' }}>GERAL DO TIME</span>
+                  <span className="text-caption font-black tracking-wide-caps" style={{ color: '#8A8290', fontFamily: 'var(--font-game), sans-serif' }}>GERAL DO TIME</span>
                   <strong className="text-2xl leading-none" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-display), sans-serif' }}>{teamOverall ?? '—'}</strong>
                 </div>
               </div>
@@ -984,7 +984,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
             <div className="p-4 pt-2 space-y-4">
               {/* TITULARES — cards de verdade, iguais aos do MEU TIME */}
               <div>
-                <div className="text-xs font-black tracking-widest mb-2" style={{ color: '#FFF', fontFamily: 'var(--font-game), sans-serif' }}>TITULARES</div>
+                <div className="text-caption font-black tracking-wide-caps mb-2" style={{ color: '#FFF', fontFamily: 'var(--font-game), sans-serif' }}>TITULARES</div>
                 <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                   {starters.map((pl, i) => (
                     <div key={pl.id}>
@@ -1003,7 +1003,7 @@ export default function ReportPage({ historyEntry, historySnapshot: providedSnap
               {/* RESERVAS / BANCO */}
               {bench.length > 0 && (
                 <div className="pt-3 border-t" style={{ borderColor: 'var(--ui-surface-3)' }}>
-                  <div className="text-xs font-black tracking-widest mb-2" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}><Armchair {...INLINE_ICON} />RESERVAS ({bench.length})</div>
+                  <div className="text-caption font-black tracking-wide-caps mb-2" style={{ color: 'var(--ui-info)', fontFamily: 'var(--font-game), sans-serif' }}><Armchair {...INLINE_ICON} />RESERVAS ({bench.length})</div>
                   <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
                     {bench.map((pl, i) => (
                       <div key={pl.id}>

@@ -67,7 +67,7 @@ export default function MarketTab() {
       {view === 'sell' && (
         <>
           <div className="text-sm leading-relaxed text-[var(--ui-text-muted)]">
-            Venda reservas por um valor fixo. Para vender um titular, mande-o para o banco em MEU CLUBE.
+            Cada reserva é vendida por um valor fixo. Para vender um titular, mova-o para o banco em Meu clube.
           </div>
           {bench.length === 0 ? (
             <div className="ui-empty">
@@ -168,8 +168,7 @@ export default function MarketTab() {
       {view === 'trades' && online && (
         <>
           <div className="text-sm leading-relaxed text-[var(--ui-text-muted)]">
-            Convide alguém da sala pra negociar uma troca. Se aceitar, os dois escolhem os jogadores
-            numa sala compartilhada — o pop-up de negociação abre automaticamente pros dois lados.
+            Convide alguém da sala. Se a pessoa aceitar, a negociação abre para os dois escolherem os jogadores.
           </div>
 
           {mySession ? (

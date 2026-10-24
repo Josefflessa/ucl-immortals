@@ -95,7 +95,7 @@ function PodiumCard({ season, position }: { season: number; position: number }) 
       <header className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="grid size-9 place-items-center rounded-lg border font-display text-xl leading-none" style={{ color, borderColor: `${color}66`, background: `${color}14` }}>{position}º</span>
-          <span className="text-xs font-black uppercase tracking-widest" style={{ color }}>{label}</span>
+          <span className="text-caption font-black uppercase tracking-wide-caps" style={{ color }}>{label}</span>
         </div>
         <CoinAmount value={prize.coins} size={15} className="text-base" />
       </header>

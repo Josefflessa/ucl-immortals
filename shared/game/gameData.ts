@@ -104,8 +104,10 @@ export interface Player {
   martirTargets?: string[]; // ids dos até 2 titulares que recebem os pontos distribuídos
   martirDistribution?: Record<string, number>; // 🩸 pontos de todos os atributos alocados a cada titular
   idolo?: boolean;      // ❤️ Ídolo — +3 em tudo a cada OUTRO titular do mesmo clube (não a ele)
-  decimoHomem?: boolean; // 🪑 12º Homem — no banco, +1 em todos os atributos do XI e +8 de química geral
-  pipoqueiro?: boolean;  // 🍿 Pipoqueiro — +7 em tudo na FASE DE LIGA, −7 em tudo no MATA-MATA (o anti-Pilar: some no jogo grande)
+  decimoHomem?: boolean; // 🪑 12º Homem — no banco, +1 em todos os atributos do XI e +5 de química geral
+  pipoqueiro?: boolean;  // 🍿 Pipoqueiro — +2 permanente em tudo por jogo como titular na FASE DE LIGA, −2 por jogo como titular no MATA-MATA
+  pipoqueiroLeagueStarts?: number; // 🍿 titularidades na fase de liga desde que recebeu a característica
+  pipoqueiroKoStarts?: number;     // 🍿 titularidades no mata-mata desde que recebeu a característica
   noe?: boolean;         // 🛟 Noé — se titular, +2 em tudo ao Noé e +2 de química geral por jogador titular sem característica especial
   forasteiro?: boolean;  // 🧳 Forasteiro — titular: por outro titular de clube E nacionalidade diferentes, +3 em tudo e −4 de química geral
   colecionador?: boolean; // 🧩 Colecionador — +1 em tudo por jogador que estiver na reserva

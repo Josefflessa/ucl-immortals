@@ -85,7 +85,7 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
               title={`${ATTR_LONG[s.attr]}: ver de onde vem cada ponto`}
               className={`flex flex-col items-center py-3 transition-colors hover:bg-white/5 ${(i + 1) % 4 === 0 ? '' : 'border-r'} ${i < 4 ? 'border-b' : ''}`}
               style={{ borderColor: '#161626', background: active ? 'rgba(201,168,76,.12)' : undefined, boxShadow: active ? 'inset 0 -2px 0 var(--ui-brand)' : undefined }}>
-              <span className="text-[12px] font-bold tracking-wider text-[var(--ui-text-faint)]" style={FONT}>{ATTR_SHORT[s.attr]}</span>
+              <span className="text-caption font-bold tracking-wide-caps text-[var(--ui-text-faint)]" style={FONT}>{ATTR_SHORT[s.attr]}</span>
               <span className="text-lg font-black" style={{ color, ...FONT }}>{s.value}</span>
               <span className="text-[12px] font-bold" style={{ color, ...FONT }}>{s.delta !== 0 ? `${s.delta > 0 ? '+' : ''}${s.delta}` : ' '}</span>
             </button>
@@ -95,7 +95,7 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
 
       {selectedStat ? (
         <div className="border-t px-4 py-3" style={{ borderColor: '#161626', background: '#0b0b14' }} aria-live="polite">
-          <div className="flex items-center justify-between text-[12px] font-black tracking-widest" style={FONT}>
+          <div className="flex items-center justify-between text-caption font-black tracking-wide-caps" style={FONT}>
             <span className="text-[var(--ui-text-soft)]">{ATTR_LONG[selectedStat.attr].toUpperCase()}</span>
             <button type="button" onClick={() => setSelected(null)} className="text-[var(--ui-text-muted)] hover:text-white">Fechar <X size={14} strokeWidth={2.6} aria-hidden="true" className="inline align-[-2px]" /></button>
           </div>
@@ -119,7 +119,7 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
       {/* Chemistry + positions summary */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3" style={{ borderColor: '#161626' }}>
         <div className="flex items-center gap-2">
-          <span className="text-[12px] font-bold tracking-wider text-[var(--ui-text-faint)]" style={FONT}>QUÍMICA INDIVIDUAL</span>
+          <span className="text-caption font-bold tracking-wide-caps text-[var(--ui-text-faint)]" style={FONT}>QUÍMICA INDIVIDUAL</span>
           {chem ? (
             <>
               <div className="flex gap-1" aria-hidden="true">
@@ -130,7 +130,7 @@ export default function PlayerSheet({ model, collapsibleBreakdown = false }: { m
           ) : <span className="text-[12px] font-bold text-[var(--ui-text-muted)]" style={FONT}>só para titulares</span>}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
-          <span className="text-[12px] font-bold tracking-wider text-[var(--ui-text-faint)]" style={FONT}>JOGA EM:</span>
+          <span className="text-caption font-bold tracking-wide-caps text-[var(--ui-text-faint)]" style={FONT}>JOGA EM:</span>
           <span className="rounded px-1.5 py-0.5 text-[12px] font-black" style={{ background: '#1c1c2e', color: 'var(--ui-brand)', ...FONT }}>{POS_PT[player.position] ?? player.position}</span>
           {effectiveSecondaries(player).map(pos => (
             <span key={pos} className="rounded px-1.5 py-0.5 text-[12px] font-bold" style={{ background: '#12121c', color: 'var(--ui-text-muted)', border: '1px solid var(--ui-line)', ...FONT }}>{POS_PT[pos] ?? pos}</span>

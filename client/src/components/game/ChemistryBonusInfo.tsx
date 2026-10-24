@@ -35,10 +35,10 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
     <div className="mt-3 flex flex-1 flex-col border-t pt-3" style={{ borderColor: 'var(--ui-surface-3)' }}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-xs font-black tracking-widest text-gray-300" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+          <div className="text-caption font-black tracking-wide-caps text-gray-300" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
             BÔNUS GLOBAL
           </div>
-          <div className="mt-0.5 text-[13px] font-bold uppercase tracking-wider" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+          <div className="mt-0.5 text-caption font-bold uppercase tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
             todos os titulares
           </div>
         </div>
@@ -90,7 +90,7 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
                 {reached ? <Check size={13} strokeWidth={3} aria-hidden="true" /> : <Lock size={12} strokeWidth={2.5} aria-hidden="true" />}
                 <span className="w-8 shrink-0 font-black tabular-nums">{t.label}</span>
                 <span className="min-w-0 flex-1 truncate">+{t.pas} Passe{t.rit > 0 ? ` · +${t.rit} Ritmo` : ''}{t.special > 0 ? ` · +${t.special} em todos` : ''}</span>
-                {isActive && <span className="shrink-0 text-[11px] font-black uppercase tracking-wider">Ativa</span>}
+                {isActive && <span className="shrink-0 text-caption font-black uppercase tracking-wide-caps">Ativa</span>}
               </div>
             );
           })}
@@ -121,7 +121,7 @@ export default function ChemistryBonusInfo({ total }: { total: number }) {
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-black">{t.label} de química</div>
-                  {isActive && <span className="text-[12px] font-black uppercase tracking-wider">ATIVA</span>}
+                  {isActive && <span className="text-caption font-black uppercase tracking-wide-caps">ATIVA</span>}
                 </div>
                 <div className="mt-0.5 text-xs leading-relaxed" style={{ color: isActive ? '#D8C47A' : 'var(--ui-text-faint)' }}>
                   +{t.pas} Passe{t.rit > 0 ? ` · +${t.rit} Ritmo` : ''}{t.special > 0 ? ` · +${t.special} em todos` : ''}

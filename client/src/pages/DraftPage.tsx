@@ -138,7 +138,7 @@ const DraftOptions = memo(function DraftOptions({
         const visibleTraits = activePlayerTraits(sel.traits).filter(t => getTraitInfo(t));
         return (
           <div className="mx-auto mb-3 max-w-md rounded-xl px-3 py-2.5" style={{ background: 'var(--ui-surface-1)', border: '1px solid var(--ui-surface-3)' }}>
-            <div className="text-[12px] font-black tracking-widest mb-2" style={{ color: '#9AA8C8', fontFamily: 'var(--font-game), sans-serif' }}>
+            <div className="text-caption font-black tracking-wide-caps mb-2" style={{ color: '#9AA8C8', fontFamily: 'var(--font-game), sans-serif' }}>
               {sel.shortName.toUpperCase()}
             </div>
             {/* Vision & composure — hidden attributes (vision drives possession/playmaking and
@@ -154,7 +154,7 @@ const DraftOptions = memo(function DraftOptions({
             </div>
             {visibleTraits.length > 0 && (
             <>
-            <div className="text-[12px] font-black tracking-widest mb-1 text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}><Target {...INLINE_ICON} />ESTILOS DE JOGO</div>
+            <div className="text-caption font-black tracking-wide-caps mb-1 text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}><Target {...INLINE_ICON} />ESTILOS DE JOGO</div>
             <div className="flex flex-col gap-1">
               {visibleTraits.map(t => {
                 const info = getTraitInfo(t);
@@ -200,7 +200,7 @@ const DraftedRoster = memo(function DraftedRoster({
   const filled = players.filter((p): p is Player => p !== null && p !== undefined);
   return (
     <div className="mt-6">
-      <div className="text-xs font-bold tracking-widest mb-3" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+      <div className="text-caption font-bold tracking-wide-caps mb-3" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
         MEU ELENCO ({filled.length}/{total}) <span style={{ color: '#4A4A5A' }}>· 11 titulares + 2 reservas</span>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -284,7 +284,7 @@ export default function DraftPage() {
     if (!isOnline) return null;
     return (
       <div className="ui-panel ui-panel--inset mb-4 p-3">
-        <div className="text-[12px] font-black text-primary tracking-widest uppercase mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+        <div className="text-caption font-black text-primary tracking-wide-caps uppercase mb-2" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
           FILA DE ESCOLHAS
         </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -328,7 +328,7 @@ export default function DraftPage() {
     if (!isOnline || state.draftHistory.length === 0) return null;
     return (
       <div className="ui-panel ui-panel--inset flex h-[280px] flex-col p-4">
-        <div className="text-xs font-black text-primary tracking-widest uppercase mb-3" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+        <div className="text-caption font-black text-primary tracking-wide-caps uppercase mb-3" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
           HISTÓRICO DE ESCOLHAS ({state.draftHistory.length})
         </div>
         <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
@@ -437,7 +437,7 @@ export default function DraftPage() {
                         vir vazio por outros motivos no online. */}
                     {draftedPlayers.filter(Boolean).length < 11 ? (
                       <>
-                        <div className="text-xs font-bold tracking-widest mb-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+                        <div className="text-caption font-bold tracking-wide-caps mb-1" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                           POSIÇÕES RESTANTES
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -460,7 +460,7 @@ export default function DraftPage() {
                       </>
                     ) : (
                       <>
-                        <div className="text-xs font-black tracking-widest mb-1" style={{ color: '#22D3EE', fontFamily: 'var(--font-game), sans-serif' }}>
+                        <div className="text-caption font-black tracking-wide-caps mb-1" style={{ color: '#22D3EE', fontFamily: 'var(--font-game), sans-serif' }}>
                           <Armchair {...INLINE_ICON} />RESERVA — BANCO
                         </div>
                         <div className="text-[13px] font-bold" style={{ color: '#8A9BA0', fontFamily: 'var(--font-game), sans-serif' }}>

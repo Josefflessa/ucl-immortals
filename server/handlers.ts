@@ -2135,8 +2135,8 @@ export function registerSocketHandlers(io: RealtimeServer) {
       if (!orderedDraft) return;
       const submittedStarters = orderedDraft.slice(0, 11).filter((p): p is Player => !!p);
       const canonicalCaptain = captain == null ? null : canonicalRoleId(captain, submittedStarters);
-      const canonicalPenaltyTaker = penaltyTaker == null ? null : canonicalRoleId(penaltyTaker, submittedStarters, p => p.position !== 'GK');
-      const canonicalFreeKickTaker = freeKickTaker == null ? null : canonicalRoleId(freeKickTaker, submittedStarters, p => p.position !== 'GK');
+      const canonicalPenaltyTaker = penaltyTaker == null ? null : canonicalRoleId(penaltyTaker, submittedStarters);
+      const canonicalFreeKickTaker = freeKickTaker == null ? null : canonicalRoleId(freeKickTaker, submittedStarters);
       if ((captain != null && !canonicalCaptain) || (penaltyTaker != null && !canonicalPenaltyTaker) || (freeKickTaker != null && !canonicalFreeKickTaker)) return;
 
       player.captain = canonicalCaptain;

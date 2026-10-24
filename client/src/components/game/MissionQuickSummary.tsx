@@ -17,7 +17,7 @@ export default function MissionQuickSummary({ onOpen, isOpen = false }: { onOpen
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: '#C9A84C18', color: '#F0C674' }}>
         <ScrollText size={18} aria-hidden="true" />
       </span>
-      <span className="min-w-0 flex-1 text-sm font-black tracking-widest" style={{ color: '#F0C674', fontFamily: 'var(--font-game), sans-serif' }}>
+      <span className="min-w-0 flex-1 text-caption font-black tracking-wide-caps" style={{ color: '#F0C674', fontFamily: 'var(--font-game), sans-serif' }}>
         MISSÕES <span style={{ color: '#8E8EA0' }}>·</span> {activeCount}/{MAX_ACTIVE_MISSIONS} ATIVAS
       </span>
       <span className="flex shrink-0 items-center gap-1 text-xs font-black tracking-wide" style={{ color: '#F0C674', fontFamily: 'var(--font-game), sans-serif' }}>

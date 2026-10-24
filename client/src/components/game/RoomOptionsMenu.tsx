@@ -172,7 +172,7 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
                   </button>
                   {showHostPicker && (
                     <div className="mb-1 rounded-lg border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-1">
-                      <div className="px-2 py-1 text-[12px] font-black tracking-widest text-[var(--ui-text-faint)]">ESCOLHA O NOVO ANFITRIÃO</div>
+                      <div className="px-2 py-1 text-caption font-black tracking-wide-caps text-[var(--ui-text-faint)]">ESCOLHA O NOVO ANFITRIÃO</div>
                       {availableHostTargets.length > 0 ? availableHostTargets.map(player => (
                         <button
                           key={player.id}
@@ -218,7 +218,7 @@ export default function RoomOptionsMenu({ isHost, onAction, roomCode, players = 
                   </button>
                   {showRemovePicker && (
                     <div className="mb-1 rounded-lg border border-[var(--ui-danger)]/25 bg-[var(--ui-surface-inset)] p-1">
-                      <div className="px-2 py-1 text-[12px] font-black tracking-widest text-[var(--ui-text-faint)]">ESCOLHA O JOGADOR</div>
+                      <div className="px-2 py-1 text-caption font-black tracking-wide-caps text-[var(--ui-text-faint)]">ESCOLHA O JOGADOR</div>
                       {availableRemovalTargets.length > 0 ? availableRemovalTargets.map(player => (
                         <button
                           key={player.id}

@@ -9,7 +9,7 @@ import {
   matchRoleForPlayer, STANDARD_TABLE_POINTS,
   createKnockoutBracket, advanceKnockoutBracket,
   generateBotTeam, applyShopVariant, calculateTeamStrength, getChemistryBonus as chemOf,
-  PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, hasVariant, stripVariant, stripSpecificVariant, applyMatchStatGrowth, PADRINHO_AFILHADO_BOOST, LAPIDADOR_RESERVE_BOOST, padrinhoStatBoost,
+  PIPOQUEIRO_LEAGUE_BOOST, PIPOQUEIRO_KO_PENALTY, pipoqueiroStatBoost, hasVariant, stripVariant, stripSpecificVariant, applyMatchStatGrowth, PADRINHO_AFILHADO_BOOST, LAPIDADOR_RESERVE_BOOST, padrinhoStatBoost,
   calculateChemistry, NOE_STAT_BOOST, NOE_CHEM_BONUS, FORASTEIRO_STAT_BOOST, COLECIONADOR_PER_RESERVE,
   MARTIR_TARGET_BOOST, DECIMO_HOMEM_STAT_BOOST, INFORM_STAT_BOOST, LOBO_STAT_BOOST,
   captainBoostFromStarters, CAPTAIN_BOOST, magnataPointMultiplier, MAGNATA_POINT_MULT,
@@ -31,6 +31,7 @@ import { DEFAULT_COMPETITION_FORMAT } from './competition';
 import { PLAYERS, UNIQUE_CARDS, STORE_UNIQUE_CARDS, COACHES, FORMATIONS, effectiveSecondaries, type Player } from './gameData';
 import { computeMatchPoints } from './shop';
 import { ALL_CRESTS, CRESTS_BY_ID, BOT_CREST_MAP, canonicalClubName, clubIdForName, crestIdForClub, getCrest } from './crests';
+import { PLAYER_STYLES_ENABLED } from './traits';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -125,7 +126,7 @@ describe('aptidão específica de goleiro', () => {
     const naturalKeeper = mkP({ position: 'GK', defending: 80, traits: ['Reflexo Felino'] });
 
     expect(goalkeeperShotStoppingRating(defender, 99, defender.traits)).toBe(Math.round(99 * OUTFIELD_GK_MULTIPLIER));
-    expect(goalkeeperShotStoppingRating(naturalKeeper, 80, naturalKeeper.traits)).toBe(90);
+    expect(goalkeeperShotStoppingRating(naturalKeeper, 80, naturalKeeper.traits)).toBe(PLAYER_STYLES_ENABLED ? 90 : 80);
     expect(goalkeeperShotStoppingRating(naturalKeeper, 80, naturalKeeper.traits)).toBeGreaterThan(
       goalkeeperShotStoppingRating(defender, 99, defender.traits),
     );
@@ -673,31 +674,32 @@ describe('🛟 Noé — +2 em tudo nele e +2 de química por titular sem caracte
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('🧳 Forasteiro — +9 como único do país E do clube', () => {
+// Regra atual (desde 583456c): cada outro titular de clube E nação diferentes dá +FORASTEIRO_STAT_BOOST.
+describe('🧳 Forasteiro — +3 por titular de clube e nação diferentes', () => {
   const filler = () => mkP({ nation: 'Fillerland', club: 'Filler FC' }); // todos iguais entre si
 
-  it('+9 quando ninguém compartilha nação nem clube', () => {
+  it('soma o bônus de cada um dos 10 titulares de clube e nação diferentes', () => {
     const f = mkP({ id: 'f', forasteiro: true, nation: 'Solônia', club: 'Solo FC' });
     const xi = [f, ...Array.from({ length: 10 }, filler)];
     // fillers compartilham nação/clube entre si, mas não com o Forasteiro
     const boosts = computeCharacteristicBoosts(xi);
-    expect(boosts['f']?.flatAll).toBe(FORASTEIRO_STAT_BOOST);
+    expect(boosts['f']?.flatAll).toBe(FORASTEIRO_STAT_BOOST * 10);
   });
 
-  it('desliga se compartilha o CLUBE com um titular', () => {
+  it('não conta o titular que compartilha o CLUBE', () => {
     const f = mkP({ id: 'f', forasteiro: true, nation: 'Solônia', club: 'Shared FC' });
     const mate = mkP({ nation: 'Outra', club: 'Shared FC' });
     const xi = [f, mate, ...Array.from({ length: 9 }, filler)];
     const boosts = computeCharacteristicBoosts(xi);
-    expect(boosts['f']?.flatAll ?? 0).toBe(0);
+    expect(boosts['f']?.flatAll ?? 0).toBe(FORASTEIRO_STAT_BOOST * 9);
   });
 
-  it('desliga se compartilha a NAÇÃO com um titular', () => {
+  it('não conta o titular que compartilha a NAÇÃO', () => {
     const f = mkP({ id: 'f', forasteiro: true, nation: 'Shared', club: 'Solo FC' });
     const mate = mkP({ nation: 'Shared', club: 'Outro FC' });
     const xi = [f, mate, ...Array.from({ length: 9 }, filler)];
     const boosts = computeCharacteristicBoosts(xi);
-    expect(boosts['f']?.flatAll ?? 0).toBe(0);
+    expect(boosts['f']?.flatAll ?? 0).toBe(FORASTEIRO_STAT_BOOST * 9);
   });
 });
 
@@ -749,27 +751,34 @@ describe('🧩 Colecionador — +1 por jogador na reserva', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('🍿 Pipoqueiro — +6 na liga, −6 no mata-mata (o anti-Pilar)', () => {
+describe('🍿 Pipoqueiro — +2 por jogo como titular na liga, −2 por jogo como titular no mata-mata', () => {
   const noChem = getChemistryBonus(0);
   const eff = (p: Player, ctx?: object) =>
     getEffectiveAttribute(card(p), 'pace', COACHES[0], noChem, '__neutral__', ctx);
 
-  it('ganha PIPOQUEIRO_LEAGUE_BOOST na fase de liga', () => {
+  it('começa sem bônus e soma o saldo das titularidades, nas duas fases', () => {
     const plain = mkP({ id: 'a' });
-    const pipo = mkP({ id: 'b', pipoqueiro: true });
-    expect(eff(pipo, { isKnockout: false }) - eff(plain, { isKnockout: false })).toBe(PIPOQUEIRO_LEAGUE_BOOST);
+    expect(eff(mkP({ id: 'b', pipoqueiro: true })) - eff(plain)).toBe(0);
+    const pipo = mkP({ id: 'b', pipoqueiro: true, pipoqueiroLeagueStarts: 5, pipoqueiroKoStarts: 2 });
+    const expected = 5 * PIPOQUEIRO_LEAGUE_BOOST - 2 * PIPOQUEIRO_KO_PENALTY;
+    expect(pipoqueiroStatBoost(pipo)).toBe(expected);
+    expect(eff(pipo, { isKnockout: false }) - eff(plain, { isKnockout: false })).toBe(expected);
+    expect(eff(pipo, { isKnockout: true }) - eff(plain, { isKnockout: true })).toBe(expected);
   });
 
-  it('perde PIPOQUEIRO_KO_PENALTY no mata-mata', () => {
-    const plain = mkP({ id: 'a' });
-    const pipo = mkP({ id: 'b', pipoqueiro: true });
-    expect(eff(pipo, { isKnockout: true }) - eff(plain, { isKnockout: true })).toBe(-PIPOQUEIRO_KO_PENALTY);
+  it('o saldo pode ficar negativo', () => {
+    expect(pipoqueiroStatBoost({ pipoqueiroLeagueStarts: 1, pipoqueiroKoStarts: 3 })).toBe(PIPOQUEIRO_LEAGUE_BOOST - 3 * PIPOQUEIRO_KO_PENALTY);
   });
 
-  it('sem contexto (default) trata como fase de liga', () => {
-    const plain = mkP({ id: 'a' });
-    const pipo = mkP({ id: 'b', pipoqueiro: true });
-    expect(eff(pipo) - eff(plain)).toBe(PIPOQUEIRO_LEAGUE_BOOST);
+  it('conta a titularidade pela fase da partida (L… liga, K… mata-mata), sem contar duas vezes', () => {
+    const pipo = mkP({ id: 'p', pipoqueiro: true });
+    let team = mkTeam('T', [pipo, ...Array.from({ length: 10 }, () => mkP())]);
+    team = bumpStarterAppearances(team, undefined, 'L1:T-X');
+    team = bumpStarterAppearances(team, undefined, 'L1:T-X'); // mesma partida: ignorada
+    team = bumpStarterAppearances(team, undefined, 'Ktie1:1');
+    const after = team.players.find(p => p.id === 'p')!;
+    expect(after.pipoqueiroLeagueStarts).toBe(1);
+    expect(after.pipoqueiroKoStarts).toBe(1);
   });
 
   it('applyShopVariant("pipoqueiro") marca a flag sem mexer no stat base', () => {
@@ -777,6 +786,8 @@ describe('🍿 Pipoqueiro — +6 na liga, −6 no mata-mata (o anti-Pilar)', () 
     const turbo = applyShopVariant(base, 'pipoqueiro');
     expect(turbo.pipoqueiro).toBe(true);
     expect(turbo.pace).toBe(70); // efeito é runtime, não assado no base
+    expect(turbo.pipoqueiroLeagueStarts).toBe(0);
+    expect(turbo.pipoqueiroKoStarts).toBe(0);
   });
 });
 
@@ -897,8 +908,10 @@ describe('penalty takers — goalkeeper specialists only', () => {
   it('respects a valid designated taker', () => {
     expect(getPenaltyTaker({ ...team, penaltyTaker: 'mid' }).id).toBe('mid');
   });
-  it('ignores a designated taker that points at the keeper', () => {
-    expect(getPenaltyTaker({ ...team, penaltyTaker: 'gk' }).position).not.toBe('GK');
+  it('respects a goalkeeper chosen by the player', () => {
+    expect(getPenaltyTaker({ ...team, penaltyTaker: 'gk' }).id).toBe('gk');
+    expect(getFreeKickTaker({ ...team, freeKickTaker: 'gk' }).id).toBe('gk');
+    expect(getPenaltyOrder({ ...team, penaltyTaker: 'gk' })[0].id).toBe('gk');
   });
   it('shootout order puts the keeper dead last', () => {
     const order = getPenaltyOrder(team);
@@ -916,12 +929,15 @@ describe('penalty takers — goalkeeper specialists only', () => {
     expect(activeGoalkeeperForTeam(team, new Set(['other-team::gk'])).player.id).toBe('gk');
     expect(getPenaltyTaker(team, new Set(['other-team::st'])).id).toBe('st');
   });
-  it('allows an explicitly specialist goalkeeper to take the set piece', () => {
+  it('picks a specialist goalkeeper automatically only while player styles are on', () => {
     const ceni = mkP({ id: 'rogerio_ceni_unico', position: 'GK', composure: 99, shooting: 92, traits: ['Cobrador de Falta', 'Cobrador de Pênaltis'] });
     const ceniTeam = mkTeam('Ceni', [ceni, striker, mid, ...Array.from({ length: 8 }, () => mkP())]);
-    expect(getFreeKickTaker(ceniTeam).id).toBe('rogerio_ceni_unico');
-    expect(getPenaltyTaker(ceniTeam).id).toBe('rogerio_ceni_unico');
-    expect(getPenaltyOrder(ceniTeam)[0].id).toBe('rogerio_ceni_unico');
+    const auto = PLAYER_STYLES_ENABLED ? 'rogerio_ceni_unico' : 'st';
+    expect(getFreeKickTaker(ceniTeam).id).toBe(auto);
+    expect(getPenaltyTaker(ceniTeam).id).toBe(auto);
+    // Chosen by the player, he always takes them.
+    expect(getPenaltyTaker({ ...ceniTeam, penaltyTaker: 'rogerio_ceni_unico' }).id).toBe('rogerio_ceni_unico');
+    expect(getFreeKickTaker({ ...ceniTeam, freeKickTaker: 'rogerio_ceni_unico' }).id).toBe('rogerio_ceni_unico');
   });
 });
 

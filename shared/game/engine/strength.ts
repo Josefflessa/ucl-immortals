@@ -140,11 +140,11 @@ export function getPenaltyTaker(
   const outfield = active.filter(p => matchRoleForPlayer(team, p) !== 'GK');
   const pool = outfield.length > 0 ? outfield : active;
   const isSpecialist = (p: PlayerCard) => hasPlayerTrait(p.traits, 'Cobrador de Pênaltis');
-  // The designated taker must be an outfielder, unless the card explicitly
-  // carries the penalty specialist trait.
+  // A taker chosen by the player always takes it, goalkeeper included: it was their call.
+  // Only the automatic pick avoids the keeper.
   if (team.penaltyTaker) {
     const chosen = active.find(p => p.id === team.penaltyTaker);
-    if (chosen && (matchRoleForPlayer(team, chosen) !== 'GK' || isSpecialist(chosen))) return chosen;
+    if (chosen) return chosen;
   }
   const specialist = active.find(isSpecialist);
   if (specialist) return specialist;
@@ -176,9 +176,7 @@ export function getPenaltyOrder(
       - (a.composure + a.shooting + 2 * getCompetitionAlbumBonus(a))
   );
   const isSpecialist = (p: PlayerCard) => hasPlayerTrait(p.traits, 'Cobrador de Pênaltis');
-  const designated = team.penaltyTaker
-    ? active.find(p => p.id === team.penaltyTaker && (matchRoleForPlayer(team, p) !== 'GK' || isSpecialist(p)))
-    : undefined;
+  const designated = team.penaltyTaker ? active.find(p => p.id === team.penaltyTaker) : undefined;
   const specialists = active.filter(isSpecialist).sort((a, b) =>
     (b.composure + b.shooting + 2 * getCompetitionAlbumBonus(b))
       - (a.composure + a.shooting + 2 * getCompetitionAlbumBonus(a))

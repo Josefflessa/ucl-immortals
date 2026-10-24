@@ -8,7 +8,7 @@ import { newMissionSeed } from '@shared/game/missions';
 import SquadEditor from '../components/game/SquadEditor';
 import OnlineWaitingScreen from '../components/game/OnlineWaitingScreen';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
-import { AppShell, Button, PageContainer, TopBar } from '../design-system';
+import { AppShell, Button, FixedActionBar, PageContainer, TopBar } from '../design-system';
 
 export default function SquadReviewPage() {
   const { state, dispatch, submitSquadReviewOnline } = useGame();
@@ -36,7 +36,7 @@ export default function SquadReviewPage() {
     <AppShell>
       <TopBar title="REVISÃO DO ELENCO" right={<CompetitionExitControl />} />
 
-      <PageContainer className="max-w-5xl overflow-y-auto">
+      <PageContainer className="max-w-5xl overflow-y-auto pb-32">
         <SquadEditor
           players={draftedPlayers}
           coachId={state.selectedCoachId}
@@ -53,19 +53,14 @@ export default function SquadReviewPage() {
           onSetPenaltyTaker={(id) => dispatch({ type: 'SET_PENALTY_TAKER', playerId: id })}
           onSetFreeKickTaker={(id) => dispatch({ type: 'SET_FREE_KICK_TAKER', playerId: id })}
           onSwap={(a, b) => dispatch({ type: 'SWAP_PLAYERS', indexA: a, indexB: b })}
-          footer={
-            <Button
-              type="button"
-              intent="primary"
-              size="large"
-              onClick={handleStart}
-              className="w-full"
-            >
-              INICIAR COMPETIÇÃO →
-            </Button>
-          }
         />
       </PageContainer>
+      {/* Same fixed action bar as the other setup steps: the next step is always within reach. */}
+      <FixedActionBar contentClassName="max-w-5xl">
+        <Button type="button" intent="primary" size="large" block onClick={handleStart}>
+          INICIAR COMPETIÇÃO →
+        </Button>
+      </FixedActionBar>
     </AppShell>
   );
 }

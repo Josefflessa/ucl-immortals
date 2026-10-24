@@ -26,7 +26,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
               <div className="space-y-3 p-3 sm:p-4">
                 <div className="flex items-end justify-between gap-3 px-1">
                   <div>
-                    <div className="text-[12px] font-black tracking-widest" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
+                    <div className="text-caption font-black tracking-wide-caps" style={{ color: 'var(--ui-brand)', fontFamily: 'var(--font-game), sans-serif' }}>
                       CLASSIFICAÇÃO POR GRUPO
                     </div>
                     <div className="mt-1 text-xs" style={{ color: 'var(--ui-text-muted)', fontFamily: 'var(--font-game), sans-serif' }}>
@@ -34,7 +34,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                     </div>
                   </div>
                   {playerGroupLabel && (
-                    <span className="shrink-0 rounded-full px-2.5 py-1 text-[12px] font-black tracking-wider" style={{ background: 'var(--ui-brand-soft)', color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}>
+                    <span className="shrink-0 rounded-full px-2.5 py-1 text-caption font-black tracking-caps" style={{ background: 'var(--ui-brand-soft)', color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}>
                       SEU GRUPO: {playerGroupLabel}
                     </span>
                   )}
@@ -46,7 +46,7 @@ export default function StandingsTab({ hub, placement = 'tab' }: { hub: LeagueHu
                     return (
                       <div key={group.groupId} className="overflow-hidden rounded-xl" style={{ border: '1px solid var(--ui-surface-3)', background: 'var(--ui-bg-raised)' }}>
                         <div className="flex items-center justify-between gap-2 border-b px-3 py-2.5 sm:px-4" style={{ borderColor: 'var(--ui-surface-3)', background: 'var(--ui-surface-1)' }}>
-                          <span className="text-sm font-black tracking-widest" style={{ color: group.groupId === playerGroup?.groupId ? 'var(--ui-brand-strong)' : 'var(--ui-text)', fontFamily: 'var(--font-game), sans-serif' }}>
+                          <span className="text-caption font-black tracking-wide-caps" style={{ color: group.groupId === playerGroup?.groupId ? 'var(--ui-brand-strong)' : 'var(--ui-text)', fontFamily: 'var(--font-game), sans-serif' }}>
                             GRUPO {groupLabel}
                           </span>
                           <span className="text-[12px] font-bold" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>

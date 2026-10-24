@@ -65,27 +65,37 @@ export default function CrestPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full">
           <SectionHeader
             title="Nome e escudo do time"
-            description="Dê um nome ao seu time e, se quiser, escolha o escudo de um clube. O escudo é só visual: não muda nenhum atributo."
+            description="Dê um nome ao seu time e, se quiser, escolha um escudo. O escudo é só visual: não muda nenhum atributo."
             className="mb-6"
           />
 
-          {/* Identity: how the team will look in the competition */}
-          <Panel className="mb-8 p-4 sm:p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-              <div className="flex items-center gap-4 sm:contents">
-                <div className="grid size-20 shrink-0 place-items-center rounded-(--ui-radius-lg) border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)]">
-                  <Crest crestId={selected} name={teamName.trim() || undefined} size={56} />
+          {/* PC: the team card stays on the left while the crest list scrolls on the right.
+              Phone: the card comes first, then the list. */}
+          <div className="lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:gap-8">
+          <aside className="mb-8 lg:sticky lg:top-6 lg:mb-0">
+            <Panel className="p-4 sm:p-5">
+              <div className="flex items-center gap-4 lg:flex-col lg:gap-3 lg:text-center">
+                <div className="grid size-20 shrink-0 place-items-center rounded-(--ui-radius-lg) border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] lg:size-32">
+                  <span className="lg:hidden"><Crest crestId={selected} name={teamName.trim() || undefined} size={56} /></span>
+                  <span className="hidden lg:block"><Crest crestId={selected} name={teamName.trim() || undefined} size={96} /></span>
                 </div>
-                <div className="min-w-0 sm:hidden">
-                  <div className="ui-section-label">Prévia</div>
-                  <div className="mt-1 truncate font-display text-title uppercase leading-none tracking-caps text-[var(--ui-text)]">{teamName.trim() || 'Seu time'}</div>
+                <div className="min-w-0 flex-1 lg:w-full">
+                  <div className="truncate font-display text-title-lg uppercase leading-none tracking-caps text-[var(--ui-text)]">{teamName.trim() || 'Seu time'}</div>
+                  <div className="mt-1.5 flex min-w-0 items-center gap-2 text-label text-[var(--ui-text-muted)] lg:justify-center">
+                    <span className="truncate">{selectedDef ? selectedDef.name : 'Sem escudo: usa as iniciais'}</span>
+                    {selectedDef ? (
+                      <button type="button" onClick={() => dispatch({ type: 'SET_CREST', crestId: null })} className="shrink-0 font-semibold text-[var(--ui-brand-strong)] underline-offset-2 hover:underline">
+                        Remover
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
               <Field
                 label="Nome do seu time"
                 htmlFor="team-name"
-                hint={nameValid ? 'É assim que seu time aparece na competição e no histórico.' : 'Use pelo menos 2 letras para continuar.'}
-                className="min-w-0 flex-1 sm:max-w-md"
+                hint={nameValid ? 'Aparece na competição e no histórico.' : 'Use pelo menos 2 letras para continuar.'}
+                className="mt-4 border-t border-[var(--ui-line-subtle)] pt-4"
               >
                 <Input
                   id="team-name"
@@ -99,20 +109,10 @@ export default function CrestPage() {
                   autoComplete="off"
                 />
               </Field>
-              <div className="flex min-w-0 items-center justify-between gap-3 border-t border-[var(--ui-line-subtle)] pt-3 sm:ml-auto sm:flex-col sm:items-end sm:border-0 sm:pt-0">
-                <div className="min-w-0 sm:text-right">
-                  <div className="ui-section-label">Escudo</div>
-                  <div className="mt-1 truncate text-body-sm font-semibold text-[var(--ui-text-soft)]">{selectedDef ? selectedDef.name : 'Iniciais do time'}</div>
-                </div>
-                {selectedDef ? (
-                  <Button size="small" intent="ghost" onClick={() => dispatch({ type: 'SET_CREST', crestId: null })}>
-                    Remover escudo
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </Panel>
+            </Panel>
+          </aside>
 
+          <section className="min-w-0" aria-label="Escudo">
           <SectionHeader
             level="section"
             title="Escudo"
@@ -124,7 +124,7 @@ export default function CrestPage() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Buscar clube ou seleção"
-            className="mb-3 lg:max-w-md"
+            className="mb-3"
             aria-label="Buscar clube ou seleção"
             type="search"
           />
@@ -151,7 +151,7 @@ export default function CrestPage() {
               O escudo do Brasil é desbloqueado no evento Brasil em Campo.
             </p>
           ) : null}
-          <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 sm:gap-3 md:grid-cols-6 xl:grid-cols-8">
+          <div className="grid grid-cols-3 gap-2 min-[380px]:grid-cols-4 sm:gap-3 md:grid-cols-5 xl:grid-cols-6">
             {shownCrests.map((c, i) => {
               const isSel = selected === c.id;
               const isUnlocked = c.teamType !== 'national-team' || unlockedCrests.includes(c.id);
@@ -173,7 +173,7 @@ export default function CrestPage() {
                   }}
                   disabled={!isUnlocked}
                   title={isUnlocked ? 'Clique duas vezes para escolher e continuar' : 'Conclua o evento Brasil em Campo para desbloquear'}
-                  className={`ui-choice relative flex flex-col items-center gap-1.5 p-3 ${isUnlocked ? '' : 'cursor-not-allowed opacity-55'}`}
+                  className={`ui-choice relative flex flex-col items-center gap-1.5 px-1.5 py-2.5 sm:p-3 ${isUnlocked ? '' : 'cursor-not-allowed opacity-55'}`}
                   data-selected={isSel}
                   style={{
                     background: isSel ? `${GOLD}14` : undefined,
@@ -182,10 +182,10 @@ export default function CrestPage() {
                   }}
                 >
                   <img src={c.url} alt={c.name} referrerPolicy="no-referrer" decoding="async"
-                    className={`h-12 w-12 object-contain ${isUnlocked ? '' : 'grayscale'}`}
+                    className={`h-10 w-10 object-contain sm:h-12 sm:w-12 ${isUnlocked ? '' : 'grayscale'}`}
                     style={{ borderRadius: c.clipToCircle ? '50%' : undefined }} />
                   {!isUnlocked ? <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full border border-white/10 bg-black/75 text-white/80"><Lock size={11} aria-hidden="true" /></span> : null}
-                  <span className="w-full truncate text-center text-label font-semibold leading-ui-tight"
+                  <span className="w-full truncate text-center text-micro font-semibold leading-ui-tight sm:text-label"
                     style={{ color: isSel ? GOLD : 'var(--ui-text-soft)' }}>
                     {c.name}
                   </span>
@@ -198,6 +198,8 @@ export default function CrestPage() {
           {search && shownCrests.length === 0 && (
             <EmptyState className="mt-3" title="Nenhum clube encontrado" description={`Não achamos “${query}”. Confira a grafia ou procure pelo nome curto do clube.`} />
           )}
+          </section>
+          </div>
 
         </motion.div>
       </PageContainer>

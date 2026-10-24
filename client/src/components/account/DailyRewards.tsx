@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Check, Clock3, Gift, LockKeyhole, RotateCw, Sparkles } from 'lucide-react';
 import { ALBUM_TIER_META, parseItemKey, type AlbumItemKey } from '@shared/game/album';
 import { WEEKLY_PACK_REWARDS } from '@shared/game/dailyRewards';
@@ -68,7 +68,10 @@ function RewardDay({ reward, todayIndex, claimed }: {
   );
 }
 
-export default function DailyRewardsHomeButton() {
+/** What a custom trigger needs to draw itself (the home dashboard uses a card instead of the icon). */
+export interface DailyRewardTriggerInfo { loading: boolean; available: boolean; rewardLabel: string | null; open: () => void }
+
+export default function DailyRewardsHomeButton({ renderTrigger }: { renderTrigger?: (info: DailyRewardTriggerInfo) => ReactNode } = {}) {
   const { refresh: refreshAlbum } = useAlbum();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<WeeklyRewardsState | null>(null);
@@ -118,9 +121,11 @@ export default function DailyRewardsHomeButton() {
     }
   };
 
+  const openModal = () => { setOpen(true); setSuccess(''); void load(); };
+
   return (
     <>
-      <Button
+      {renderTrigger ? renderTrigger({ loading: loading && !state, available: Boolean(state && !claimedToday), rewardLabel: todayReward ? packLabel(todayReward.itemKey) : null, open: openModal }) : <Button
         type="button"
         intent="ghost"
         aria-label={!claimedToday && state ? 'Recompensa diária disponível' : 'Recompensas diárias'}
@@ -130,7 +135,7 @@ export default function DailyRewardsHomeButton() {
       >
         <Gift size={19} aria-hidden="true" />
         {!claimedToday && state ? <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-[var(--ui-bg)] bg-[var(--ui-brand-strong)]" /> : null}
-      </Button>
+      </Button>}
 
       <GameModal
         open={open}

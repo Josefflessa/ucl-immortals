@@ -40,7 +40,7 @@ function number(value: number | undefined): number {
 function DetailMetric({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-xl px-3 py-2.5" style={{ background: 'var(--ui-surface-inset)' }}>
-      <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--ui-text-faint)' }}>{label}</div>
+      <div className="text-caption font-bold uppercase tracking-wide-caps" style={{ color: 'var(--ui-text-faint)' }}>{label}</div>
       <div className="mt-1 text-base font-black tabular-nums" style={{ color: 'var(--ui-text)' }}>{value}</div>
     </div>
   );
@@ -70,10 +70,10 @@ export default function PlayerSeasonStatsPanel({ rows, title = 'ESTATÍSTICAS DO
 
   return (
     <section className="overflow-hidden rounded-2xl border" style={{ background: 'var(--ui-surface-1)', borderColor: 'var(--ui-line-subtle)' }}>
-      <header className="space-y-4 border-b px-5 py-5 sm:px-6" style={{ borderColor: 'var(--ui-line-subtle)' }}>
+      <header className="space-y-3 border-b px-5 py-4" style={{ borderColor: 'var(--ui-line-subtle)' }}>
         <div>
-          <h2 className="text-base font-black tracking-[0.12em] sm:text-lg" style={{ color: 'var(--ui-brand-strong)', fontFamily: 'var(--font-game), sans-serif' }}>{title}</h2>
-          {description && <p className="mt-1.5 text-base leading-relaxed" style={{ color: 'var(--ui-text-muted)' }}>{description}</p>}
+          <h2 className="ui-section-label">{title}</h2>
+          {description && <p className="mt-1 text-body-sm leading-ui-snug" style={{ color: 'var(--ui-text-muted)' }}>{description}</p>}
         </div>
         <div className="grid gap-2.5 sm:grid-cols-[minmax(0,1fr)_200px]">
           <label className="flex min-w-0 items-center gap-2.5 rounded-xl border px-3.5" style={{ background: 'var(--ui-bg)', borderColor: 'var(--ui-line-subtle)' }}>
@@ -83,7 +83,7 @@ export default function PlayerSeasonStatsPanel({ rows, title = 'ESTATÍSTICAS DO
               onChange={event => setQuery(event.target.value)}
               placeholder="Buscar jogador ou posição"
               aria-label="Buscar jogador ou posição"
-              className="h-12 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-[var(--ui-text-faint)]"
+              className="h-11 min-w-0 flex-1 bg-transparent text-body-sm outline-none placeholder:text-[var(--ui-text-faint)]"
               style={{ color: 'var(--ui-text)' }}
             />
           </label>
@@ -92,7 +92,7 @@ export default function PlayerSeasonStatsPanel({ rows, title = 'ESTATÍSTICAS DO
             <select
               value={sortBy}
               onChange={event => setSortBy(event.target.value as SortKey)}
-              className="h-12 w-full appearance-none bg-transparent px-3.5 pr-10 text-base font-bold outline-none"
+              className="h-11 w-full appearance-none bg-transparent px-3.5 pr-10 text-body-sm font-semibold outline-none"
               style={{ color: 'var(--ui-text)' }}
             >
               {(Object.keys(sortLabels) as SortKey[]).map(key => <option key={key} value={key}>{sortLabels[key]}</option>)}
@@ -100,13 +100,13 @@ export default function PlayerSeasonStatsPanel({ rows, title = 'ESTATÍSTICAS DO
             <ChevronDown size={17} className="pointer-events-none absolute right-3" style={{ color: 'var(--ui-text-muted)' }} aria-hidden="true" />
           </label>
         </div>
-        <div className="text-sm" style={{ color: 'var(--ui-text-faint)' }} aria-live="polite">
+        <div className="text-label" style={{ color: 'var(--ui-text-muted)' }} aria-live="polite">
           {visibleRows.length} {visibleRows.length === 1 ? 'jogador' : 'jogadores'} · Jogos contabilizados a partir das partidas disputadas.
         </div>
       </header>
 
       {visibleRows.length === 0 ? (
-        <div className="px-5 py-12 text-center text-base" style={{ color: 'var(--ui-text-muted)' }}>{rows.length ? 'Nenhum jogador corresponde à busca.' : emptyMessage}</div>
+        <div className="px-5 py-12 text-center text-body-sm" style={{ color: 'var(--ui-text-muted)' }}>{rows.length ? 'Nenhum jogador corresponde à busca.' : emptyMessage}</div>
       ) : (
         <div className="divide-y" style={{ borderColor: 'var(--ui-line-subtle)' }}>
           {visibleRows.map(({ player, stats, teamName, isReserve }, index) => {
@@ -121,8 +121,8 @@ export default function PlayerSeasonStatsPanel({ rows, title = 'ESTATÍSTICAS DO
                     <PlayerAvatar playerId={player.id} photoUrl={player.photoUrl} rarity={player.rarity} size={48} />
                   </div>
                   <div className="col-start-2 row-start-1 min-w-0 sm:flex-1">
-                    <div className="whitespace-normal break-words text-base font-black leading-tight" style={{ color: 'var(--ui-text)' }}>{player.shortName}</div>
-                    <div className="mt-1 space-y-1 text-sm" style={{ color: 'var(--ui-text-faint)' }}>
+                    <div className="whitespace-normal break-words text-body font-black leading-tight" style={{ color: 'var(--ui-text)' }}>{player.shortName}</div>
+                    <div className="mt-1 space-y-1 text-label" style={{ color: 'var(--ui-text-faint)' }}>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="shrink-0 rounded-md px-2 py-0.5 text-xs font-black" style={{ background: 'var(--ui-surface-3)', color: 'var(--ui-text-muted)' }}>{POS_PT[player.position] ?? player.position}</span>
                         {isReserve && (
@@ -153,7 +153,7 @@ export default function PlayerSeasonStatsPanel({ rows, title = 'ESTATÍSTICAS DO
                   {isGoalkeeper && <DetailMetric label="Defesas" value={number(stats.saves)} />}
                   <DetailMetric label="Faltas" value={number(stats.fouls)} />
                   <div className="rounded-xl px-3 py-2.5" style={{ background: 'var(--ui-surface-inset)' }}>
-                    <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--ui-text-faint)' }}>Cartões</div>
+                    <div className="text-caption font-bold uppercase tracking-wide-caps" style={{ color: 'var(--ui-text-faint)' }}>Cartões</div>
                     <div className="mt-1 flex items-center gap-2 text-base font-black tabular-nums" style={{ color: 'var(--ui-text)' }}>
                       <span className="inline-flex items-center gap-1">{yellow}<CardIcon color="yellow" /></span>
                       <span className="inline-flex items-center gap-1">{red}<CardIcon color="red" /></span>

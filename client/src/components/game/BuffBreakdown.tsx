@@ -12,7 +12,7 @@ import {
   FORASTEIRO_STAT_BOOST, FORASTEIRO_CHEM_PENALTY_PER_PLAYER, FRAGIL_STAT_BOOST, fragilStatBoost, GARCOM_ASSISTS_PER_BOOST, GOLEADOR_GOALS_PER_BOOST, IDOLO_STAT_BOOST,
   INFORM_STAT_BOOST, LOBO_CHEM_PENALTY, LOBO_STAT_BOOST, MAGNATA_POINT_MULT, MAGNATA_STAT_PENALTY, MARTIR_INITIAL_DISTRIBUTION,
   LAPIDADOR_RESERVE_BOOST, APOSTADOR_STAT_BOOST_PER_WIN, AGREGADOR_STAT_BOOST_PER_TRAIT, HUMILDE_BRONZE_BOOST, HUMILDE_SILVER_BOOST, MIDIATICO_CREDITS_PER_GOAL, apostadorStatBoost, martirDistributionLimit, MERCENARIO_STAT_BOOST_PER_MISSION, NOE_CHEM_BONUS, PADRINHO_AFILHADO_BOOST, NOE_STAT_BOOST, OUTFIELD_GK_MULTIPLIER,
-  PILAR_CHEM_BONUS, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST,
+  PILAR_CHEM_BONUS, PIPOQUEIRO_KO_PENALTY, PIPOQUEIRO_LEAGUE_BOOST, pipoqueiroStatBoost, PRODIGIO_STARTS_PER_BOOST, RESILIENTE_DEFEAT_BOOST,
   TODOS_POR_UM_STAT_BOOST, arroganteStatBoost, arroganteTeamPenalty, estribadoStatBoost,
   garcomStatBoost, goleadorStatBoost, mercenarioStatBoost, padrinhoStatBoost, prodigioStatBoost, type CharBoost, type StatBreakdown,
 } from '@shared/game/gameEngine';
@@ -51,7 +51,7 @@ function Row({ icon, name, color, children }: { icon: React.ReactNode; name: str
     <div className="flex items-start gap-2.5 py-2.5">
       <span className="inline-flex h-5 flex-shrink-0 items-center text-sm" style={{ color }} aria-hidden="true">{icon}</span>
       <div className="min-w-0 flex-1">
-        <div className="text-xs font-black tracking-wider" style={{ color, ...FONT }}>{name}</div>
+        <div className="text-caption font-black tracking-wide-caps" style={{ color, ...FONT }}>{name}</div>
         {children ? <div className="mt-1">{children}</div> : null}
       </div>
     </div>
@@ -169,13 +169,12 @@ function variantDetails(variant: Variant, model: PlayerSheetModel, charBoost?: C
         description: `Só funciona no banco: todo o XI recebe +${DECIMO_HOMEM_STAT_BOOST} em todos os atributos e o time ganha +${DECIMO_HOMEM_CHEM_BONUS} de química geral.`,
       };
     case 'pipoqueiro': {
-      const ko = model.isKnockout;
+      const total = pipoqueiroStatBoost(p);
+      const league = p.pipoqueiroLeagueStarts ?? 0;
+      const ko = p.pipoqueiroKoStarts ?? 0;
       return {
-        chips: [
-          { text: `+${PIPOQUEIRO_LEAGUE_BOOST} EM TUDO NA LIGA`, color: GREEN, dim: ko },
-          { text: `−${PIPOQUEIRO_KO_PENALTY} EM TUDO NO MATA-MATA`, color: RED, dim: !ko },
-        ],
-        description: ko ? `Está no mata-mata: vale a penalidade de −${PIPOQUEIRO_KO_PENALTY}.` : `Está na fase de liga: vale o bônus de +${PIPOQUEIRO_LEAGUE_BOOST}. No mata-mata vira −${PIPOQUEIRO_KO_PENALTY}.`,
+        chips: [{ text: `${total >= 0 ? '+' : '−'}${Math.abs(total)} EM CADA ATRIBUTO`, color: total >= 0 ? GREEN : RED }],
+        description: `+${PIPOQUEIRO_LEAGUE_BOOST} por jogo como titular na fase de liga (${league}) e −${PIPOQUEIRO_KO_PENALTY} por jogo como titular no mata-mata (${ko}).`,
       };
     }
     case 'noe':
@@ -516,7 +515,7 @@ export default function BuffBreakdown({ model, collapsible = false }: { model: P
       <button type="button" onClick={() => collapsible && setOpen(v => !v)} disabled={!collapsible}
         aria-expanded={open}
         className="flex w-full items-center justify-between gap-2 text-left disabled:cursor-default">
-        <span className="text-xs font-black tracking-widest text-[var(--ui-text-soft)]" style={FONT}><Dna {...INLINE_ICON} />DE ONDE VEM CADA BÔNUS</span>
+        <span className="text-caption font-black tracking-wide-caps text-[var(--ui-text-soft)]" style={FONT}><Dna {...INLINE_ICON} />DE ONDE VEM CADA BÔNUS</span>
         {collapsible && <span className="text-[12px] font-bold text-[var(--ui-text-muted)]" style={FONT}>{open ? 'Ocultar ▴' : `Ver ${total} fonte${total === 1 ? '' : 's'} ▾`}</span>}
       </button>
       {open && (total === 0 ? (

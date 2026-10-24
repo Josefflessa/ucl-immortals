@@ -119,7 +119,7 @@ export default function HubModals({ hub }: { hub: LeagueHub }) {
           }
         >
               <div className="ui-panel ui-panel--inset flex-shrink-0 border-[#F59E0B]/35 bg-[#F59E0B]/[0.07] px-4 py-3">
-                <div className="text-[13px] font-black tracking-widest" style={{ color: '#FBBF24', fontFamily: 'var(--font-game), sans-serif' }}>
+                <div className="text-caption font-black tracking-wide-caps" style={{ color: '#FBBF24', fontFamily: 'var(--font-game), sans-serif' }}>
                   ESCOLHA GRATUITA · PRATA OU BRONZE
                 </div>
                 <div className="text-[13px] mt-1" style={{ color: '#A9A9B8', fontFamily: 'var(--font-game), sans-serif' }}>

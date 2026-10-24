@@ -81,7 +81,7 @@ export default function MissionResolutionModal({ resolution, onClose, missionsPr
                   <p className="mt-1 text-sm text-pretty leading-relaxed" style={{ color: '#A5A5B6', fontFamily: 'var(--font-game), sans-serif' }}>
                     {mission.description}
                   </p>
-                  <span className="mt-2 inline-flex rounded px-1.5 py-0.5 text-xs font-black tracking-widest" style={{ color: rarity.color, background: `${rarity.color}18`, fontFamily: 'var(--font-game), sans-serif' }}>
+                  <span className="mt-2 inline-flex rounded px-1.5 py-0.5 text-caption font-black tracking-caps" style={{ color: rarity.color, background: `${rarity.color}18`, fontFamily: 'var(--font-game), sans-serif' }}>
                     CONCLUÍDA · {rarity.label}
                   </span>
                 </div>
@@ -101,7 +101,7 @@ export default function MissionResolutionModal({ resolution, onClose, missionsPr
                 <p className="mt-1 text-sm text-pretty leading-relaxed" style={{ color: '#A5A5B6', fontFamily: 'var(--font-game), sans-serif' }}>
                   O prazo terminou e a missão foi encerrada sem recompensa.
                 </p>
-                <span className="mt-2 inline-flex rounded px-1.5 py-0.5 text-xs font-black tracking-widest" style={{ color: '#94A3B8', background: '#64748B18', fontFamily: 'var(--font-game), sans-serif' }}>
+                <span className="mt-2 inline-flex rounded px-1.5 py-0.5 text-caption font-black tracking-caps" style={{ color: '#94A3B8', background: '#64748B18', fontFamily: 'var(--font-game), sans-serif' }}>
                   EXPIRADA
                 </span>
               </div>
@@ -111,7 +111,7 @@ export default function MissionResolutionModal({ resolution, onClose, missionsPr
 
         {completedTotal > 0 && (
           <div className="flex items-center justify-between rounded-lg border border-[#F0C67433] bg-[#F0C6740D] px-4 py-3">
-            <span className="text-xs font-black tracking-widest" style={{ color: '#A5A5B6', fontFamily: 'var(--font-game), sans-serif' }}>
+            <span className="text-caption font-black tracking-wide-caps" style={{ color: '#A5A5B6', fontFamily: 'var(--font-game), sans-serif' }}>
               TOTAL DE RECOMPENSAS
             </span>
             <strong className="text-lg font-black" style={{ color: '#F0C674', fontFamily: 'var(--font-display), sans-serif' }}>

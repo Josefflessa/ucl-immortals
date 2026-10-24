@@ -35,14 +35,11 @@ export function HubHeader({ hub }: { hub: LeagueHub }) {
         }
       />
 
-      {/* Page title: the stage the competition is in, aligned with the content below. */}
-      <div className="ui-shell pt-5 sm:pt-8">
+      {/* Page title: the stage the competition is in. */}
+      <div className="ui-shell pt-5 text-center sm:pt-8">
         <h1 className={`ui-title ${isKnockout ? 'text-[var(--ui-brand-strong)]' : ''}`}>
           {isKnockout ? knockoutLabel : isGroupStage ? `Fase de grupos · Rodada ${leagueRound} de ${leagueRounds}` : `Rodada ${leagueRound} de ${leagueRounds}`}
         </h1>
-        <p className="ui-subtitle mt-1.5 text-body-sm sm:text-lead">
-          {isKnockout ? 'Gerencie seu time entre os confrontos do mata-mata.' : isLeagueOnly ? 'Dispute rodada por rodada e termine no topo da tabela.' : isGroupStage ? `Dispute seu grupo e fique entre os ${state.competitionFormat.qualifiedPerGroup} primeiros.` : `Dispute rodada por rodada e termine entre os ${qualifiedTeams} melhores.`}
-        </p>
       </div>
     </>
   );

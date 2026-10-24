@@ -38,7 +38,7 @@ function Chip({ icon, label, value, color }: { icon: React.ReactNode; label: str
     >
       <span className="text-sm flex-shrink-0">{icon}</span>
       <div className="min-w-0">
-        <div className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: '#7A7A8A', fontFamily: 'var(--font-game), sans-serif' }}>{label}</div>
+        <div className="text-caption font-bold uppercase tracking-wide-caps truncate" style={{ color: '#7A7A8A', fontFamily: 'var(--font-game), sans-serif' }}>{label}</div>
         <div className="text-[13px] font-black leading-tight truncate" style={{ color, fontFamily: 'var(--font-game), sans-serif' }}>{value}</div>
       </div>
     </div>
@@ -124,7 +124,7 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
             <div className="w-[66px] h-[66px] rounded-lg flex items-center justify-center flex-shrink-0 text-2xl" style={{ background: '#14142a', border: `2px solid ${accent}55`, color: accent }}><GraduationCap size={30} strokeWidth={2} aria-hidden="true" /></div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7A7A8A', fontFamily: 'var(--font-game), sans-serif' }}>Treinador</div>
+            <div className="text-caption font-bold uppercase tracking-wide-caps" style={{ color: '#7A7A8A', fontFamily: 'var(--font-game), sans-serif' }}>Treinador</div>
             <div className="whitespace-normal break-words text-sm font-black leading-tight" style={{ color: '#FFF', fontFamily: 'var(--font-display), sans-serif', letterSpacing: '0.04em' }}>
               {coach?.name ?? '—'}
             </div>
@@ -134,7 +134,7 @@ export default function MatchFieldView({ team, activePlayStyle, ratings, goalsBy
           </div>
           {teamOverall !== null && (
             <div className="shrink-0 text-right" aria-label={`Geral do time: ${teamOverall}`}>
-              <div className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7A7A8A', fontFamily: 'var(--font-game), sans-serif' }}>Geral</div>
+              <div className="text-caption font-bold uppercase tracking-wide-caps" style={{ color: '#7A7A8A', fontFamily: 'var(--font-game), sans-serif' }}>Geral</div>
               <div className="font-display text-4xl leading-none tabular-nums" style={{ color: 'var(--ui-brand-strong)' }}>{teamOverall}</div>
             </div>
           )}

@@ -37,7 +37,7 @@ export default function NarrationStrip({ minute, isFinished, userPaused, danger,
   return (
     <div className="narration-strip p-2 sm:p-3 border-b flex flex-col justify-center flex-shrink-0 transition-colors" style={{ background: danger ? `${accent}14` : 'linear-gradient(90deg, #0e0e1d, #14142b)', borderColor: danger ? `${accent}4d` : '#171725' }}>
       <div className="flex items-center justify-between mb-0.5">
-        <span className="narration-strip__label text-[12px] font-black tracking-widest uppercase" style={{ fontFamily: 'var(--font-game), sans-serif', color: isFinished ? 'var(--ui-text-soft)' : accent }}>
+        <span className="narration-strip__label text-caption font-black tracking-wide-caps uppercase" style={{ fontFamily: 'var(--font-game), sans-serif', color: isFinished ? 'var(--ui-text-soft)' : accent }}>
           {label}
         </span>
         {danger && !isFinished && (

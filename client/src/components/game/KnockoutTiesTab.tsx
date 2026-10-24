@@ -265,7 +265,7 @@ export default function KnockoutTiesTab() {
               >
                 {/* Match header */}
                 {(hasPlayer || hasHumanMatch) && (
-                  <div className="px-4 py-1.5 text-xs font-bold tracking-widest text-center"
+                  <div className="px-4 py-1.5 text-caption font-bold tracking-wide-caps text-center"
                     style={{
                       background: hasPlayer ? '#C9A84C22' : '#6366F122',
                       color: hasPlayer ? 'var(--ui-brand)' : '#A5B4FC',
@@ -299,7 +299,7 @@ export default function KnockoutTiesTab() {
                           <div className="text-xl sm:text-2xl font-black" style={{ fontFamily: 'var(--font-display), sans-serif', color: '#555' }}>VS</div>
                         ) : !l2 || !match.result ? (
                           <div>
-                            <div className="inline-block text-[12px] font-black tracking-widest text-indigo-300 rounded px-2 py-0.5 mb-0.5" style={{ fontFamily: 'var(--font-game), sans-serif', background: '#4338CA33', border: '1px solid #4338CA66' }}>JOGO DE IDA</div>
+                            <div className="inline-block text-caption font-black tracking-caps text-indigo-300 rounded px-2 py-0.5 mb-0.5" style={{ fontFamily: 'var(--font-game), sans-serif', background: '#4338CA33', border: '1px solid #4338CA66' }}>JOGO DE IDA</div>
                             <div className="text-3xl sm:text-4xl font-black leading-none" style={{ fontFamily: 'var(--font-display), sans-serif', color: 'var(--ui-brand)' }}>
                               {l1.homeGoals} - {l1.awayGoals}
                             </div>
@@ -357,7 +357,7 @@ export default function KnockoutTiesTab() {
                       <div className="mx-auto mt-3 w-full max-w-[280px] space-y-1.5" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                         {legs.map(leg => (
                           <div key={leg.key} className="grid grid-cols-[52px_minmax(0,1fr)] items-center rounded-lg px-2.5 py-1.5" style={{ background: leg.bg, border: `1px solid ${leg.border}` }}>
-                            <span className="text-[12px] font-black tracking-widest" style={{ color: leg.color }}>{leg.label}</span>
+                            <span className="text-caption font-black tracking-wide-caps" style={{ color: leg.color }}>{leg.label}</span>
                             <span className="flex items-center justify-center gap-2.5">
                               <Crest crestId={leg.home.crestId} name={leg.home.name} size={20} />
                               <span className="text-lg font-black leading-none tabular-nums" style={scoreStyle(leg.h, leg.a)}>{leg.h}</span>
@@ -369,7 +369,7 @@ export default function KnockoutTiesTab() {
                         ))}
                         {match.result.penaltyWinner && (
                           <div className="grid grid-cols-[52px_minmax(0,1fr)] items-center rounded-lg px-2.5 py-1.5" style={{ background: '#78350F1F', border: '1px solid #B4530955' }}>
-                            <span className="text-[12px] font-black tracking-widest" style={{ color: '#FBBF24' }}>PÊN.</span>
+                            <span className="text-caption font-black tracking-wide-caps" style={{ color: '#FBBF24' }}>PÊN.</span>
                             <span className="flex items-center justify-center gap-2.5">
                               <Crest crestId={homeCrestId} name={homeName} size={20} />
                               <span className="text-lg font-black leading-none tabular-nums" style={scoreStyle(match.result.homePenalties ?? 0, match.result.awayPenalties ?? 0)}>{match.result.homePenalties}</span>
@@ -550,7 +550,7 @@ export default function KnockoutTiesTab() {
                   )
                 )}
                 {state.mode === 'online' && totalReadyKO > 0 && (
-                  <div className="mb-2 text-[13px] font-black tracking-widest" style={{ fontFamily: 'var(--font-game), sans-serif', color: allReadyKO ? 'var(--ui-success)' : 'var(--ui-brand)' }}>
+                  <div className="mb-2 text-caption font-black tracking-wide-caps" style={{ fontFamily: 'var(--font-game), sans-serif', color: allReadyKO ? 'var(--ui-success)' : 'var(--ui-brand)' }}>
                     {readyCountKO}/{totalReadyKO} PRONTO{totalReadyKO !== 1 ? 'S' : ''}
                   </div>
                 )}
