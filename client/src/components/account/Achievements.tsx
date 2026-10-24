@@ -153,6 +153,8 @@ export function AchievementMedal({ id, level, size = 48 }: { id: string; level: 
   const art = size * 1.34;
   // The Immortal crest has a much smaller centre disc than the other medals.
   const iconSize = Math.round(size * (tier === 'immortal' ? 0.22 : 0.34));
+  // In medal-immortal.webp the disc's pixel centre is at y=106.28 of 192.
+  const immortalIconOffsetY = tier === 'immortal' ? (art * (106.28 - 96)) / 192 : 0;
   return (
     <span aria-hidden="true" className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
       <img
@@ -174,7 +176,7 @@ export function AchievementMedal({ id, level, size = 48 }: { id: string; level: 
         strokeWidth={2.3}
         className="relative"
         style={{
-          transform: tier === 'immortal' ? `translateY(${Math.round(size * 0.04)}px)` : undefined,
+          transform: immortalIconOffsetY ? `translateY(${immortalIconOffsetY}px)` : undefined,
           color: locked ? LOCKED_COLOR : `color-mix(in srgb, ${color} 60%, white)`,
           filter: locked ? undefined : `drop-shadow(0 0 ${Math.max(2, Math.round(size / 16))}px color-mix(in srgb, ${color} 70%, transparent))`,
         }}
