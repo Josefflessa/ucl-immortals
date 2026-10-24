@@ -588,7 +588,7 @@ export default function KnockoutTiesTab() {
                   boxShadow: '0 0 25px rgba(34,197,94,0.3)',
                 }}
               >
-                {isFinal ? <><Trophy {...INLINE_ICON} />ENCERRAR COMPETIÇÃO</> : 'AVANÇAR PARA A PRÓXIMA FASE →'}
+                {isFinal ? <><Trophy {...INLINE_ICON} />ENCERRAR COMPETIÇÃO</> : 'AVANÇAR PARA A PRÓXIMA FASE'}
               </button>
             )
           ) : (

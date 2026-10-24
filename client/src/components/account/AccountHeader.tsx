@@ -258,8 +258,8 @@ export default function AccountHeader() {
             <img src="/icons/logo_ucl.png" alt="" className="size-10 object-contain" />
             <span className="font-display text-[1.45rem] leading-none tracking-[0.1em] text-[var(--ui-text)]">UCL <span className="text-[var(--ui-brand-strong)]">IMMORTALS</span></span>
           </button>
-          <div ref={setNavSlot} className="hidden min-w-0 flex-1 items-center justify-center xl:order-2 xl:flex" />
-          <div className="flex shrink-0 items-center gap-1.5 xl:order-3 xl:gap-0.5 xl:rounded-full xl:border xl:border-[var(--ui-line-subtle)] xl:bg-[var(--ui-surface)] xl:p-1 xl:[&_button]:border-transparent xl:[&_button]:bg-transparent xl:[&_button]:hover:bg-[var(--ui-surface-3)]">
+          <div ref={setNavSlot} className="hidden min-w-0 flex-1 items-stretch justify-start self-stretch xl:order-2 xl:ml-12 xl:flex" />
+          <div className="flex shrink-0 items-center gap-0.5 xl:order-3 [&_button]:size-11 [&_button]:min-h-11 [&_button]:w-11 [&_button]:rounded-(--ui-radius-md) [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--ui-text-muted)] [&_button]:hover:bg-[var(--ui-surface-2)] [&_button]:hover:text-[var(--ui-text)] xl:[&_button]:size-10 xl:[&_button]:min-h-10 xl:[&_button]:w-10">
             <Button
               type="button"
               intent="ghost"
@@ -275,19 +275,19 @@ export default function AccountHeader() {
             <DailyRewardsHomeButton />
             <SoundControl />
           </div>
-          <span aria-hidden="true" className="hidden h-7 w-px shrink-0 bg-[var(--ui-line-subtle)] xl:order-3 xl:ml-4 xl:block" />
+          <span aria-hidden="true" className="hidden h-6 w-px shrink-0 bg-[var(--ui-line-subtle)] xl:order-3 xl:ml-3 xl:block" />
 
-          <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 xl:order-4 xl:ml-4">
+          <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 xl:order-4 xl:ml-3 xl:gap-3">
             <button
               type="button"
               onClick={() => dispatch({ type: 'SET_PHASE', phase: 'store' })}
               disabled={exactCoins === null}
               aria-label={exactCoins === null ? 'Saldo de moedas carregando' : `Saldo: ${exactCoins.toLocaleString('pt-BR')} moedas. Abrir loja`}
               title={exactCoins === null ? 'Carregando saldo' : `${exactCoins.toLocaleString('pt-BR')} moedas`}
-              className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-[var(--ui-brand)]/30 bg-[var(--ui-surface)] px-2.5 text-[var(--ui-brand-strong)] transition-colors hover:border-[var(--ui-brand)]/60 hover:bg-[var(--ui-surface-2)] disabled:opacity-60 sm:h-11 sm:gap-2 sm:px-3"
+              className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-(--ui-radius-md) border border-transparent bg-[var(--ui-surface-2)] px-2.5 text-[var(--ui-brand-strong)] transition-colors hover:border-[var(--ui-brand-line)] disabled:opacity-60 sm:h-11 sm:gap-2 sm:px-3 xl:h-10 xl:px-3"
             >
               <Coins size={18} aria-hidden="true" />
-              <strong className="max-w-[4.8rem] truncate text-xs font-extrabold tabular-nums sm:max-w-[8rem] sm:text-sm">{exactCoins === null ? '—' : compactCoins(exactCoins)}</strong>
+              <strong className="max-w-[4.8rem] truncate font-[family-name:var(--font-display)] text-[1.15rem] font-normal leading-none tabular-nums tracking-caps sm:max-w-[8rem] sm:text-[1.2rem]">{exactCoins === null ? '—' : compactCoins(exactCoins)}</strong>
             </button>
             <button
               type="button"

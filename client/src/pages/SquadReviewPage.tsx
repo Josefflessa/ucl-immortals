@@ -58,7 +58,7 @@ export default function SquadReviewPage() {
       {/* Same fixed action bar as the other setup steps: the next step is always within reach. */}
       <FixedActionBar contentClassName="max-w-5xl">
         <Button type="button" intent="primary" size="large" block onClick={handleStart}>
-          INICIAR COMPETIÇÃO →
+          INICIAR COMPETIÇÃO
         </Button>
       </FixedActionBar>
     </AppShell>

@@ -173,7 +173,7 @@ export default function CoachPage() {
           onClick={handleContinue}
           className="flex-1"
         >
-          ESCOLHER FORMAÇÃO →
+          ESCOLHER FORMAÇÃO
         </Button>
       </FixedActionBar>
     </AppShell>

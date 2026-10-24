@@ -93,6 +93,8 @@ function EnvelopeFront({ itemKey, opening, onOpen }: { itemKey: AlbumItemKey; op
 }
 
 const BULK_RARITY_ORDER: Record<Rarity, number> = { bronze: 0, silver: 1, gold: 2, legendary: 3, immortal: 4, unique: 5 };
+const BULK_FIRST_CARDS = 16;
+const BULK_CARDS_PER_FRAME = 8;
 
 function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: {
   itemKey: AlbumItemKey;
@@ -118,6 +120,14 @@ function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: {
     || a.number - b.number);
   const newCount = result.cards.filter(draw => draw.isNew).length;
   const repeatCount = result.cards.length - newCount;
+  // A big batch has ~100 cards: show the first rows at once and mount the rest frame by frame,
+  // so the summary appears right after the tear instead of waiting for every card.
+  const [visibleCount, setVisibleCount] = useState(BULK_FIRST_CARDS);
+  useEffect(() => {
+    if (visibleCount >= cards.length) return undefined;
+    const frame = window.requestAnimationFrame(() => setVisibleCount(count => count + BULK_CARDS_PER_FRAME));
+    return () => window.cancelAnimationFrame(frame);
+  }, [visibleCount, cards.length]);
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label="Resultado da abertura em lote" className="fixed inset-0 z-[80] flex flex-col overflow-hidden text-white" style={{ background: 'radial-gradient(circle at 50% 0%, #191827 0%, #090A12 52%, #05060B 100%)' }}>
@@ -151,7 +161,7 @@ function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: {
           <section aria-label="Cartas recebidas">
             <h3 className="mb-2 text-sm font-black text-white sm:text-base" style={FONT}>Cartas recebidas</h3>
             <div className="grid grid-cols-2 items-start gap-x-2 gap-y-4 min-[420px]:grid-cols-3 sm:grid-cols-4 sm:gap-x-3 lg:grid-cols-6 xl:grid-cols-8">
-              {cards.map(({ id, player, number, total, newCopies, repeatCopies }) => {
+              {cards.slice(0, visibleCount).map(({ id, player, number, total, newCopies, repeatCopies }) => {
                 const level = levelForCopies(album?.stickers.get(id)?.copies ?? 0);
                 return (
                   <article key={id} className="flex min-w-0 flex-col items-center rounded-xl border border-white/10 bg-white/[.035] px-1.5 pb-2.5 pt-2" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 280px' }}>
@@ -196,7 +206,9 @@ function AlbumBulkOpenSummary({ itemKey, quantity, result, onClose }: {
       </main>
 
       <footer className="shrink-0 border-t border-white/10 bg-[#090A12]/95 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-8">
-        <Button intent="primary" size="large" onClick={onClose} className="mx-auto w-full max-w-md">CONCLUIR</Button>
+        <div className="flex justify-center">
+          <Button intent="primary" size="large" onClick={onClose} className="w-full max-w-sm">CONCLUIR</Button>
+        </div>
       </footer>
     </div>,
     document.body,

@@ -48,9 +48,10 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
   return createPortal(
     <nav
       aria-label="Navegação principal"
-      className={cn(guest && 'hidden xl:block', 'fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] xl:static xl:inset-auto xl:z-auto xl:rounded-full xl:border xl:p-1')}
+      className={cn(guest && 'hidden xl:block', 'fixed inset-x-0 bottom-0 z-20 border-t border-[var(--ui-line-subtle)] bg-[var(--ui-surface-1)] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] xl:static xl:inset-auto xl:z-auto xl:h-full xl:border-0 xl:bg-transparent xl:p-0')}
     >
-      <div className="mx-auto grid max-w-md grid-cols-4 xl:flex xl:max-w-none xl:gap-1">
+      {/* Wide screens: plain text tabs sitting on the header's bottom edge; the current one is underlined in gold. */}
+      <div className="mx-auto grid max-w-md grid-cols-4 xl:flex xl:h-full xl:max-w-none xl:gap-8">
         {NAV_ITEMS.map(({ id, label, ariaLabel, icon: Icon }) => {
           const selected = active === id;
           const locked = guest && id !== 'home';
@@ -69,11 +70,12 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
               aria-current={selected ? 'page' : undefined}
               onClick={() => onNavigate(id)}
               className={cn(
-                'flex h-14 flex-col gap-1 rounded-lg px-0 text-label text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] xl:h-10 xl:flex-row xl:gap-2 xl:rounded-full xl:px-5 xl:text-body-sm',
-                selected && 'bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)] hover:text-[var(--ui-brand-strong)] xl:bg-[var(--ui-brand)]/15 xl:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--ui-brand)_35%,transparent)]',
+                'flex h-14 flex-col gap-1 rounded-lg px-0 text-label text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] xl:relative xl:h-full xl:min-h-0 xl:flex-row xl:gap-2 xl:rounded-none xl:px-0 xl:text-[1.3rem] xl:font-[family-name:var(--font-display)] xl:font-normal xl:uppercase xl:tracking-caps xl:hover:bg-transparent',
+                'xl:after:absolute xl:after:inset-x-0 xl:after:bottom-0 xl:after:h-0.5 xl:after:rounded-full xl:after:bg-transparent xl:after:transition-colors',
+                selected && 'bg-[var(--ui-brand)]/10 text-[var(--ui-brand-strong)] hover:text-[var(--ui-brand-strong)] xl:bg-transparent xl:text-[var(--ui-text)] xl:hover:text-[var(--ui-text)] xl:after:bg-[var(--ui-brand-strong)]',
               )}
             >
-              <span className="relative inline-flex size-4 items-center justify-center">
+              <span className="relative inline-flex size-4 items-center justify-center xl:hidden">
                 <Icon size={16} aria-hidden="true" />
                 {id === 'friends' && friendsBadgeCount > 0 ? (
                   <span aria-hidden="true" className="absolute -right-2 -top-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-surface)] bg-[var(--ui-danger)] px-1 text-label font-bold leading-none tabular-nums text-white">
@@ -82,7 +84,12 @@ export default function AccountTabBar({ active, incomingFriendRequestCount = 0, 
                 ) : null}
               </span>
               {label}
-              {locked ? <Lock size={11} aria-hidden="true" className="hidden opacity-60 xl:block" /> : null}
+              {id === 'friends' && friendsBadgeCount > 0 ? (
+                <span aria-hidden="true" className="hidden h-5 min-w-5 items-center justify-center rounded-full bg-[var(--ui-danger)] px-1.5 font-ui text-label font-bold leading-none tabular-nums tracking-normal text-white xl:inline-flex">
+                  {friendsBadgeCount > 9 ? '9+' : friendsBadgeCount}
+                </span>
+              ) : null}
+              {locked ? <Lock size={12} aria-hidden="true" className="hidden opacity-50 xl:block" /> : null}
             </Button>
           );
         })}

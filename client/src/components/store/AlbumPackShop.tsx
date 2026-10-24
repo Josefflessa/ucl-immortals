@@ -2,7 +2,7 @@
 // stickers themselves are never sold, and only come out of packs and envelopes.
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Check, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { ALBUM_TIER_META, PACK_SIZE, SHOP_PACK_PRICE, TIER_GUARANTEE, TIER_ODDS, type AlbumItemKey, type AlbumPackTier } from '@shared/game/album';
 import { getRarityColor, type Rarity } from '@shared/game/gameData';
 import { Button, GameModal } from '../../design-system';
@@ -46,50 +46,43 @@ export default function AlbumPackShop() {
 
   return (
     <div className="space-y-4">
-      <div className="grid items-stretch gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-2 items-stretch gap-3 sm:gap-4 lg:grid-cols-3">
         {FOR_SALE.map(tier => {
           const price = SHOP_PACK_PRICE[tier]!;
           const guarantee = TIER_GUARANTEE[tier];
           const tierColor = ALBUM_TIER_META[tier].color;
           return (
-            <article key={tier} className="relative flex h-full flex-col overflow-hidden rounded-2xl border bg-[var(--ui-surface-1)]" style={{ borderColor: `${tierColor}55`, background: `linear-gradient(180deg, ${tierColor}14 0%, transparent 35%), var(--ui-surface-1)` }}>
-              <div className="flex flex-1 flex-col p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="font-display text-2xl leading-tight text-[var(--ui-text)]">Pacote {ALBUM_TIER_META[tier].label}</h3>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label={`Ver chances por carta do Pacote ${ALBUM_TIER_META[tier].label}`}
-                    title="Ver chances por carta"
-                    onClick={() => setOddsTier(tier)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand)]"
-                    style={{ color: tierColor, borderColor: `${tierColor}55`, backgroundColor: `${tierColor}12` }}
-                  >
-                    <Info size={17} aria-hidden="true" />
-                  </button>
-                </div>
-
-                <div className="mt-3 grid min-h-[112px] grid-cols-[76px_minmax(0,1fr)] items-center gap-3 rounded-xl border border-[var(--ui-line-subtle)] bg-black/10 px-3 py-2.5 sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-4">
-                  <div className="flex h-[96px] items-center justify-center rounded-lg" style={{ background: `radial-gradient(circle, ${tierColor}1c, transparent 72%)` }}>
-                    <ItemArt itemKey={`pack:${tier}`} height={90} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-micro font-bold uppercase tracking-wide-caps text-[var(--ui-text-muted)]">Conteúdo</p>
-                    <p className="mt-1 text-sm font-semibold leading-snug text-[var(--ui-text-soft)]">{PACK_SIZE} cartas por pacote</p>
-                    {guarantee ? (
-                      <p className="mt-2 inline-flex items-start gap-1.5 text-xs leading-snug text-[var(--ui-success)]"><Check size={14} className="mt-0.5 shrink-0" aria-hidden="true" />1 carta {RARITY_LABEL[guarantee].toLowerCase()} ou melhor garantida</p>
-                    ) : (
-                      <p className="mt-2 text-xs leading-snug text-[var(--ui-text-muted)]">Sem raridade mínima garantida</p>
-                    )}
-                  </div>
-                </div>
-
+            <article key={tier} className="relative flex h-full flex-col overflow-hidden rounded-(--ui-radius-xl) border" style={{ borderColor: `${tierColor}55`, background: `radial-gradient(120% 70% at 50% 0%, ${tierColor}26, transparent 60%), var(--ui-surface-1)` }}>
+              <button
+                type="button"
+                aria-label={`Ver chances por carta do Pacote ${ALBUM_TIER_META[tier].label}`}
+                title="Ver chances por carta"
+                onClick={() => setOddsTier(tier)}
+                className="absolute right-2.5 top-2.5 z-10 inline-flex size-9 items-center justify-center rounded-full border transition hover:bg-white/5"
+                style={{ color: tierColor, borderColor: `${tierColor}55`, backgroundColor: 'rgba(8,8,16,0.6)' }}
+              >
+                <Info size={16} aria-hidden="true" />
+              </button>
+              {/* The pack is the product: it leads the tile. */}
+              <div className="flex justify-center px-4 pb-1 pt-6">
+                <ItemArt itemKey={`pack:${tier}`} height={150} />
+              </div>
+              <div className="flex flex-1 flex-col px-4 pb-4 text-center sm:px-5 sm:pb-5">
+                <h3 className="font-display text-title-lg uppercase leading-none tracking-caps text-[var(--ui-text)]">Pacote {ALBUM_TIER_META[tier].label}</h3>
+                <p className="mt-1.5 text-body-sm text-[var(--ui-text-muted)]">{PACK_SIZE} cartas</p>
+                <p className={guarantee ? 'mt-0.5 text-body-sm text-[var(--ui-success)]' : 'mt-0.5 text-body-sm text-[var(--ui-text-muted)]'}>
+                  {guarantee ? `1 ${RARITY_LABEL[guarantee].toLowerCase()} ou melhor garantida` : 'Sem garantia de raridade'}
+                </p>
                 <div className="mt-auto pt-4">
-                  <Button intent="primary" disabled={busy !== null || coins < price} onClick={() => { setPurchaseQuantity(1); setConfirming(tier); }} className="w-full">
-                    <span className="flex w-full items-center justify-between gap-3"><span>Comprar pacote</span><CoinAmount value={price} size={14} className="text-inherit" /></span>
-                  </Button>
-                  {coins < price ? <p className="mt-2 text-center text-label text-[var(--ui-text-muted)]">Faltam <strong className="tabular-nums text-[var(--ui-text-soft)]">{(price - coins).toLocaleString('pt-BR')}</strong> moedas</p> : null}
+                  {coins >= price ? (
+                    <Button intent="primary" block disabled={busy !== null} onClick={() => { setPurchaseQuantity(1); setConfirming(tier); }}>
+                      <span className="flex w-full items-center justify-between gap-3"><span>Comprar</span><CoinAmount value={price} size={14} className="text-inherit" /></span>
+                    </Button>
+                  ) : (
+                    <Button intent="secondary" block disabled className="font-ui normal-case tracking-normal">
+                      Faltam {(price - coins).toLocaleString('pt-BR')} moedas
+                    </Button>
+                  )}
                 </div>
               </div>
             </article>

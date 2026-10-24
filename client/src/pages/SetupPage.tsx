@@ -156,7 +156,7 @@ export default function SetupPage() {
           loading={creating}
           className="flex-1"
         >
-          {isOnlineRoomCreation ? (creating ? 'CRIANDO SALA…' : 'CRIAR SALA →') : 'NOME E ESCUDO →'}
+          {isOnlineRoomCreation ? (creating ? 'CRIANDO SALA…' : 'CRIAR SALA') : 'NOME E ESCUDO'}
         </Button>
       </FixedActionBar>
 

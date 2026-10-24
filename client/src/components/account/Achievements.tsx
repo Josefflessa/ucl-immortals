@@ -258,11 +258,13 @@ function AchievementShowcaseTile({ state, rarity }: { state: AchievementState; r
   const color = achievementLevelColor(state.level);
   const percent = rarity.players > 0 ? rarity.percentByAchievement[state.id]?.[state.level - 1] : undefined;
   return (
-    <article className={SHOWCASE_TILE} style={{ borderColor: `color-mix(in srgb, ${color} 45%, var(--ui-line-subtle))` }} aria-label={`${definition.name}, nível ${ACHIEVEMENT_TIER_LABELS[tier]}`}>
-      <AchievementMedal id={state.id} level={state.level} size={64} />
-      <strong className="mt-1 line-clamp-2 text-sm leading-tight text-[var(--ui-text)]">{definition.name}</strong>
-      <span className="text-caption font-black uppercase tracking-wider" style={{ color }}>{ACHIEVEMENT_TIER_LABELS[tier]}</span>
-      {percent !== undefined ? <span className="text-caption leading-tight text-[var(--ui-text-faint)]">{formatPercent(percent)} dos jogadores chegaram ao nível {ACHIEVEMENT_TIER_LABELS[tier]}</span> : null}
+    <article className={cn(SHOWCASE_TILE, 'h-full flex-row justify-center gap-3 px-3 py-3 text-center sm:gap-4 sm:px-4')} style={{ borderColor: `color-mix(in srgb, ${color} 45%, var(--ui-line-subtle))` }} aria-label={`${definition.name}, nível ${ACHIEVEMENT_TIER_LABELS[tier]}`}>
+      <AchievementMedal id={state.id} level={state.level} size={112} />
+      <div className="flex min-w-0 w-full max-w-[220px] flex-col items-center justify-center gap-2">
+        <strong className="line-clamp-2 text-base leading-tight text-[var(--ui-text)]">{definition.name}</strong>
+        <span className="text-caption font-black uppercase tracking-wider" style={{ color }}>{ACHIEVEMENT_TIER_LABELS[tier]}</span>
+        {percent !== undefined ? <span className="text-caption leading-tight text-[var(--ui-text-faint)]">{formatPercent(percent)} dos jogadores chegaram ao nível {ACHIEVEMENT_TIER_LABELS[tier]}</span> : null}
+      </div>
     </article>
   );
 }
@@ -327,11 +329,13 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
   renderRecord?: (record: ProfileRecordEntry) => ReactNode;
 }) {
   const states = new Map(payload.achievements.map(state => [state.id, state]));
-  const tiles = payload.showcase.items.flatMap<ReactNode>(item => {
+  const tiles = payload.showcase.items.flatMap<ReactNode>((item, index) => {
     const key = showcaseKey(item);
-    const span = payload.showcase.items.length === 1
-      ? 'col-span-2 sm:col-span-6'
-      : item.type === 'record' && renderRecord ? 'col-span-2 sm:col-span-3' : 'col-span-1 sm:col-span-2';
+    const onlyTile = payload.showcase.items.length === 1;
+    const lastInOddRow = !onlyTile && payload.showcase.items.length % 2 === 1 && index === payload.showcase.items.length - 1;
+    const span = onlyTile
+      ? 'sm:col-span-2'
+      : lastInOddRow ? 'sm:col-span-2 sm:mx-auto sm:w-1/2' : '';
     const wrapper = (content: ReactNode) => <div key={key} className={cn('min-w-0 [&>article]:h-full', span)}>{content}</div>;
     if (item.type === 'achievement') {
       const state = states.get(item.id);
@@ -355,7 +359,7 @@ export function ShowcaseSection({ payload, records, onEdit, emptyText, renderRec
           </Button>
         ) : undefined}
       />
-      {tiles.length > 0 ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-6 sm:gap-4">{tiles}</div> : null}
+      {tiles.length > 0 ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">{tiles}</div> : null}
       {tiles.length > 0
         ? null
         : <EmptyState

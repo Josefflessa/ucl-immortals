@@ -457,7 +457,7 @@ export default function TournamentFormatPage() {
       </PageContainer>
       <FixedActionBar>
         <Button onClick={() => { dispatch({ type: 'SET_ONLINE_SETUP_INTENT', intent: null }); dispatch({ type: 'SET_PHASE', phase: 'menu' }); }} intent="ghost" className="border border-[var(--ui-line-subtle)]">← VOLTAR</Button>
-        <Button intent="primary" size="large" onClick={() => handleContinue()} disabled={Boolean(validationError)} className="flex-1">ESCOLHER DIFICULDADE →</Button>
+        <Button intent="primary" size="large" onClick={() => handleContinue()} disabled={Boolean(validationError)} className="flex-1">ESCOLHER DIFICULDADE</Button>
       </FixedActionBar>
     </AppShell>
   );

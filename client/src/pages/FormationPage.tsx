@@ -197,7 +197,7 @@ export default function FormationPage() {
           onClick={handleContinue}
           className="flex-1"
         >
-          {state.mode === 'solo' && albumLoading ? 'CARREGANDO ÁLBUM…' : 'INICIAR DRAFT →'}
+          {state.mode === 'solo' && albumLoading ? 'CARREGANDO ÁLBUM…' : 'INICIAR DRAFT'}
         </Button>
       </FixedActionBar>
 

@@ -42,7 +42,7 @@ export function EventsHomeButton({ pending, onOpen }: { pending: number; onOpen:
     >
       <PartyPopper size={19} aria-hidden="true" />
       {pending > 0 ? (
-        <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-[var(--ui-bg)] bg-[var(--ui-brand)] px-1 text-label font-bold leading-none tabular-nums text-[var(--ui-brand-ink)]">
+        <span aria-hidden="true" className="pointer-events-none absolute -right-0.5 -top-0.5 z-10 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-[var(--ui-bg-raised)] bg-[var(--ui-brand)] px-0.5 text-micro font-extrabold leading-none tabular-nums text-[var(--ui-brand-ink)]">
           {pending > 9 ? '9+' : pending}
         </span>
       ) : null}

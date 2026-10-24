@@ -1512,7 +1512,7 @@ function MatchReplay({ teams, replayResult }: { teams: [Team, Team]; replayResul
               onClick={handleFinish}
               className="px-6 sm:px-8"
             >
-              CONCLUIR →
+              CONCLUIR
             </Button>
           )}
         </div>

@@ -20,12 +20,13 @@ export default function GuestHeader() {
           <img src="/icons/logo_ucl.png" alt="" className="size-10 object-contain" />
           <span className="font-display text-[1.45rem] leading-none tracking-[0.1em] text-[var(--ui-text)]">UCL <span className="text-[var(--ui-brand-strong)]">IMMORTALS</span></span>
         </div>
-        <div ref={setNavSlot} className="flex min-w-0 flex-1 items-center justify-center" />
+        <div ref={setNavSlot} className="ml-12 flex min-w-0 flex-1 items-stretch justify-start self-stretch" />
         <AccountTabBar guest active="home" onNavigate={tab => { if (tab !== 'home') toLogin(); }} />
-        <div className="flex shrink-0 items-center gap-2">
-          <SoundControl />
-          <Button type="button" intent="ghost" onClick={toLogin} className="min-h-10 border border-[var(--ui-line-subtle)] bg-[var(--ui-surface)]/90 px-4 text-xs">
-            <UserRound size={15} aria-hidden="true" /> ENTRAR
+        <div className="flex shrink-0 items-center gap-3">
+          <SoundControl className="size-10 min-h-10 w-10 rounded-(--ui-radius-md) border-0 bg-transparent text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] sm:size-10 sm:min-h-10 sm:w-10" />
+          <span aria-hidden="true" className="h-6 w-px bg-[var(--ui-line-subtle)]" />
+          <Button type="button" intent="primary" onClick={toLogin} className="min-h-10 rounded-(--ui-radius-md) px-5 font-[family-name:var(--font-display)] text-[1.15rem] font-normal tracking-caps">
+            <UserRound size={16} aria-hidden="true" /> ENTRAR
           </Button>
         </div>
       </div>

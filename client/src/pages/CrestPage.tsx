@@ -216,7 +216,7 @@ export default function CrestPage() {
           disabled={!nameValid}
           className={state.mode === 'online' ? 'w-full' : 'flex-1'}
         >
-          ESCOLHER TREINADOR →
+          ESCOLHER TREINADOR
         </Button>
       </FixedActionBar>
     </AppShell>

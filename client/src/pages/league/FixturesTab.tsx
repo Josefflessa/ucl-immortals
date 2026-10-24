@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import Crest from '../../components/game/Crest';
 import { useGame } from '../../contexts/GameContext';
-import { buildLeagueMatchKey, describeBet } from '@shared/game/bets';
+import { buildLeagueMatchKey } from '@shared/game/bets';
 import { MAX_RESERVE_PLAYERS } from '@shared/game/gameEngine';
 import type { LeagueHub } from './useLeagueHub';
 import { CardIcon, InjuryIcon } from '../../components/game/StatusIcon';
-import { Ban, Check, CircleCheck, CircleX, Crown, Hourglass, Lock, LogOut, Play, Search, Target, TriangleAlert, Trophy, Users } from 'lucide-react';
+import { Ban, Check, ChevronRight, CircleCheck, CircleX, Crown, Hourglass, Lock, LogOut, Play, Target, TriangleAlert, Trophy, Users } from 'lucide-react';
+import { cn } from '../../lib/utils';
 import { INLINE_ICON } from '../../components/game/inlineIcon';
 import { Button } from '../../design-system';
+import MatchScoreLine from './MatchScoreLine';
 
 const GOLD_BUTTON = 'shadow-[0_0_25px_rgba(201,168,76,0.3)]';
 
@@ -170,55 +172,50 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
               const homeColor = fixture.homeTeamId === localTeamId ? 'var(--ui-brand-strong)' : isHomeHuman ? 'var(--ui-info)' : 'var(--ui-text)';
               const awayColor = fixture.awayTeamId === localTeamId ? 'var(--ui-brand-strong)' : isAwayHuman ? 'var(--ui-info)' : 'var(--ui-text)';
 
+              // A played match with stats opens its details from anywhere on the card.
+              const detailsResult = fixture.played && fixture.result && !hideRoundScore && fixture.result.playerStats ? fixture.result : null;
+              const openDetails = detailsResult ? () => openMatchDetails({ ...detailsResult, round: fixture.round }, { isKnockout: false, isFinal: false }) : undefined;
+
               return (
                 <div
                   key={idx}
-                  className={isMyFixture ? "p-4 rounded-xl transition-all lg:col-span-2" : "p-4 rounded-xl transition-all"}
+                  role={openDetails ? 'button' : undefined}
+                  tabIndex={openDetails ? 0 : undefined}
+                  aria-label={detailsResult ? `${homeName} ${detailsResult.homeGoals} a ${detailsResult.awayGoals} ${awayName}. Ver detalhes da partida` : undefined}
+                  onClick={openDetails}
+                  onKeyDown={openDetails ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openDetails(); } } : undefined}
+                  className={cn('group/match relative flex flex-col justify-center rounded-(--ui-radius-lg) px-3 py-3', openDetails && 'cursor-pointer pr-7 transition-[filter] hover:brightness-125 focus-visible:outline-2 focus-visible:outline-[var(--ui-focus)]')}
                   style={{
                     background: isMyFixture ? 'linear-gradient(135deg, var(--ui-surface-2), #0b0b14)' : isHumanMatch ? 'linear-gradient(135deg, #0f0f1f, #0a0a18)' : 'var(--ui-surface-1)',
                     border: isMyFixture ? '1px solid var(--ui-brand-line)' : isHumanMatch ? '1px solid rgba(129, 140, 248, 0.3)' : '1px solid var(--ui-line-subtle)',
                     boxShadow: isMyFixture ? '0 0 15px rgba(201, 168, 76, 0.1)' : 'none',
                   }}
                 >
-                 <div className="flex items-center justify-between">
-                  {/* Home Team */}
-                  <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
-                    <span className="min-w-0 whitespace-normal break-words text-right text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: homeColor }}>{homeName}</span>
-                    <Crest crestId={allTeams.find(t => t.id === fixture.homeTeamId)?.crestId} name={homeName} size={22} />
-                  </div>
-
-                  {/* Score / VS */}
-                  <div className="w-24 shrink-0 text-center flex flex-col items-center justify-center sm:w-28 lg:w-24">
-                    {fixture.played && fixture.result && !hideRoundScore ? (
-                      <>
-                        <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
-                          {fixture.result.homeGoals} - {fixture.result.awayGoals}
-                        </span>
-                        {fixture.result.playerStats && (
-                          <button onClick={() => openMatchDetails({ ...fixture.result!, round: fixture.round }, { isKnockout: false, isFinal: false })}
-                            className="mt-1 inline-flex h-7 min-h-0 min-w-[92px] shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[12px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
-                            style={{ background: 'var(--ui-surface-2)', border: '1px solid var(--ui-line)', color: 'var(--ui-text-soft)', fontFamily: 'var(--font-game), sans-serif' }}>
-                            <Search {...INLINE_ICON} />Detalhes
-                          </button>
-                        )}
-                      </>
+                 <MatchScoreLine
+                  homeName={homeName}
+                  awayName={awayName}
+                  homeCrestId={allTeams.find(t => t.id === fixture.homeTeamId)?.crestId}
+                  awayCrestId={allTeams.find(t => t.id === fixture.awayTeamId)?.crestId}
+                  homeColor={homeColor}
+                  awayColor={awayColor}
+                  score={fixture.played && fixture.result && !hideRoundScore ? (
+                      // Scoreboard: one cell per side, like a broadcast graphic.
+                      <span className="inline-flex overflow-hidden rounded-(--ui-radius-sm) border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] font-display text-xl leading-none tabular-nums text-[var(--ui-text)]">
+                        <span className="min-w-8 px-2 py-1.5 text-center">{fixture.result.homeGoals}</span>
+                        <span aria-hidden="true" className="w-px bg-[var(--ui-line-subtle)]" />
+                        <span className="min-w-8 px-2 py-1.5 text-center">{fixture.result.awayGoals}</span>
+                      </span>
                     ) : hideRoundScore && fixture.played ? (
                       <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: isMyFixture ? 'var(--ui-brand)' : isHumanMatch ? 'var(--ui-info)' : 'var(--ui-text-faint)' }}>
                         {isMyFixture ? <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-600" />AO VIVO</span> : <Lock size="1em" aria-label="Resultado oculto" className="inline-block" />}
                       </span>
                     ) : (
                       <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: isMyFixture ? 'var(--ui-brand)' : isHumanMatch ? 'var(--ui-info)' : 'var(--ui-text-faint)' }}>
-                        {isMyFixture ? '⚽ VS' : isHumanMatch ? <><Users {...INLINE_ICON} />VS</> : 'VS'}
+                        {isHumanMatch ? <><Users {...INLINE_ICON} />×</> : '×'}
                       </span>
                     )}
-                  </div>
-
-                  {/* Away Team */}
-                  <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
-                    <Crest crestId={allTeams.find(t => t.id === fixture.awayTeamId)?.crestId} name={awayName} size={22} />
-                    <span className="min-w-0 whitespace-normal break-words text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: awayColor }}>{awayName}</span>
-                  </div>
-                 </div>
+                 />
+                  {openDetails ? <ChevronRight size={16} aria-hidden="true" className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)] transition-colors group-hover/match:text-[var(--ui-brand-strong)]" /> : null}
 
                   {/* 🎯 Palpite — botão (pré-jogo) / badge de resultado (pós-revelação) */}
                   {(() => {
@@ -236,18 +233,49 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                           : `Aposta perdida (−${myBet.stake})${(myBet.protectionRefund ?? 0) > 0 ? ` · devolução +${myBet.protectionRefund}` : ''}`;
                       return <div className="mt-2 text-center text-[13px] font-black" style={{ color: myBet.won ? 'var(--ui-success)' : 'var(--ui-danger)', fontFamily: 'var(--font-game), sans-serif' }}>{myBet.won ? <CircleCheck {...INLINE_ICON} /> : <CircleX {...INLINE_ICON} />}{txt}</div>;
                     }
+                    const openBetSlip = (event: MouseEvent<HTMLButtonElement>) => {
+                      event.stopPropagation();
+                      setBetSlip({
+                        matchKey,
+                        homeName,
+                        awayName,
+                        homeTeamId: fixture.homeTeamId,
+                        awayTeamId: fixture.awayTeamId,
+                      });
+                    };
+                    if (myBet) {
+                      return (
+                        <div className="mt-2 text-center">
+                          <button
+                            type="button"
+                            onClick={openBetSlip}
+                            onKeyDown={event => event.stopPropagation()}
+                            aria-label={`Apostou ${myBet.stake} pontos. Abrir bilhete`}
+                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors hover:border-[var(--ui-brand-line)] hover:brightness-110 focus-visible:outline-2 focus-visible:outline-[var(--ui-focus)]"
+                            style={{ background: 'var(--ui-brand-soft)', borderColor: 'var(--ui-brand-line)', color: 'var(--ui-brand-strong)' }}
+                          >
+                            <Target {...INLINE_ICON} />
+                            <span>Apostou</span>
+                            <span className="tabular-nums">{myBet.stake} pts</span>
+                          </button>
+                        </div>
+                      );
+                    }
                     return (
                       <div className="mt-2 text-center">
-                        <button onClick={() => setBetSlip({
-                          matchKey,
-                          homeName,
-                          awayName,
-                          homeTeamId: fixture.homeTeamId,
-                          awayTeamId: fixture.awayTeamId,
-                        })}
-                          className="inline-flex min-h-8 items-center rounded-(--ui-radius-md) px-3 text-body-sm font-black tracking-wider transition-colors hover:bg-[var(--ui-brand-soft)]"
-                          style={{ fontFamily: 'var(--font-game), sans-serif', background: myBet ? 'var(--ui-brand-soft)' : 'var(--ui-surface-1)', color: 'var(--ui-brand-strong)', border: '1px solid var(--ui-brand-line)' }}>
-                          <Target {...INLINE_ICON} />{myBet ? `Aposta: ${describeBet(myBet)} · ${myBet.stake} (editar)` : 'Apostar'}
+                        <button type="button" onClick={openBetSlip} onKeyDown={event => event.stopPropagation()}
+                          className={cn(
+                            'inline-flex min-h-7 items-center rounded-(--ui-radius-md) border px-2 text-label transition-colors',
+                            isMyFixture
+                              ? 'font-bold hover:bg-[var(--ui-brand-soft)]'
+                              : 'font-semibold hover:border-[var(--ui-brand-line)] hover:text-[var(--ui-brand-strong)]',
+                          )}
+                          style={{
+                            background: isMyFixture ? 'var(--ui-brand-soft)' : 'transparent',
+                            borderColor: isMyFixture ? 'var(--ui-brand-line)' : 'var(--ui-line-subtle)',
+                            color: isMyFixture ? 'var(--ui-brand-strong)' : 'var(--ui-text-muted)',
+                          }}>
+                          <Target {...INLINE_ICON} />Apostar
                         </button>
                       </div>
                     );
@@ -323,7 +351,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                     </div>
                   ) : leagueRound < leagueRounds ? (
                     <Button intent="primary" size="large" block onClick={handleAdvanceRound} className={GOLD_BUTTON}>
-                      AVANÇAR PARA A RODADA {leagueRound + 1} →
+                      AVANÇAR PARA A RODADA {leagueRound + 1}
                     </Button>
                   ) : (
                     <button
@@ -336,7 +364,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                         boxShadow: '0 0 25px rgba(34,197,94,0.3)',
                       }}
                     >
-                      <Trophy {...INLINE_ICON} />{isLeagueOnly ? 'ENCERRAR COMPETIÇÃO →' : 'AVANÇAR PARA O MATA-MATA →'}
+                      <Trophy {...INLINE_ICON} />{isLeagueOnly ? 'ENCERRAR COMPETIÇÃO' : 'AVANÇAR PARA O MATA-MATA'}
                     </button>
                   )
                 ) : (
@@ -405,13 +433,13 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                   </>
                 ) : leagueRound < leagueRounds ? (
                   <Button intent="primary" size="large" block onClick={handleAdvanceRound} className={GOLD_BUTTON}>
-                    AVANÇAR PARA A RODADA {leagueRound + 1} →
+                    AVANÇAR PARA A RODADA {leagueRound + 1}
                   </Button>
                 ) : (
                   state.mode === 'solo' && !qualifies ? (
                     <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                       <Button intent="primary" size="large" block onClick={handleWatchRemainingCompetition} className={GOLD_BUTTON}>
-                        <Play size={18} fill="currentColor" aria-hidden="true" />ACOMPANHAR O MATA-MATA →
+                        <Play size={18} fill="currentColor" aria-hidden="true" />ACOMPANHAR O MATA-MATA
                       </Button>
                       <Button intent="secondary" size="large" onClick={handleFinishEliminatedCampaign} className="w-full font-ui text-body-sm sm:w-auto">
                         <Trophy size={16} aria-hidden="true" />Encerrar e ver resultado
@@ -419,7 +447,7 @@ export default function FixturesTab({ hub }: { hub: LeagueHub }) {
                     </div>
                   ) : (
                     <Button intent="success" size="large" block onClick={qualifies ? handleAdvanceKnockout : handleFinishEliminatedCampaign}>
-                      <Trophy size={18} aria-hidden="true" />{isLeagueOnly ? 'ENCERRAR COMPETIÇÃO →' : qualifies ? 'AVANÇAR PARA O MATA-MATA →' : 'VER RESULTADO FINAL →'}
+                      <Trophy size={18} aria-hidden="true" />{isLeagueOnly ? 'ENCERRAR COMPETIÇÃO' : qualifies ? 'AVANÇAR PARA O MATA-MATA' : 'VER RESULTADO FINAL'}
                     </Button>
                   )
                 )}

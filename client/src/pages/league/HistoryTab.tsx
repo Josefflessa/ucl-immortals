@@ -2,9 +2,11 @@ import Crest from '../../components/game/Crest';
 import { knockoutRoundLabel } from '@shared/game/gameEngine';
 import { Tab, TabList, Tabs } from '../../design-system';
 import type { LeagueHub } from './useLeagueHub';
-import { House, Lock, Plane, Search } from 'lucide-react';
+import { ChevronRight, House, Lock, Plane, Search } from 'lucide-react';
 import { INLINE_ICON } from '../../components/game/inlineIcon';
 import type { KnockoutBracket, MatchResult } from '@shared/game/gameEngine';
+import { sortMatchesForOnlineDisplay } from '@shared/game/onlineReadiness';
+import MatchScoreLine from './MatchScoreLine';
 
 const KNOCKOUT_HISTORY_ROUNDS = [
   ['playoffs', 'playoffs'],
@@ -65,13 +67,112 @@ function historyMatchLabel(
   return 'PARTIDA';
 }
 
+function ScoreCapsule({ homeGoals, awayGoals }: { homeGoals: number; awayGoals: number }) {
+  return (
+    <span className="inline-flex overflow-hidden rounded-(--ui-radius-sm) border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] font-display text-xl leading-none tabular-nums text-[var(--ui-text)]">
+      <span className="min-w-8 px-2 py-1.5 text-center">{homeGoals}</span>
+      <span aria-hidden="true" className="w-px bg-[var(--ui-line-subtle)]" />
+      <span className="min-w-8 px-2 py-1.5 text-center">{awayGoals}</span>
+    </span>
+  );
+}
+
+type HistoryMatchCardProps = {
+  label: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeName: string;
+  awayName: string;
+  homeCrestId?: string;
+  awayCrestId?: string;
+  homeGoals?: number;
+  awayGoals?: number;
+  hidden?: boolean;
+  playerTeamId?: string;
+  onOpenDetails?: () => void;
+};
+
+function HistoryMatchCard({
+  label,
+  homeTeamId,
+  awayTeamId,
+  homeName,
+  awayName,
+  homeCrestId,
+  awayCrestId,
+  homeGoals,
+  awayGoals,
+  hidden = false,
+  playerTeamId,
+  onOpenDetails,
+}: HistoryMatchCardProps) {
+  const isPlayerMatch = homeTeamId === playerTeamId || awayTeamId === playerTeamId;
+  const score = hidden
+    ? <Lock size="1em" aria-label="Resultado oculto" className="inline-block text-[var(--ui-text-faint)]" />
+    : typeof homeGoals === 'number' && typeof awayGoals === 'number'
+      ? <ScoreCapsule homeGoals={homeGoals} awayGoals={awayGoals} />
+      : <span className="text-xs font-bold text-[var(--ui-text-faint)]">—</span>;
+
+  return (
+    <div
+      role={onOpenDetails ? 'button' : undefined}
+      tabIndex={onOpenDetails ? 0 : undefined}
+      aria-label={onOpenDetails ? `${label}: ${homeName} ${homeGoals} a ${awayGoals} ${awayName}. Ver detalhes da partida` : undefined}
+      onClick={onOpenDetails}
+      onKeyDown={onOpenDetails ? event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpenDetails();
+        }
+      } : undefined}
+      className={`group/match relative rounded-(--ui-radius-lg) px-3 py-3 ${onOpenDetails ? 'cursor-pointer pr-7 transition-[filter] hover:brightness-125 focus-visible:outline-2 focus-visible:outline-[var(--ui-focus)]' : ''}`}
+      style={{
+        background: isPlayerMatch ? 'linear-gradient(135deg, var(--ui-surface-2), #0b0b14)' : 'var(--ui-surface-1)',
+        border: isPlayerMatch ? '1px solid var(--ui-brand-line)' : '1px solid var(--ui-line-subtle)',
+        boxShadow: isPlayerMatch ? '0 0 15px rgba(201, 168, 76, 0.1)' : 'none',
+      }}
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-caption font-black tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
+          {label}
+        </span>
+      </div>
+      <MatchScoreLine
+        homeName={homeName}
+        awayName={awayName}
+        homeCrestId={homeCrestId}
+        awayCrestId={awayCrestId}
+        homeColor={homeTeamId === playerTeamId ? 'var(--ui-brand-strong)' : 'var(--ui-text)'}
+        awayColor={awayTeamId === playerTeamId ? 'var(--ui-brand-strong)' : 'var(--ui-text)'}
+        score={score}
+      />
+      {onOpenDetails && <ChevronRight size={16} aria-hidden="true" className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--ui-text-faint)] transition-colors group-hover/match:text-[var(--ui-brand-strong)]" />}
+    </div>
+  );
+}
+
 export default function HistoryTab({ hub }: { hub: LeagueHub }) {
   const {
     state, resultsSubTab, setResultsSubTab, playerResults, playerTeam, getTeamName, getTeamById,
     openMatchDetails, historyPeriods, historyKey, setSelectedHistoryKey, historyPeriod, leagueRounds,
-    historyFixtures, isKnockout, leagueRound, hideRoundScore, allTeams, historyKoTies, koAllWatched,
+    historyFixtures, isKnockout, leagueRound, hideRoundScore, allTeams, historyKoTies, koAllWatched, localTeamId,
   } = hub;
   const { leagueFixtures } = state;
+  const humanTeamIds = state.mode === 'online'
+    ? new Set(state.onlinePlayers.map(player => player.id))
+    : new Set<string>();
+  const orderedHistoryFixtures = sortMatchesForOnlineDisplay(historyFixtures, humanTeamIds, localTeamId);
+  const orderedHistoryKoTies = sortMatchesForOnlineDisplay(historyKoTies, humanTeamIds, localTeamId);
+  const crestIdFor = (teamId: string) => allTeams.find(team => team.id === teamId)?.crestId;
+
+  const openResultDetails = (result: MatchResult) => {
+    const knockoutRound = findKnockoutRoundForResult(result, state.knockoutBracket);
+    const fixture = knockoutRound ? undefined : findLeagueFixtureForResult(result, leagueFixtures);
+    const resultWithRound = fixture ? { ...result, round: fixture.round } : result;
+    openMatchDetails(resultWithRound, knockoutRound
+      ? { isKnockout: true, isFinal: knockoutRound === 'final' }
+      : undefined);
+  };
   return (
           <div className="competition-live-reading space-y-3">
             {/* Sub-abas do HISTÓRICO */}
@@ -105,32 +206,29 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                 const isHome = result.homeTeamId === playerTeam?.id;
                 const myGoals = isHome ? result.homeGoals : result.awayGoals;
                 const oppGoals = isHome ? result.awayGoals : result.homeGoals;
-                const oppName = getTeamName(isHome ? result.awayTeamId : result.homeTeamId);
+                const oppTeamId = isHome ? result.awayTeamId : result.homeTeamId;
+                const oppName = getTeamName(oppTeamId);
                 const won = myGoals > oppGoals;
                 const drew = myGoals === oppGoals;
-                const rc = won ? '#22C55E' : drew ? '#EAB308' : '#EF4444';
-                const oppCrest = getTeamById(isHome ? result.awayTeamId : result.homeTeamId)?.crestId;
-
+                const resultColor = won ? '#22C55E' : drew ? '#EAB308' : '#EF4444';
+                const oppCrest = getTeamById(oppTeamId)?.crestId;
                 return (
                   <div
                     key={i}
-                    className="relative flex flex-col gap-2 pl-4 pr-3 py-3 rounded-xl overflow-hidden"
-                    style={{ background: 'linear-gradient(135deg,#12121e,#0b0b14)', border: `1px solid ${rc}33` }}
+                    className="relative flex flex-col gap-2 overflow-hidden rounded-xl py-3 pl-4 pr-3"
+                    style={{ background: 'linear-gradient(135deg,#12121e,#0b0b14)', border: `1px solid ${resultColor}33` }}
                   >
-                    {/* barra de resultado */}
-                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: rc }} />
+                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: resultColor }} />
                     <div className="text-caption font-black tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                       {historyMatchLabel(result, state.knockoutBracket, leagueFixtures)}
                     </div>
                     <div className="flex min-w-0 items-center gap-3">
-                      {/* V / E / D */}
-                      <div className="w-9 h-9 rounded-lg flex items-center justify-center font-black flex-shrink-0"
-                        style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 18, background: `${rc}1f`, color: rc, border: `1px solid ${rc}44` }}>
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-black"
+                        style={{ fontFamily: 'var(--font-display), sans-serif', fontSize: 18, background: `${resultColor}1f`, color: resultColor, border: `1px solid ${resultColor}44` }}>
                         {won ? 'V' : drew ? 'E' : 'D'}
                       </div>
                       <Crest crestId={oppCrest} name={oppName} size={30} />
-                      {/* adversário + mando */}
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="text-caption font-bold uppercase tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
                           {isHome ? <><House {...INLINE_ICON} />Em casa</> : <><Plane {...INLINE_ICON} />Fora</>}
                         </div>
@@ -138,20 +236,12 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                           {oppName}
                         </div>
                       </div>
-                      {/* placar + detalhes */}
-                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                        <div className="text-2xl font-black leading-none tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif', color: rc }}>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <div className="text-2xl font-black leading-none tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif', color: resultColor }}>
                           {myGoals} <span style={{ opacity: .5 }}>-</span> {oppGoals}
                         </div>
                         {result.playerStats && (
-                          <button type="button" onClick={() => {
-                            const knockoutRound = findKnockoutRoundForResult(result, state.knockoutBracket);
-                            const fixture = knockoutRound ? undefined : findLeagueFixtureForResult(result, leagueFixtures);
-                            const resultWithRound = fixture ? { ...result, round: fixture.round } : result;
-                            openMatchDetails(resultWithRound, knockoutRound
-                              ? { isKnockout: true, isFinal: knockoutRound === 'final' }
-                              : undefined);
-                          }}
+                          <button type="button" onClick={() => openResultDetails(result)}
                             className="inline-flex h-8 min-h-0 min-w-[92px] shrink-0 items-center justify-center whitespace-nowrap rounded-md px-2 py-1 text-[12px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125"
                             style={{ background: 'var(--ui-surface-2)', border: '1px solid var(--ui-line)', color: '#9AA8C8', fontFamily: 'var(--font-game), sans-serif' }}>
                             <Search {...INLINE_ICON} />Detalhes
@@ -197,55 +287,36 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                   {historyPeriod?.kind === 'league' ? (
                     /* Jogos da rodada de liga escolhida */
                     <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-                      {historyFixtures.map((fixture, idx) => {
+                      {orderedHistoryFixtures.map((fixture, idx) => {
                         const roundHidden = !isKnockout && historyPeriod.round === leagueRound && hideRoundScore;
                         const homeName = getTeamName(fixture.homeTeamId);
                         const awayName = getTeamName(fixture.awayTeamId);
-                        const isPlayer = fixture.homeTeamId === playerTeam?.id || fixture.awayTeamId === playerTeam?.id;
+                        const result = fixture.result;
                         return (
-                          <div key={idx} className="rounded-xl p-3"
-                            style={{ background: isPlayer ? 'linear-gradient(135deg,#14142a,#0b0b14)' : '#0F0F1A', border: `1px solid ${isPlayer ? '#c9a84c55' : 'var(--ui-surface-3)'}` }}>
-                            <div className="mb-2 text-center text-caption font-black tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
-                              RODADA {fixture.round}
-                            </div>
-                            <div className="flex items-center justify-between gap-2">
-                            <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
-                              <span className="min-w-0 flex-1 whitespace-normal break-words text-right text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: fixture.homeTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{homeName}</span>
-                              <Crest crestId={allTeams.find(t => t.id === fixture.homeTeamId)?.crestId} name={homeName} size={22} />
-                            </div>
-                              <div className="flex w-24 shrink-0 flex-col items-center justify-center text-center sm:w-28 md:w-32">
-                              {fixture.played && fixture.result && !roundHidden ? (
-                                <>
-                                  <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif' }}>
-                                    {fixture.result.homeGoals} - {fixture.result.awayGoals}
-                                  </span>
-                                  {fixture.result.playerStats && (
-                                    <button type="button" onClick={() => openMatchDetails({ ...fixture.result!, round: fixture.round }, { isKnockout: false, isFinal: false })}
-                                      className="mt-1 inline-flex h-8 min-h-0 min-w-[92px] items-center justify-center whitespace-nowrap rounded-md px-2 py-1 text-[12px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125 md:min-w-[120px]"
-                                      style={{ background: 'var(--ui-surface-2)', border: '1px solid var(--ui-line)', color: '#9AA8C8', fontFamily: 'var(--font-game), sans-serif' }}>
-                                      <Search {...INLINE_ICON} />Detalhes
-                                    </button>
-                                  )}
-                                </>
-                              ) : roundHidden && fixture.played ? (
-                                <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-game), sans-serif', color: '#4A4A5A' }}><Lock size="1em" strokeWidth={2.5} aria-label="Resultado oculto" className="inline-block" /></span>
-                              ) : (
-                                <span className="text-xs font-bold text-gray-600" style={{ fontFamily: 'var(--font-game), sans-serif' }}>—</span>
-                              )}
-                            </div>
-                            <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5">
-                              <Crest crestId={allTeams.find(t => t.id === fixture.awayTeamId)?.crestId} name={awayName} size={22} />
-                              <span className="min-w-0 flex-1 whitespace-normal break-words text-left text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: fixture.awayTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{awayName}</span>
-                            </div>
-                            </div>
-                          </div>
+                          <HistoryMatchCard
+                            key={idx}
+                            label={`RODADA ${fixture.round}`}
+                            homeTeamId={fixture.homeTeamId}
+                            awayTeamId={fixture.awayTeamId}
+                            homeName={homeName}
+                            awayName={awayName}
+                            homeCrestId={crestIdFor(fixture.homeTeamId)}
+                            awayCrestId={crestIdFor(fixture.awayTeamId)}
+                            homeGoals={fixture.played ? result?.homeGoals : undefined}
+                            awayGoals={fixture.played ? result?.awayGoals : undefined}
+                            hidden={roundHidden && fixture.played}
+                            playerTeamId={playerTeam?.id}
+                            onOpenDetails={result?.playerStats && !roundHidden
+                              ? () => openMatchDetails({ ...result, round: fixture.round }, { isKnockout: false, isFinal: false })
+                              : undefined}
+                          />
                         );
                       })}
                     </div>
                   ) : (
                     /* Um card por confronto, com agregado e as partidas de ida/volta dentro dele. */
                     <div className="space-y-2">
-                      {historyKoTies.map((tie: any, tieIndex: number) => {
+                      {orderedHistoryKoTies.map((tie: any, tieIndex: number) => {
                         const koRoundHidden = state.mode === 'online' && historyPeriod?.koRound === state.knockoutBracket?.currentRound && !koAllWatched;
                         const isPlayer = tie.homeTeamId === playerTeam?.id || tie.awayTeamId === playerTeam?.id;
                         const phase = knockoutPhaseLabel(historyPeriod?.koRound ?? '', state.knockoutBracket);
@@ -258,8 +329,6 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                             ];
                         const homeName = getTeamName(tie.homeTeamId);
                         const awayName = getTeamName(tie.awayTeamId);
-                        const detailButtonClass = 'inline-flex h-7 min-h-0 w-28 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md px-1 py-1 text-[12px] font-black uppercase leading-none tracking-wider transition-all hover:brightness-125';
-                        const detStyle = { background: '#14142A', border: '1px solid #2A2A3A', color: '#9AA8C8', fontFamily: 'var(--font-game), sans-serif' } as const;
                         return (
                           <div key={tie.id ?? tieIndex} className="space-y-2 rounded-xl p-3"
                             style={{ background: isPlayer ? 'linear-gradient(135deg,#14142a,#0b0b14)' : '#0F0F1A', border: `1px solid ${isPlayer ? '#c9a84c55' : 'var(--ui-surface-3)'}` }}>
@@ -274,18 +343,16 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                               )}
                             </div>
                             {!singleLeg && tie.result && !koRoundHidden && (
-                            <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2">
-                              <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
-                                <span className="min-w-0 flex-1 whitespace-normal break-words text-right text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: tie.homeTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{homeName}</span>
-                                <Crest crestId={allTeams.find(t => t.id === tie.homeTeamId)?.crestId} name={homeName} size={22} />
-                              </div>
-                              <div className="text-center">
-                                <span className="text-xl font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{tie.result.homeGoals} - {tie.result.awayGoals}</span>
-                              </div>
-                              <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5">
-                                <Crest crestId={allTeams.find(t => t.id === tie.awayTeamId)?.crestId} name={awayName} size={22} />
-                                <span className="min-w-0 flex-1 whitespace-normal break-words text-left text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: tie.awayTeamId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{awayName}</span>
-                              </div>
+                            <div className="border-b border-white/5 pb-2">
+                              <MatchScoreLine
+                                homeName={homeName}
+                                awayName={awayName}
+                                homeCrestId={crestIdFor(tie.homeTeamId)}
+                                awayCrestId={crestIdFor(tie.awayTeamId)}
+                                homeColor={tie.homeTeamId === playerTeam?.id ? 'var(--ui-brand-strong)' : 'var(--ui-text)'}
+                                awayColor={tie.awayTeamId === playerTeam?.id ? 'var(--ui-brand-strong)' : 'var(--ui-text)'}
+                                score={<ScoreCapsule homeGoals={tie.result.homeGoals} awayGoals={tie.result.awayGoals} />}
+                              />
                             </div>
                             )}
                             {legs.length > 0 && (
@@ -296,34 +363,23 @@ export default function HistoryTab({ hub }: { hub: LeagueHub }) {
                                   const legHomeName = getTeamName(legHomeId);
                                   const legAwayName = getTeamName(legAwayId);
                                   return (
-                                    <div key={label} className="rounded-xl p-2.5" style={{ background: '#0B0B14', border: '1px solid #171725' }}>
-                                      <div className="mb-1.5 text-center text-caption font-bold uppercase tracking-wide-caps" style={{ color: 'var(--ui-text-faint)', fontFamily: 'var(--font-game), sans-serif' }}>
-                                        {phase} · {label}
-                                      </div>
-                                      <div className="flex items-center justify-between gap-2">
-                                        <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
-                                          <span className="min-w-0 flex-1 whitespace-normal break-words text-right text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: legHomeId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{legHomeName}</span>
-                                          <Crest crestId={allTeams.find(t => t.id === legHomeId)?.crestId} name={legHomeName} size={20} />
-                                        </div>
-                                        <div className="flex w-24 shrink-0 flex-col items-center justify-center gap-1 sm:w-28 md:w-32">
-                                          {koRoundHidden ? (
-                                            <span className="text-xs text-gray-600"><Lock size="1em" strokeWidth={2.5} aria-label="Resultado oculto" className="inline-block" /></span>
-                                          ) : (
-                                            <span className="text-lg font-black text-yellow-500 tabular-nums" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{result.homeGoals} - {result.awayGoals}</span>
-                                          )}
-                                          {!koRoundHidden && result.playerStats && (
-                                            <button type="button" title={`Detalhes: ${phase.toLowerCase()} · ${label.toLowerCase()}`} aria-label={`Ver detalhes de ${phase.toLowerCase()} - ${label.toLowerCase()}`} className={detailButtonClass} style={detStyle}
-                                              onClick={() => openMatchDetails(result, { isKnockout: true, isFinal: historyPeriod?.koRound === 'final' })}>
-                                              <Search {...INLINE_ICON} />Detalhes
-                                            </button>
-                                          )}
-                                        </div>
-                                        <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5">
-                                          <Crest crestId={allTeams.find(t => t.id === legAwayId)?.crestId} name={legAwayName} size={20} />
-                                          <span className="min-w-0 flex-1 whitespace-normal break-words text-left text-sm font-semibold leading-tight" style={{ fontFamily: 'var(--font-game), sans-serif', color: legAwayId === playerTeam?.id ? 'var(--ui-brand)' : '#FFF' }}>{legAwayName}</span>
-                                        </div>
-                                      </div>
-                                    </div>
+                                    <HistoryMatchCard
+                                      key={label}
+                                      label={`${phase} · ${label}`}
+                                      homeTeamId={legHomeId}
+                                      awayTeamId={legAwayId}
+                                      homeName={legHomeName}
+                                      awayName={legAwayName}
+                                      homeCrestId={crestIdFor(legHomeId)}
+                                      awayCrestId={crestIdFor(legAwayId)}
+                                      homeGoals={result.homeGoals}
+                                      awayGoals={result.awayGoals}
+                                      hidden={koRoundHidden}
+                                      playerTeamId={playerTeam?.id}
+                                      onOpenDetails={!koRoundHidden && result.playerStats
+                                        ? () => openMatchDetails(result, { isKnockout: true, isFinal: historyPeriod?.koRound === 'final' })
+                                        : undefined}
+                                    />
                                   );
                                 })}
                               </div>

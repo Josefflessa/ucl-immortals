@@ -140,22 +140,20 @@ export default function StatsTab({ hub }: { hub: LeagueHub }) {
 
                           {/* Player details */}
                           <div className="flex-1 min-w-0">
-                            <div className="whitespace-normal break-words text-body font-black leading-tight text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                              {player.shortName}
+                            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="min-w-0 whitespace-normal break-words text-body font-black leading-tight text-white" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                                {player.shortName}
+                              </span>
+                              <span className="inline-flex shrink-0 rounded-md px-2 py-0.5 text-xs font-black text-white" style={{ background: '#222' }}>
+                                {POS_PT[player.position] ?? player.position}
+                              </span>
                             </div>
-                            <div className="mt-1 min-w-0 space-y-1 text-label font-semibold text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                              <div>
-                                <span className="inline-flex shrink-0 rounded-md px-2 py-0.5 text-xs font-black text-white" style={{ background: '#222' }}>
-                                  {POS_PT[player.position] ?? player.position}
-                                </span>
-                              </div>
-                              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                                {displayTeamName && <>
-                                  <span className="min-w-0 whitespace-normal break-words leading-tight">{displayTeamName}</span>
-                                  <span className="shrink-0" aria-hidden="true">·</span>
-                                </>}
-                                <span className="shrink-0 text-[var(--ui-text-muted)]">{player.stats.played} {player.stats.played === 1 ? 'jogo' : 'jogos'}</span>
-                              </div>
+                            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-label font-semibold text-[var(--ui-text-muted)]" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                              {displayTeamName && <>
+                                <span className="min-w-0 whitespace-normal break-words leading-tight">{displayTeamName}</span>
+                                <span className="shrink-0" aria-hidden="true">·</span>
+                              </>}
+                              <span className="shrink-0 text-[var(--ui-text-muted)]">{player.stats.played} {player.stats.played === 1 ? 'jogo' : 'jogos'}</span>
                             </div>
                           </div>
 

@@ -14,7 +14,7 @@ import { useAccount, type FriendshipEntry } from '../contexts/AccountContext';
 import { DIFFICULTY_LEVELS } from '@shared/game/gameData';
 import { competitionFormatSummary, createCompetitionFormat } from '@shared/game/competition';
 import { cn } from '../lib/utils';
-import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, Input, Panel, StatusBanner } from '../design-system';
+import { AppShell, Button, ConfirmDialog, EmptyState, GameModal, Input, StatusBanner } from '../design-system';
 import StyledName from '../components/account/StyledName';
 import HomeDashboard from '../components/home/HomeDashboard';
 
@@ -457,9 +457,10 @@ export default function MenuPage() {
       <AppShell>
         {!account ? (
           <div className="flex items-center justify-end gap-2 px-4 pt-4 sm:px-6 xl:hidden">
-            <SoundControl />
-            <Button type="button" intent="secondary" size="small" disabled={accountLoading} onClick={() => dispatch({ type: 'SET_PHASE', phase: 'account' })}>
-              <UserRound size={15} aria-hidden="true" /> Entrar
+            <SoundControl className="size-11 min-h-11 w-11 rounded-(--ui-radius-md) border-0 bg-transparent text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text)] sm:size-11 sm:min-h-11 sm:w-11" />
+            <span aria-hidden="true" className="h-6 w-px bg-[var(--ui-line-subtle)]" />
+            <Button type="button" intent="primary" disabled={accountLoading} onClick={() => dispatch({ type: 'SET_PHASE', phase: 'account' })} className="min-h-11 rounded-(--ui-radius-md) px-4 font-[family-name:var(--font-display)] text-[1.15rem] font-normal tracking-caps">
+              <UserRound size={16} aria-hidden="true" /> ENTRAR
             </Button>
           </div>
         ) : null}
@@ -524,7 +525,7 @@ export default function MenuPage() {
 
       <div className={cn(
         'relative z-10 flex flex-col items-center px-4',
-        account ? 'min-h-dvh py-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24 xl:min-h-0 xl:pb-8 xl:pt-6',
+        account ? 'min-h-dvh py-8' : 'min-h-dvh pb-4 pt-20 sm:pt-24 xl:min-h-[calc(100dvh-80px)] xl:pb-8 xl:pt-6',
       )}>
         <div aria-hidden="true" className="flex-1" />
 
@@ -536,7 +537,7 @@ export default function MenuPage() {
             >
               {!account ? (
                 <div>
-                  <label className="mb-2 block text-caption font-bold tracking-wide-caps text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
+                  <label className="mb-2 block text-center text-caption font-bold tracking-wide-caps text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
                     SEU NOME
                   </label>
                   <Input
@@ -546,25 +547,9 @@ export default function MenuPage() {
                     placeholder="Como você quer aparecer na sala"
                     maxLength={20}
                     autoFocus
-                    className="ui-input mb-3"
+                    className="ui-input mb-3 text-center"
                   />
                 </div>
-              ) : null}
-
-              {!account ? (
-                <Panel tone="inset" className="space-y-3 p-3">
-                  <div>
-                    <div className="text-caption font-bold tracking-wide-caps text-primary" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                      CONFIGURAÇÃO DA PARTIDA
-                    </div>
-                    <p className="mt-1 text-body-sm leading-relaxed text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                      Ao criar uma sala, você define o formato e a dificuldade nas próximas telas. Depois, o código reúne todos na mesma competição.
-                    </p>
-                  </div>
-                  <p className="text-label leading-relaxed text-gray-500" style={{ fontFamily: 'var(--font-game), sans-serif' }}>
-                    Para entrar em uma sala existente, basta informar o código — as configurações vêm do anfitrião.
-                  </p>
-                </Panel>
               ) : null}
 
               <div className={account ? 'flex flex-col gap-3' : 'grid grid-cols-2 gap-2'}>

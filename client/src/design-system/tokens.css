@@ -1381,6 +1381,13 @@ body.home-menu-scroll-lock {
 }
 
 @media (max-width: 899px) {
+  /* Scrolling tab bars fade at the right edge so the hidden tabs read as "more this way". */
+  .ui-tabs:not(.ui-tabs--equal):not(.ui-tabs--side):not(.ui-tabs--split-mobile) {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+    padding-right: 2rem;
+  }
+
   /* Every tab in one row, sharing the width (2–4 tabs). A two-column grid
      used to push the third tab ("Aparência", "Catálogo") onto a second line. */
   .ui-tabs--equal {

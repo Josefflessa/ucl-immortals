@@ -7,7 +7,7 @@ import PlayerCard from '../components/game/PlayerCard';
 import PlayerPortrait from '../components/game/PlayerPortrait';
 import FormationField from '../components/game/FormationField';
 import CompetitionExitControl from '../components/game/CompetitionExitControl';
-import { Armchair, Ban, Eye, Snowflake, Target } from 'lucide-react';
+import { Armchair, Eye, RefreshCw, Snowflake, Target } from 'lucide-react';
 import { INLINE_ICON } from '../components/game/inlineIcon';
 import { FORMATIONS, COACHES, Player, POS_PT } from '@shared/game/gameData';
 import { activePlayerTraits, getTraitInfo, traitEffectLabel, traitLabel } from '@shared/game/traits';
@@ -406,12 +406,12 @@ export default function DraftPage() {
             {isMyTurn && (
               <Button
                 type="button"
-                intent="danger"
+                intent="primary"
                 onClick={handleVeto}
                 disabled={vetoesLeft <= 0}
                 className="min-h-9 px-3 text-xs"
               >
-                <Ban size={14} /> NOVAS OPÇÕES ({vetoesLeft})
+                <RefreshCw size={14} aria-hidden="true" /> NOVAS OPÇÕES ({vetoesLeft})
               </Button>
             )}
             <CompetitionExitControl />

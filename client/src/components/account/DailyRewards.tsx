@@ -69,7 +69,7 @@ function RewardDay({ reward, todayIndex, claimed }: {
 }
 
 /** What a custom trigger needs to draw itself (the home dashboard uses a card instead of the icon). */
-export interface DailyRewardTriggerInfo { loading: boolean; available: boolean; rewardLabel: string | null; open: () => void }
+export interface DailyRewardTriggerInfo { loading: boolean; available: boolean; rewardLabel: string | null; rewardTier: string | null; open: () => void }
 
 export default function DailyRewardsHomeButton({ renderTrigger }: { renderTrigger?: (info: DailyRewardTriggerInfo) => ReactNode } = {}) {
   const { refresh: refreshAlbum } = useAlbum();
@@ -125,7 +125,7 @@ export default function DailyRewardsHomeButton({ renderTrigger }: { renderTrigge
 
   return (
     <>
-      {renderTrigger ? renderTrigger({ loading: loading && !state, available: Boolean(state && !claimedToday), rewardLabel: todayReward ? packLabel(todayReward.itemKey) : null, open: openModal }) : <Button
+      {renderTrigger ? renderTrigger({ loading: loading && !state, available: Boolean(state && !claimedToday), rewardLabel: todayReward ? packLabel(todayReward.itemKey) : null, rewardTier: todayReward ? parseItemKey(todayReward.itemKey)?.tier ?? null : null, open: openModal }) : <Button
         type="button"
         intent="ghost"
         aria-label={!claimedToday && state ? 'Recompensa diária disponível' : 'Recompensas diárias'}

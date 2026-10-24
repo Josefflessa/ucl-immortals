@@ -311,9 +311,9 @@ function PersonalRecordCard({ category, record }: { category: PublicRecordEntry[
       {record ? <RecordPlayerCardVisual player={record.player_card} playerId={record.player_id} photoUrl={record.player_photo_url} name={record.player_name} effectiveStats={record.player_effective_stats} /> : <div aria-hidden="true" className="flex h-[178px] w-[110px] shrink-0 items-center justify-center rounded-xl border border-dashed border-[var(--ui-line-strong)] bg-[var(--ui-surface)] text-[var(--ui-text-faint)]"><Icon size={24} /></div>}
       {/* Reads top to bottom: what the record is, the mark, who set it, where it ranks, then the campaign. */}
       <div className="flex min-w-0 flex-1 flex-col self-stretch">
-        <span className="flex min-w-0 items-center gap-1.5 text-label font-bold uppercase tracking-wider text-[var(--ui-text-soft)]">
-          <Icon size={14} aria-hidden="true" className="shrink-0 text-[var(--ui-brand-strong)]" />
-          <span className="truncate">{meta.label}</span>
+        <span className="flex min-w-0 items-start gap-1.5 text-label font-bold uppercase leading-tight tracking-wider text-[var(--ui-text-soft)]">
+          <Icon size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-[var(--ui-brand-strong)]" />
+          <span className="min-w-0 whitespace-normal break-words">{meta.label}</span>
         </span>
         {record ? <>
           <div className="mt-1.5 flex items-baseline gap-1.5">
@@ -353,8 +353,15 @@ function LockedBadge({ text }: { text: string }) {
 
 function ScoreCard({ entry, rank }: { entry: ScoreLeaderboardEntry; rank: number }) {
   return (
-    <article className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)] p-3 sm:gap-4 sm:p-4">
-      <div aria-label={`Posição ${rank}`} className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg border font-display text-xl tabular-nums', rank === 1 ? 'border-[var(--ui-brand)]/45 bg-[var(--ui-brand-soft)] text-[var(--ui-brand-strong)]' : 'border-[var(--ui-line-subtle)] text-[var(--ui-text-muted)]')}>{String(rank).padStart(2, '0')}</div>
+    <article className={cn('flex min-w-0 items-center gap-2.5 rounded-(--ui-radius-lg) border p-3 sm:gap-4 sm:p-4', rank === 1 ? 'border-[var(--ui-brand-line)] bg-[var(--ui-brand-soft)]' : 'border-[var(--ui-line-subtle)] bg-[var(--ui-surface-inset)]')}>
+      <div aria-label={`Posição ${rank}`} className="flex w-9 shrink-0 items-center justify-center">
+        {rank <= 3
+          ? <span className="relative grid size-9 shrink-0 place-items-center">
+              <img src={`/achievements/medal-${rank === 1 ? 'gold' : rank === 2 ? 'silver' : 'bronze'}.webp`} alt="" className="size-9 object-contain" />
+              <span aria-hidden="true" className="pointer-events-none absolute inset-0 grid place-items-center pt-1 font-display text-sm leading-none tabular-nums text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]">{rank}</span>
+            </span>
+          : <span className="font-display text-title tabular-nums text-[var(--ui-text-muted)]">{rank}</span>}
+      </div>
       <CompactProfileAvatar name={entry.display_name} avatarKey={entry.avatar_key} avatarUrl={entry.avatar_url} backgroundKey={entry.avatar_background_key} frameKey={entry.avatar_frame_key} sizeClassName="size-16" />
       <div className="min-w-0 flex-1">
         <strong className="block min-w-0 text-base font-bold text-[var(--ui-text)]"><StyledName name={entry.display_name} styleKey={entry.name_style_key} size="sm" /></strong>
@@ -362,7 +369,7 @@ function ScoreCard({ entry, rank }: { entry: ScoreLeaderboardEntry; rank: number
       </div>
       <div className="shrink-0 text-right">
         <div className="font-display text-2xl leading-none tabular-nums text-[var(--ui-brand-strong)]">{entry.points}</div>
-        <div className="mt-1 text-label uppercase tracking-wider text-[var(--ui-text-faint)]">pontos</div>
+        <div className="mt-1 text-label text-[var(--ui-text-muted)]">pontos</div>
       </div>
     </article>
   );
@@ -1312,7 +1319,7 @@ export default function AccountPage() {
                 {scoreLoading ? <div className="space-y-2" aria-label="Carregando ranking de pontos">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-[76px] w-full rounded-xl" />)}</div>
                   : scoreRanking.length === 0 ? <EmptyState title="O ranking começa com as próximas campanhas" description="Cada competição concluída registra pontos conforme a fase alcançada e a dificuldade." />
                     : <>
-                      <ol className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">{scoreRanking.slice(0, 10).map((entry, index) => <li key={entry.username}><ScoreCard entry={entry} rank={index + 1} /></li>)}</ol>
+                      <ol className="space-y-2">{scoreRanking.slice(0, 10).map((entry, index) => <li key={entry.username}><ScoreCard entry={entry} rank={index + 1} /></li>)}</ol>
                       {/* The viewer's own place when it is not in the Top 10 shown above. */}
                       {seasonStanding && !(seasonStanding.status === 'ranked' && seasonStanding.position !== null && seasonStanding.position <= 10) ? (
                         <div role="status" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-(--ui-radius-lg) border border-[var(--ui-brand-line)] bg-[var(--ui-brand-soft)] px-4 py-3">

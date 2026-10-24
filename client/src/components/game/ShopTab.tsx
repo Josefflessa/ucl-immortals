@@ -64,7 +64,7 @@ function VariantPagination({ page, pageCount, onPageChange }: { page: number; pa
         disabled={page === pageCount - 1}
         className="rounded-md px-2.5 py-1.5 text-[12px] font-black tracking-wider disabled:opacity-30"
         style={{ color: '#C9C9D5', border: '1px solid #343449', fontFamily: 'var(--font-game), sans-serif' }}>
-        PRÓXIMA →
+        PRÓXIMA
       </button>
     </div>
   );
