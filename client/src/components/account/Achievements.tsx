@@ -174,6 +174,7 @@ export function AchievementMedal({ id, level, size = 48 }: { id: string; level: 
         strokeWidth={2.3}
         className="relative"
         style={{
+          transform: tier === 'immortal' ? `translateY(${Math.round(size * 0.04)}px)` : undefined,
           color: locked ? LOCKED_COLOR : `color-mix(in srgb, ${color} 60%, white)`,
           filter: locked ? undefined : `drop-shadow(0 0 ${Math.max(2, Math.round(size / 16))}px color-mix(in srgb, ${color} 70%, transparent))`,
         }}
